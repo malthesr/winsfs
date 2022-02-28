@@ -1,0 +1,41 @@
+on:
+  release:
+    types: [created]
+
+name: Release
+
+env:
+  NAME: winsfs
+
+jobs:
+  release_assets:
+    name: Release
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {os: ubuntu-latest, target: x86_64-unknown-linux-gnu}
+          - {os: macos-latest, target: x86_64-apple-darwin}
+          - {os: windows-latest, target: x86_64-pc-windows-msvc}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - name: Build
+        run: cargo build --release --target ${{ matrix.config.target }}
+      - name: Archive (Unix)
+        if: matrix.config.os != 'windows-latest'
+        run: tar czf ${{ env.NAME }}-${{ matrix.config.target }}.tar.gz -C ./target/${{ matrix.config.target }}/release/ ${{ env.NAME }}
+      - name: Archive (Windows)
+        if: matrix.config.os == 'windows-latest'
+        run: compress-archive ./target/${{ matrix.config.target }}/release/${{ env.NAME }}.exe ${{ env.NAME }}-${{ matrix.config.target }}.zip
+      - name: Upload
+        uses: svenstaro/upload-release-action@v1-release
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ env.NAME }}-${{ matrix.config.target }}.*
+          asset_name: ${{ env.NAME }}-${{ matrix.config.target }}
+          tag: ${{ github.ref }}
+          file_glob: true
+          overwrite: true

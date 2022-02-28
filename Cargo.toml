@@ -1,0 +1,20 @@
+[package]
+name = "winsfs"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Site frequency spectrum estimation based on window expectation-maximisation algorithm"
+homepage = "https://github.com/malthesr/winsfs"
+repository = "https://github.com/malthesr/winsfs"
+
+[features]
+default = ["angsd-io/libdeflate"]
+
+[dependencies]
+angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "fd30450" }
+bytemuck = { version = "1.7", features = ["min_const_generics"] }
+clap = { version = "3.1", features = ["derive"] }
+log = "0.4"
+rand = "0.8"
+rayon = "1.5"
+simple_logger = { version = "2.1", default-features = false, features = ["colors", "stderr"] }

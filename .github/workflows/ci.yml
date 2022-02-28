@@ -1,0 +1,34 @@
+# Based on github.com/zaeleus/noodles/blob/master/.github/workflows/ci.yml
+
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - name: Install rustfmt
+        run: rustup component add rustfmt
+      - run: cargo fmt -- --check
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - name: Install clippy
+        run: rustup component add clippy
+      - run: cargo clippy --all-features -- --deny warnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - run: cargo test --all-features
