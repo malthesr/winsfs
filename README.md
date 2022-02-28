@@ -15,7 +15,9 @@ winsfs $saf1 $saf2
 
 Here, `$saf1`/`$saf2` is the path to any SAF member file (i.e. some file with extension `.saf.idx`, `.saf.pos.gz`, or `.saf.gz`). In the two-dimensional case, the SAF files are intersected automatically.  Be aware that the SAF files are kept in RAM.
 
-For more settings, see `winsfs -h` (short help) or `winsfs --help` (long help).## Installation
+For more settings, see `winsfs -h` (short help) or `winsfs --help` (long help).
+
+## Installation
 
 ### Pre-compiled
 
