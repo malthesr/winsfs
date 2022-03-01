@@ -12,7 +12,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
 /// Estimate site frequency spectrum using a window expectation-maximisation algorithm.
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
 pub struct Cli {
     #[clap(parse(from_os_str), max_values = 2, required = true)]
@@ -52,4 +52,46 @@ pub struct Cli {
     /// If unset, the window size will be chosen as approximately 1/5 of the number of blocks.
     #[clap(short = 'w', long)]
     pub window_size: Option<NonZeroUsize>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn try_parse_args(cmd: &str) -> clap::Result<Cli> {
+        Parser::try_parse_from(cmd.split_whitespace())
+    }
+
+    fn parse_args(cmd: &str) -> Cli {
+        try_parse_args(cmd).expect("failed to parse command")
+    }
+
+    #[test]
+    fn test_no_path_errors() {
+        let result = try_parse_args("winsfs");
+
+        assert_eq!(
+            result.unwrap_err().kind(),
+            clap::ErrorKind::MissingRequiredArgument
+        );
+    }
+
+    #[test]
+    fn test_three_paths_errors() {
+        let result = try_parse_args("winsfs a b c");
+
+        assert_eq!(result.unwrap_err().kind(), clap::ErrorKind::TooManyValues);
+    }
+
+    #[test]
+    fn test_paths() {
+        let args = parse_args("winsfs /path/to/saf");
+        assert_eq!(args.paths, &[PathBuf::from("/path/to/saf")]);
+
+        let args = parse_args("winsfs first second");
+        assert_eq!(
+            args.paths,
+            &[PathBuf::from("first"), PathBuf::from("second")]
+        );
+    }
 }
