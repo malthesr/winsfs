@@ -32,6 +32,10 @@ fn try_main(args: &Cli) -> clap::Result<()> {
 fn main() {
     let args = Cli::parse();
 
+    if args.debug {
+        eprintln!("{args:#?}");
+    }
+
     match try_main(&args) {
         Ok(()) => (),
         Err(e) => {

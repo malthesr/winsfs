@@ -24,6 +24,9 @@ pub struct Cli {
     #[clap(short = 'b', long)]
     pub block_size: Option<NonZeroUsize>,
 
+    #[clap(long, hide = true)]
+    pub debug: bool,
+
     /// Number of epochs to run.
     #[clap(short = 'n', long, default_value_t = 1)]
     pub epochs: usize,
