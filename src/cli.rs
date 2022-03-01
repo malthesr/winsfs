@@ -15,7 +15,7 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 #[derive(Parser)]
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
 pub struct Cli {
-    #[clap(parse(from_os_str), min_values = 1, max_values = 2)]
+    #[clap(parse(from_os_str), max_values = 2, required = true)]
     pub paths: Vec<PathBuf>,
 
     /// Number of sites per block.
