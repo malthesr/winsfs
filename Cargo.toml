@@ -12,7 +12,6 @@ default = ["angsd-io/libdeflate"]
 
 [dependencies]
 angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "fd30450" }
-bytemuck = { version = "1.7", features = ["min_const_generics"] }
 clap = { version = "3.1", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
