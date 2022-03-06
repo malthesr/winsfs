@@ -167,7 +167,7 @@ impl Sfs1d {
 
 impl Sfs2d {
     // SAFETY: Caller must guarantee that self.dim == [row_site.len(), col_site.len()]
-    unsafe fn posterior_into(
+    fn posterior_into(
         &self,
         row_site: &[f32],
         col_site: &[f32],
@@ -182,11 +182,7 @@ impl Sfs2d {
             for (j, y) in col_site.iter().enumerate() {
                 let flat = flat_offset + j;
 
-                #[allow(unused_unsafe)]
-                unsafe {
-                    *buf.values.get_unchecked_mut(flat) =
-                        self.values.get_unchecked(flat) * (*x as f64) * (*y as f64);
-                }
+                buf.values[flat] = self.values[flat] * (*x as f64) * (*y as f64);
             }
         }
 
@@ -199,19 +195,13 @@ impl Sfs2d {
         let dim = self.dim;
         let [rows, cols] = dim;
 
-        assert_eq!(row_sites.len() % rows, 0);
-        assert_eq!(col_sites.len() % cols, 0);
-
         row_sites
             .par_chunks(rows)
             .zip(col_sites.par_chunks(cols))
             .fold(
                 || (Self::zeros(dim), Self::zeros(dim)),
                 |(mut posterior, mut buf), (row_site, col_site)| {
-                    // SAFETY:
-                    unsafe {
-                        self.posterior_into(row_site, col_site, &mut posterior, &mut buf);
-                    }
+                    self.posterior_into(row_site, col_site, &mut posterior, &mut buf);
 
                     (posterior, buf)
                 },
