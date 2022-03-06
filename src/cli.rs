@@ -1,6 +1,6 @@
 use std::{num::NonZeroUsize, path::PathBuf};
 
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 
 pub mod utils;
 
@@ -14,14 +14,23 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 /// Estimate site frequency spectrum using a window expectation-maximisation algorithm.
 #[derive(Debug, Parser)]
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
+#[clap(group(ArgGroup::new("block")))]
 pub struct Cli {
     #[clap(parse(from_os_str), max_values = 2, required = true)]
     pub paths: Vec<PathBuf>,
 
+    /// Number of blocks.
+    ///
+    /// If both this and `--block-size` are unset,
+    /// the block size will be chosen so that approximately 500 blocks are created.
+    #[clap(short = 'B', long, group = "block")]
+    pub blocks: Option<NonZeroUsize>,
+
     /// Number of sites per block.
     ///
-    /// If unset, the block size will be chosen so that approximately 500 blocks are created.
-    #[clap(short = 'b', long)]
+    /// If both this and `--blocks` are unset,
+    /// the block size will be chosen so that approximately 500 blocks are created.
+    #[clap(short = 'b', long, group = "block")]
     pub block_size: Option<NonZeroUsize>,
 
     #[clap(long, hide = true)]
@@ -95,6 +104,25 @@ mod tests {
         assert_eq!(
             args.paths,
             &[PathBuf::from("first"), PathBuf::from("second")]
+        );
+    }
+
+    #[test]
+    fn test_block_group() {
+        let args = parse_args("winsfs --blocks 10 /path/to/saf");
+        assert_eq!(args.blocks.unwrap().get(), 10);
+
+        let args = parse_args("winsfs --block-size 5 /path/to/saf");
+        assert_eq!(args.block_size.unwrap().get(), 5);
+
+        let args = parse_args("winsfs /path/to/saf");
+        assert_eq!(args.blocks, None);
+        assert_eq!(args.block_size, None);
+
+        let result = try_parse_args("winsfs -b 5 -B 10 /path/to/saf");
+        assert_eq!(
+            result.unwrap_err().kind(),
+            clap::ErrorKind::ArgumentConflict
         );
     }
 }

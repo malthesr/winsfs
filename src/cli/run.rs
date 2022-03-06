@@ -3,7 +3,7 @@ use std::path::Path;
 use angsd_io::saf;
 
 use super::{
-    utils::{get_block_size, get_blocks, get_rng, get_window_size},
+    utils::{get_block_size_and_blocks, get_rng, get_window_size},
     Cli,
 };
 
@@ -61,8 +61,8 @@ where
 }
 
 fn setup(sites: usize, args: &Cli) -> (usize, usize) {
-    let block_size = get_block_size(args.block_size, sites);
-    let blocks = get_blocks(block_size, sites);
+    let (block_size, blocks) = get_block_size_and_blocks(args.block_size, args.blocks, sites);
+
     let window_size = get_window_size(args.window_size, blocks);
 
     log::info!(
