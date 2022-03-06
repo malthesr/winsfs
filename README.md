@@ -15,6 +15,8 @@ winsfs $saf1 $saf2
 
 Here, `$saf1`/`$saf2` is the path to any SAF member file (i.e. some file with extension `.saf.idx`, `.saf.pos.gz`, or `.saf.gz`). In the two-dimensional case, the SAF files are intersected automatically.  Be aware that the SAF files are kept in RAM.
 
+By default, `winsfs` runs only a single pass through the SAF sites. For genome-scale data, this will typically be enough for convergence. To increase the number of epochs to `x`, set `--epochs x`.
+
 For more settings, see `winsfs -h` (short help) or `winsfs --help` (long help).
 
 ## Installation
