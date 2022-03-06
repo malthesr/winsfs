@@ -132,14 +132,18 @@ impl<const N: usize> fmt::Display for Sfs<N> {
 
 impl Sfs1d {
     fn posterior_into(&self, site: &[f32], posterior: &mut Self, buf: &mut Self) {
-        debug_assert_eq!(self.dim[0], site.len());
+        let mut sum = 0.0;
 
         self.iter()
             .zip(site.iter())
             .zip(buf.iter_mut())
-            .for_each(|((&sfs, &saf), buf)| *buf = sfs * saf as f64);
+            .for_each(|((&sfs, &saf), buf)| {
+                let v = sfs * saf as f64;
+                *buf = v;
+                sum += v;
+            });
 
-        buf.normalise();
+        buf.iter_mut().for_each(|x| *x /= sum);
 
         *posterior += &*buf;
     }
@@ -176,17 +180,21 @@ impl Sfs2d {
     ) {
         let cols = self.dim[1];
 
+        let mut sum = 0.0;
+
         for (i, x) in row_site.iter().enumerate() {
             let flat_offset = i * cols;
 
             for (j, y) in col_site.iter().enumerate() {
                 let flat = flat_offset + j;
 
-                buf.values[flat] = self.values[flat] * (*x as f64) * (*y as f64);
+                let v = self.values[flat] * (*x as f64) * (*y as f64);
+                buf.values[flat] = v;
+                sum += v;
             }
         }
 
-        buf.normalise();
+        buf.iter_mut().for_each(|x| *x /= sum);
 
         *posterior += &*buf;
     }
