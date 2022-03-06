@@ -12,6 +12,11 @@ use rayon::{
 pub type Sfs1d = Sfs<1>;
 pub type Sfs2d = Sfs<2>;
 
+/// An N-dimensional SFS.
+///
+/// The SFS may or may not be normalised: that is, it may be in probability space or count space.
+///
+/// Elements in the SFS are stored in row-major order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sfs<const N: usize> {
     values: Vec<f64>,
@@ -19,10 +24,12 @@ pub struct Sfs<const N: usize> {
 }
 
 impl<const N: usize> Sfs<N> {
+    /// Returns the dimensions of the SFS.
     pub fn dim(&self) -> [usize; N] {
         self.dim
     }
 
+    /// Creates a new SFS from a single element.
     pub fn from_elem(elem: f64, dim: [usize; N]) -> Self {
         let n = dim.iter().product();
 
@@ -32,6 +39,7 @@ impl<const N: usize> Sfs<N> {
         }
     }
 
+    /// Creates a uniform SFS in probability space.
     pub fn uniform(dim: [usize; N]) -> Self {
         let n: usize = dim.iter().product();
 
@@ -40,20 +48,24 @@ impl<const N: usize> Sfs<N> {
         Self::from_elem(elem, dim)
     }
 
+    /// Creates an SFS with all entries set to zero.
     pub fn zeros(dim: [usize; N]) -> Self {
         Self::from_elem(0.0, dim)
     }
 
+    /// Returns an iterator over the elements in the SFS in row-major order.
     #[inline]
     pub fn iter(&self) -> slice::Iter<'_, f64> {
         self.values.iter()
     }
 
+    /// Returns an iterator over mutable references to the elements in the SFS in row-major order.
     #[inline]
     pub fn iter_mut(&mut self) -> slice::IterMut<'_, f64> {
         self.values.iter_mut()
     }
 
+    /// Normalises the SFS to probability scale.
     #[inline]
     pub fn normalise(&mut self) {
         let sum = self.sum();
@@ -61,16 +73,21 @@ impl<const N: usize> Sfs<N> {
         self.iter_mut().for_each(|x| *x /= sum);
     }
 
+    /// Re-scales the SFS by some constant.
     #[inline]
     pub fn scale(&mut self, scale: f64) {
         self.iter_mut().for_each(|x| *x *= scale)
     }
 
+    /// Returns the sum of values in the SFS.
     #[inline]
-    pub fn sum(&self) -> f64 {
+    fn sum(&self) -> f64 {
         self.iter().sum()
     }
 
+    /// Returns a string containing the space-delimited values of the SFS.
+    ///
+    /// Note that this does not include any dimensionality information.
     #[inline]
     pub fn values_to_string(&self, precision: usize) -> String {
         self.iter()
@@ -131,7 +148,17 @@ impl<const N: usize> fmt::Display for Sfs<N> {
 }
 
 impl Sfs1d {
+    /// Calculates the posterior count probabilities given `self` of the SAF site `site`,
+    /// and adds the posterior probability to `posterior`.
+    ///
+    /// The posterior probability is proportional to the element-wise product of the SFS
+    /// and the SAF site. In order to normalise, an intermediate buffer `buf` is required to
+    /// avoid having to allocate. The buffer will be overwritten.
+    ///
+    /// `self`, `site`, `posterior`, and `buf` should all be of the same dimensionality.
     fn posterior_into(&self, site: &[f32], posterior: &mut Self, buf: &mut Self) {
+        debug_assert_eq!(self.dim[0], site.len());
+
         let mut sum = 0.0;
 
         self.iter()
@@ -148,11 +175,15 @@ impl Sfs1d {
         *posterior += &*buf;
     }
 
+    /// Calculates the sum posterior count probabilities given `self` of the SAF sites in `sites`.
+    ///
+    /// The `sites` will be chunked according to the dimensionality of self, i.e. `sites.len()`
+    /// should be some multiple of `self.dim()[0]`.
     pub(crate) fn e_step(&self, sites: &[f32]) -> Self {
         let dim = self.dim;
         let n = dim[0];
 
-        assert_eq!(sites.len() % n, 0);
+        debug_assert_eq!(sites.len() % n, 0);
 
         sites
             .par_chunks(n)
@@ -170,6 +201,17 @@ impl Sfs1d {
 }
 
 impl Sfs2d {
+    /// Calculates the posterior count probabilities given `self` of the SAF sites
+    /// `row_site` and `col_site`
+    ///
+    /// The posterior probability is proportional to the element-wise product of the SFS
+    /// with the matrix product of `row_site` and the transpose of `col_site`. In order to
+    /// normalise, an intermediate buffer `buf` is required to avoid having to allocate.
+    /// The buffer will be overwritten.
+    ///
+    /// `self`, `posterior`, and `buf` should all be of the same dimensionality, while
+    /// `row_site.len()` should match the number of rows of the SFS, and `col_site.len()`
+    /// should match the number of columns of the SFS.
     fn posterior_into(
         &self,
         row_site: &[f32],
@@ -177,11 +219,17 @@ impl Sfs2d {
         posterior: &mut Self,
         buf: &mut Self,
     ) {
+        debug_assert_eq!(self.dim[0], row_site.len());
+        debug_assert_eq!(self.dim[1], col_site.len());
+
         let cols = col_site.len();
 
         let mut sum = 0.0;
 
         for (i, x) in row_site.iter().enumerate() {
+            // Get the slice starting with the appropriate row.
+            // These are zipped onto the `col_site` below,
+            // so it is fine that they run past the row.
             let sfs_row = &self.values[i * cols..];
             let buf_row = &mut buf.values[i * cols..];
 
@@ -201,6 +249,11 @@ impl Sfs2d {
         *posterior += &*buf;
     }
 
+    /// Calculates the sum posterior count probabilities given `self` of the SAF sites in `sites`.
+    ///
+    /// The `row_sites` and `col_sites` will be chunked according to the dimensionality of self,
+    /// i.e. `row_sites.len()` should be some multiple of `self.dim()[0]` and `col_sites.len()`
+    /// should be some multiple of `self.dim()[1]`.
     pub(crate) fn e_step(&self, row_sites: &[f32], col_sites: &[f32]) -> Self {
         let dim = self.dim;
         let [rows, cols] = dim;
@@ -218,5 +271,59 @@ impl Sfs2d {
             )
             .map(|(posterior, _buf)| posterior)
             .reduce(|| Self::zeros(dim), |a, b| a + b)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_sfs_1d_posterior() {
+        let sfs = Sfs {
+            values: vec![1., 2., 3.],
+            dim: [3],
+        };
+
+        let site = &[2., 2., 2.];
+        let mut posterior = Sfs {
+            values: vec![10., 20., 30.],
+            dim: sfs.dim(),
+        };
+        let mut buf = Sfs::zeros(sfs.dim());
+
+        sfs.posterior_into(site, &mut posterior, &mut buf);
+
+        let expected = vec![10. + 1. / 6., 20. + 1. / 3., 30. + 1. / 2.];
+        assert_abs_diff_eq!(posterior.values.as_slice(), expected.as_slice());
+    }
+
+    #[test]
+    fn test_sfs_2d_posterior() {
+        let sfs = Sfs {
+            values: (1..16).map(|x| x as f64).collect(),
+            dim: [3, 5],
+        };
+
+        let row_site = &[2., 2., 2.];
+        let col_site = &[2., 4., 6., 8., 10.];
+        let mut posterior = Sfs::from_elem(1., sfs.dim());
+        let mut buf = Sfs::zeros(sfs.dim());
+
+        sfs.posterior_into(row_site, col_site, &mut posterior, &mut buf);
+
+        #[rustfmt::skip]
+        let expected = vec![
+            1.002564, 1.010256, 1.023077, 1.041026, 1.064103,
+            1.015385, 1.035897, 1.061538, 1.092308, 1.128205,
+            1.028205, 1.061538, 1.100000, 1.143590, 1.192308,
+        ];
+        assert_abs_diff_eq!(
+            posterior.values.as_slice(),
+            expected.as_slice(),
+            epsilon = 1e-6
+        );
     }
 }
