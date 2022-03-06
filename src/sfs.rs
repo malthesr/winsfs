@@ -170,7 +170,6 @@ impl Sfs1d {
 }
 
 impl Sfs2d {
-    // SAFETY: Caller must guarantee that self.dim == [row_site.len(), col_site.len()]
     fn posterior_into(
         &self,
         row_site: &[f32],
