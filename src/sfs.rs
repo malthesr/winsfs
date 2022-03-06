@@ -178,20 +178,23 @@ impl Sfs2d {
         posterior: &mut Self,
         buf: &mut Self,
     ) {
-        let cols = self.dim[1];
+        let cols = col_site.len();
 
         let mut sum = 0.0;
 
         for (i, x) in row_site.iter().enumerate() {
-            let flat_offset = i * cols;
+            let sfs_row = &self.values[i * cols..];
+            let buf_row = &mut buf.values[i * cols..];
 
-            for (j, y) in col_site.iter().enumerate() {
-                let flat = flat_offset + j;
-
-                let v = self.values[flat] * (*x as f64) * (*y as f64);
-                buf.values[flat] = v;
-                sum += v;
-            }
+            sfs_row
+                .iter()
+                .zip(col_site.iter())
+                .zip(buf_row.iter_mut())
+                .for_each(|((sfs, y), buf)| {
+                    let v = sfs * (*x as f64) * (*y as f64);
+                    *buf = v;
+                    sum += v;
+                });
         }
 
         buf.iter_mut().for_each(|x| *x /= sum);
