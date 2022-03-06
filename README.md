@@ -19,10 +19,6 @@ For more settings, see `winsfs -h` (short help) or `winsfs --help` (long help).
 
 ## Installation
 
-### Pre-compiled
-
-Pre-compiled binaries are available from the [releases][releases] page ([linux][linux-binary], [mac][mac-binary], [windows][windows-binary]).
-
 ### From source
 
 To build from source, install the Rust toolchain (see [instructions][rust-installation]), and run:
@@ -31,7 +27,17 @@ To build from source, install the Rust toolchain (see [instructions][rust-instal
 cargo install --git https://github.com/malthesr/winsfs
 ```
 
-This will install to `$HOME/.cargo/bin` by default. Be aware, however, that the projects experiments with static dimensions in the SFS and SAFs, and as a result compilation is quite memory-intensive and may take a while.
+This will install to `$HOME/.cargo/bin` by default.
+
+Optionally, the code may be optimised for your specific CPU (for potentially better performance), using:
+
+```
+RUSTFLAGS="-C target-cpu=native" cargo install --git https://github.com/malthesr/winsfs
+```
+
+### Pre-compiled
+
+Pre-compiled binaries are available from the [releases][releases] page ([linux][linux-binary], [mac][mac-binary], [windows][windows-binary]).
 
 [saf]: http://www.popgen.dk/angsd/index.php/Safv3
 [releases]: https://github.com/malthesr/winsfs/releases/latest/
