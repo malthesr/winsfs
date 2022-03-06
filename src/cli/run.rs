@@ -20,16 +20,22 @@ where
     let cols = saf.cols();
     log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {cols}.");
 
-    let mut rng = get_rng(args.seed);
-    saf.shuffle(&mut rng);
-
-    let (block_size, window_size) = setup(sites, args);
-
     let init = Sfs1d::uniform([cols]);
-    let mut est = init.window_em(&saf, window_size, block_size, args.epochs);
-    est.scale(sites as f64);
 
-    println!("{est}");
+    let mut estimate = if args.vanilla {
+        init.em(&saf, args.epochs)
+    } else {
+        let mut rng = get_rng(args.seed);
+        saf.shuffle(&mut rng);
+
+        let (block_size, window_size) = setup(sites, args);
+
+        init.window_em(&saf, window_size, block_size, args.epochs)
+    };
+
+    estimate.scale(sites as f64);
+
+    println!("{estimate}");
 
     Ok(())
 }
@@ -46,16 +52,22 @@ where
     let [first_cols, second_cols] = safs.cols();
     log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {first_cols}/{second_cols}.");
 
-    let mut rng = get_rng(args.seed);
-    safs.shuffle(&mut rng);
-
-    let (block_size, window_size) = setup(sites, args);
-
     let init = Sfs2d::uniform([first_cols, second_cols]);
-    let mut est = init.window_em(&safs, window_size, block_size, args.epochs);
-    est.scale(sites as f64);
 
-    println!("{est}");
+    let mut estimate = if args.vanilla {
+        init.em(&safs, args.epochs)
+    } else {
+        let mut rng = get_rng(args.seed);
+        safs.shuffle(&mut rng);
+
+        let (block_size, window_size) = setup(sites, args);
+
+        init.window_em(&safs, window_size, block_size, args.epochs)
+    };
+
+    estimate.scale(sites as f64);
+
+    println!("{estimate}");
 
     Ok(())
 }

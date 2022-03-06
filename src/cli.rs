@@ -53,6 +53,10 @@ pub struct Cli {
     #[clap(short = 't', long, default_value_t = 4)]
     pub threads: i32,
 
+    /// Run vanilla EM.
+    #[clap(long, hide = true, conflicts_with_all = &["blocks", "block-size", "window-size"])]
+    pub vanilla: bool,
+
     /// Verbosity.
     ///
     /// Flag can be set multiply times to increase verbosity, or left unset for quiet mode.
