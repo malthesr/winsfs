@@ -16,7 +16,7 @@ mod sfs;
 pub use sfs::{Sfs, Sfs1d, Sfs2d};
 
 mod em;
-pub use em::{Em, Window};
+pub use em::Window;
 
 fn try_main(args: &Cli) -> clap::Result<()> {
     init_logger(args.verbose)?;

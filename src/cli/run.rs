@@ -1,33 +1,31 @@
-use std::{fs, io, path::Path};
+use std::path::Path;
 
 use angsd_io::saf;
-
-use clap::CommandFactory;
-
-// Include the run functions created by build.rs
-include!(concat!(env!("OUT_DIR"), "/run.rs"));
 
 use super::{
     utils::{get_block_size, get_blocks, get_rng, get_window_size},
     Cli,
 };
 
-use crate::{Em, Saf1d, Saf2d, Sfs, Sfs1d, Sfs2d};
+use crate::{Saf1d, Saf2d, Sfs1d, Sfs2d};
 
-fn run_1d_inner<const N: usize, R>(reader: saf::BgzfReader<R>, args: &Cli) -> clap::Result<()>
+pub fn run_1d<P>(path: P, args: &Cli) -> clap::Result<()>
 where
-    R: io::BufRead + io::Seek,
+    P: AsRef<Path>,
 {
-    let mut saf = Saf1d::<N>::read(reader)?;
-    let sites = saf.len();
-    log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {N}.");
+    let reader = saf::Reader::from_bgzf_member_path(path)?;
+
+    let mut saf = Saf1d::read(reader)?;
+    let sites = saf.sites();
+    let cols = saf.cols();
+    log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {cols}.");
 
     let mut rng = get_rng(args.seed);
     saf.shuffle(&mut rng);
 
     let (block_size, window_size) = setup(sites, args);
 
-    let init = Sfs1d::<N>::uniform();
+    let init = Sfs1d::uniform([cols]);
     let mut est = init.window_em(&saf, window_size, block_size, args.epochs);
     est.scale(sites as f64);
 
@@ -36,21 +34,24 @@ where
     Ok(())
 }
 
-fn run_2d_inner<const N: usize, const M: usize>(
-    first_reader: saf::BgzfReader<io::BufReader<fs::File>>,
-    second_reader: saf::BgzfReader<io::BufReader<fs::File>>,
-    args: &Cli,
-) -> clap::Result<()> {
-    let mut safs = Saf2d::<N, M>::read(first_reader, second_reader)?;
-    let sites = safs.len();
-    log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {N}/{M}.");
+pub fn run_2d<P>(first_path: P, second_path: P, args: &Cli) -> clap::Result<()>
+where
+    P: AsRef<Path>,
+{
+    let first_reader = saf::Reader::from_bgzf_member_path(first_path)?;
+    let second_reader = saf::Reader::from_bgzf_member_path(second_path)?;
+
+    let mut safs = Saf2d::read(first_reader, second_reader)?;
+    let sites = safs.sites();
+    let [first_cols, second_cols] = safs.cols();
+    log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {first_cols}/{second_cols}.");
 
     let mut rng = get_rng(args.seed);
     safs.shuffle(&mut rng);
 
     let (block_size, window_size) = setup(sites, args);
 
-    let init = Sfs2d::<N, M>::uniform();
+    let init = Sfs2d::uniform([first_cols, second_cols]);
     let mut est = init.window_em(&safs, window_size, block_size, args.epochs);
     est.scale(sites as f64);
 

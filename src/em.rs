@@ -2,41 +2,12 @@ use std::{collections::VecDeque, iter};
 
 use crate::{Saf1d, Saf2d, Sfs, Sfs1d, Sfs2d};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Window<T>(VecDeque<T>);
-
-impl<T> Window<T>
+impl<const N: usize> Sfs<N>
 where
-    T: Sfs,
+    Sfs<N>: EmSfs<N>,
 {
-    pub fn update(&mut self, item: T) {
-        let _old = self.0.pop_front();
-        self.0.push_back(item);
-    }
-
-    pub fn sum(&self) -> T {
-        self.0.iter().fold(T::zero(), |sum, item| sum + *item)
-    }
-
-    pub fn zero(window_size: usize) -> Self {
-        Self(iter::repeat(T::zero()).take(window_size).collect())
-    }
-}
-
-pub trait Em: Sfs {
-    type Input;
-
-    fn em_step(&self, input: &Self::Input) -> Self;
-
-    fn window_em_step(
-        &self,
-        saf: &Self::Input,
-        window: &mut Window<Self>,
-        block_size: usize,
-    ) -> Self;
-
-    fn em(&self, input: &Self::Input, epochs: usize) -> Self {
-        let mut sfs = *self;
+    pub fn em(&self, input: &<Self as EmSfs<N>>::Input, epochs: usize) -> Self {
+        let mut sfs = self.clone();
 
         for i in 0..epochs {
             log::info!(target: "em", "Epoch {i}, current SFS: {}", sfs.values_to_string(6));
@@ -46,22 +17,16 @@ pub trait Em: Sfs {
         sfs
     }
 
-    fn from_em(input: &Self::Input, epochs: usize) -> Self {
-        let sfs = Self::uniform();
-
-        sfs.em(input, epochs)
-    }
-
-    fn window_em(
+    pub fn window_em(
         &self,
-        input: &Self::Input,
+        input: &<Self as EmSfs<N>>::Input,
         window_size: usize,
         block_size: usize,
         epochs: usize,
     ) -> Self {
-        let mut window = Window::zero(window_size);
+        let mut window = Window::zeros(self.dim(), window_size);
 
-        let mut sfs = *self;
+        let mut sfs = self.clone();
 
         for i in 0..epochs {
             log::info!(
@@ -74,38 +39,30 @@ pub trait Em: Sfs {
 
         sfs
     }
-
-    fn from_window_em(
-        input: &Self::Input,
-        window_size: usize,
-        block_size: usize,
-        epochs: usize,
-    ) -> Self {
-        let sfs = Self::uniform();
-
-        sfs.window_em(input, window_size, block_size, epochs)
-    }
 }
 
-impl<const N: usize> Em for Sfs1d<N> {
-    type Input = Saf1d<N>;
+pub trait EmSfs<const N: usize> {
+    type Input;
+
+    fn em_step(&self, input: &Self::Input) -> Self;
+
+    fn window_em_step(&self, saf: &Self::Input, window: &mut Window<N>, block_size: usize) -> Self;
+}
+
+impl EmSfs<1> for Sfs1d {
+    type Input = Saf1d;
 
     fn em_step(&self, saf: &Self::Input) -> Self {
-        let mut posterior = self.e_step(saf.sites());
+        let mut posterior = self.e_step(saf.values());
         posterior.normalise();
 
         posterior
     }
 
-    fn window_em_step(
-        &self,
-        saf: &Self::Input,
-        window: &mut Window<Self>,
-        block_size: usize,
-    ) -> Self {
-        let mut sfs = *self;
+    fn window_em_step(&self, saf: &Self::Input, window: &mut Window<1>, block_size: usize) -> Self {
+        let mut sfs = self.clone();
 
-        for (i, block) in saf.sites().chunks(block_size).enumerate() {
+        for (i, block) in saf.values().chunks(saf.cols() * block_size).enumerate() {
             let block_posterior = sfs.e_step(block);
             window.update(block_posterior);
 
@@ -123,11 +80,11 @@ impl<const N: usize> Em for Sfs1d<N> {
     }
 }
 
-impl<const R: usize, const C: usize> Em for Sfs2d<R, C> {
-    type Input = Saf2d<R, C>;
+impl EmSfs<2> for Sfs2d {
+    type Input = Saf2d;
 
     fn em_step(&self, safs: &Self::Input) -> Self {
-        let (row_sites, col_sites) = safs.sites();
+        let (row_sites, col_sites) = safs.values();
 
         let mut posterior = self.e_step(row_sites, col_sites);
         posterior.normalise();
@@ -138,16 +95,17 @@ impl<const R: usize, const C: usize> Em for Sfs2d<R, C> {
     fn window_em_step(
         &self,
         safs: &Self::Input,
-        window: &mut Window<Self>,
+        window: &mut Window<2>,
         block_size: usize,
     ) -> Self {
-        let (row_sites, col_sites) = safs.sites();
+        let (row_sites, col_sites) = safs.values();
+        let [row_cols, col_cols] = safs.cols();
 
-        let mut sfs = *self;
+        let mut sfs = self.clone();
 
         for (i, (row_block, col_block)) in row_sites
-            .chunks(block_size)
-            .zip(col_sites.chunks(block_size))
+            .chunks(block_size * row_cols)
+            .zip(col_sites.chunks(block_size * col_cols))
             .enumerate()
         {
             let block_posterior = sfs.e_step(row_block, col_block);
@@ -164,5 +122,25 @@ impl<const R: usize, const C: usize> Em for Sfs2d<R, C> {
         }
 
         sfs
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Window<const N: usize>(VecDeque<Sfs<N>>);
+
+impl<const N: usize> Window<N> {
+    pub fn update(&mut self, item: Sfs<N>) {
+        let _old = self.0.pop_front();
+        self.0.push_back(item);
+    }
+
+    pub fn sum(&self) -> Sfs<N> {
+        self.0
+            .iter()
+            .fold(Sfs::zeros(self.0[0].dim()), |sum, item| sum + item)
+    }
+
+    pub fn zeros(dim: [usize; N], window_size: usize) -> Self {
+        Self(iter::repeat(Sfs::zeros(dim)).take(window_size).collect())
     }
 }
