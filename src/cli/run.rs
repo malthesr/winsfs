@@ -9,6 +9,32 @@ use super::{
 
 use crate::{Saf1d, Saf2d, Sfs1d, Sfs2d};
 
+macro_rules! run {
+    ($sfs:ident, $saf:ident, $args:ident, $sites:ident) => {{
+        let mut estimate = if $args.vanilla {
+            $sfs.em(&$saf, $args.epochs)
+        } else {
+            let mut rng = get_rng($args.seed);
+            $saf.shuffle(&mut rng);
+
+            let (block_size, blocks) =
+                get_block_size_and_blocks($args.block_size, $args.blocks, $sites);
+            let window_size = get_window_size($args.window_size, blocks);
+
+            log::info!(
+                target: "init",
+                "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
+            );
+
+            $sfs.window_em(&$saf, window_size, block_size, $args.epochs)
+        };
+
+        estimate.scale($sites as f64);
+
+        println!("{estimate}");
+    }}
+}
+
 pub fn run_1d<P>(path: P, args: &Cli) -> clap::Result<()>
 where
     P: AsRef<Path>,
@@ -20,22 +46,9 @@ where
     let cols = saf.cols();
     log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {cols}.");
 
-    let init = Sfs1d::uniform([cols]);
+    let initial_sfs = Sfs1d::uniform([cols]);
 
-    let mut estimate = if args.vanilla {
-        init.em(&saf, args.epochs)
-    } else {
-        let mut rng = get_rng(args.seed);
-        saf.shuffle(&mut rng);
-
-        let (block_size, window_size) = setup(sites, args);
-
-        init.window_em(&saf, window_size, block_size, args.epochs)
-    };
-
-    estimate.scale(sites as f64);
-
-    println!("{estimate}");
+    run!(initial_sfs, saf, args, sites);
 
     Ok(())
 }
@@ -52,35 +65,9 @@ where
     let [first_cols, second_cols] = safs.cols();
     log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {first_cols}/{second_cols}.");
 
-    let init = Sfs2d::uniform([first_cols, second_cols]);
+    let initial_sfs = Sfs2d::uniform([first_cols, second_cols]);
 
-    let mut estimate = if args.vanilla {
-        init.em(&safs, args.epochs)
-    } else {
-        let mut rng = get_rng(args.seed);
-        safs.shuffle(&mut rng);
-
-        let (block_size, window_size) = setup(sites, args);
-
-        init.window_em(&safs, window_size, block_size, args.epochs)
-    };
-
-    estimate.scale(sites as f64);
-
-    println!("{estimate}");
+    run!(initial_sfs, safs, args, sites);
 
     Ok(())
-}
-
-fn setup(sites: usize, args: &Cli) -> (usize, usize) {
-    let (block_size, blocks) = get_block_size_and_blocks(args.block_size, args.blocks, sites);
-
-    let window_size = get_window_size(args.window_size, blocks);
-
-    log::info!(
-        target: "init",
-        "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
-    );
-
-    (block_size, window_size)
 }
