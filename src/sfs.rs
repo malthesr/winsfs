@@ -222,27 +222,7 @@ impl Sfs2d {
         debug_assert_eq!(self.dim[0], row_site.len());
         debug_assert_eq!(self.dim[1], col_site.len());
 
-        let cols = col_site.len();
-
-        let mut sum = 0.0;
-
-        for (i, x) in row_site.iter().enumerate() {
-            // Get the slice starting with the appropriate row.
-            // These are zipped onto the `col_site` below,
-            // so it is fine that they run past the row.
-            let sfs_row = &self.values[i * cols..];
-            let buf_row = &mut buf.values[i * cols..];
-
-            sfs_row
-                .iter()
-                .zip(col_site.iter())
-                .zip(buf_row.iter_mut())
-                .for_each(|((sfs, y), buf)| {
-                    let v = sfs * (*x as f64) * (*y as f64);
-                    *buf = v;
-                    sum += v;
-                });
-        }
+        let sum = matmul(&mut buf.values, &self.values, row_site, col_site);
 
         buf.iter_mut().for_each(|x| *x /= sum);
 
@@ -272,6 +252,32 @@ impl Sfs2d {
             .map(|(posterior, _buf)| posterior)
             .reduce(|| Self::zeros(dim), |a, b| a + b)
     }
+}
+
+// Computes matrix product `into = with * (a * b^T)` and returns the sum of `into`
+#[inline]
+fn matmul(into: &mut [f64], with: &[f64], a: &[f32], b: &[f32]) -> f64 {
+    let mut sum = 0.0;
+
+    for (i, x) in a.iter().enumerate() {
+        // Get the slice starting with the appropriate row.
+        // These are zipped onto the `b` below,
+        // so it is fine that they run past the row.
+        let into_row = &mut into[i * b.len()..];
+        let with_row = &with[i * b.len()..];
+
+        into_row
+            .iter_mut()
+            .zip(with_row.iter())
+            .zip(b.iter())
+            .for_each(|((i, w), y)| {
+                let v = w * (*x as f64) * (*y as f64);
+                *i = v;
+                sum += v;
+            });
+    }
+
+    sum
 }
 
 #[cfg(test)]
