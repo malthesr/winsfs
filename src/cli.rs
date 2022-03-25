@@ -40,6 +40,12 @@ pub struct Cli {
     #[clap(short = 'n', long, default_value_t = 1)]
     pub epochs: usize,
 
+    /// Initial SFS.
+    ///
+    /// If unset, a uniform SFS will be used to initialise optimisation.
+    #[clap(short = 'i', long)]
+    pub initial: Option<PathBuf>,
+
     /// Random seed.
     ///
     /// If unset, a seed will be chosen at random.

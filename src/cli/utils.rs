@@ -102,3 +102,21 @@ pub fn set_threads(thread_arg: i32) -> clap::Result<()> {
         .build_global()
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise threadpool"))
 }
+
+pub fn validate_shape<const N: usize>(shape: [usize; N], expected: [usize; N]) -> clap::Result<()> {
+    match shape == expected {
+        true => Ok(()),
+        false => {
+            let msg = format!(
+                "Shape of provided SFS ({}) does not match SAFs ({})",
+                format_shape(shape),
+                format_shape(expected)
+            );
+            Err(Cli::command().error(clap::ErrorKind::ValueValidation, msg))
+        }
+    }
+}
+
+fn format_shape<const N: usize>(shape: [usize; N]) -> String {
+    shape.map(|x| x.to_string()).join("/")
+}

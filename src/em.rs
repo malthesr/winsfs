@@ -113,7 +113,7 @@ impl EmSfs<1> for Sfs1d {
         let sites = saf.sites();
         let mut sfs = self.clone();
 
-        for (i, block) in saf.values().chunks(saf.cols() * block_size).enumerate() {
+        for (i, block) in saf.values().chunks(saf.cols()[0] * block_size).enumerate() {
             let block_posterior = sfs.e_step(block);
             window.update(block_posterior);
 

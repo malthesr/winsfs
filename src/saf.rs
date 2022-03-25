@@ -12,8 +12,8 @@ pub struct Saf1d {
 }
 
 impl Saf1d {
-    pub fn cols(&self) -> usize {
-        self.cols
+    pub fn cols(&self) -> [usize; 1] {
+        [self.cols]
     }
 
     pub fn read<R>(mut reader: saf::BgzfReader<R>) -> io::Result<Self>

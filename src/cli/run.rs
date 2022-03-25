@@ -3,16 +3,25 @@ use std::path::Path;
 use angsd_io::saf;
 
 use super::{
-    utils::{get_block_size_and_blocks, get_rng, get_window_size},
+    utils::{get_block_size_and_blocks, get_rng, get_window_size, validate_shape},
     Cli,
 };
 
-use crate::{Saf1d, Saf2d, Sfs1d, Sfs2d};
+use crate::{Saf1d, Saf2d, Sfs};
 
 macro_rules! run {
-    ($sfs:ident, $saf:ident, $args:ident, $sites:ident) => {{
+    ($saf:ident, $args:ident, $sites:ident) => {{
+        let initial_sfs = if let Some(path) = &$args.initial {
+            let mut sfs = Sfs::read_from_angsd(path)?;
+            validate_shape(sfs.shape(), $saf.cols())?;
+            sfs.normalise();
+            sfs
+        } else {
+            Sfs::uniform($saf.cols())
+        };
+
         let mut estimate = if $args.vanilla {
-            $sfs.em(&$saf, $args.epochs)
+            initial_sfs.em(&$saf, $args.epochs)
         } else {
             let mut rng = get_rng($args.seed);
             $saf.shuffle(&mut rng);
@@ -26,7 +35,7 @@ macro_rules! run {
                 "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
             );
 
-            $sfs.window_em(&$saf, window_size, block_size, $args.epochs)
+            initial_sfs.window_em(&$saf, window_size, block_size, $args.epochs)
         };
 
         estimate.scale($sites as f64);
@@ -43,12 +52,9 @@ where
 
     let mut saf = Saf1d::read(reader)?;
     let sites = saf.sites();
-    let cols = saf.cols();
-    log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {cols}.");
+    log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {}.", saf.cols()[0]);
 
-    let initial_sfs = Sfs1d::uniform([cols]);
-
-    run!(initial_sfs, saf, args, sites);
+    run!(saf, args, sites);
 
     Ok(())
 }
@@ -62,12 +68,9 @@ where
 
     let mut safs = Saf2d::read(first_reader, second_reader)?;
     let sites = safs.sites();
-    let [first_cols, second_cols] = safs.cols();
-    log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {first_cols}/{second_cols}.");
+    log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {}/{}.", safs.cols()[0], safs.cols()[1]);
 
-    let initial_sfs = Sfs2d::uniform([first_cols, second_cols]);
-
-    run!(initial_sfs, safs, args, sites);
+    run!(safs, args, sites);
 
     Ok(())
 }
