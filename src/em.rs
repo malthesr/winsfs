@@ -10,7 +10,7 @@ macro_rules! info_sfs {
 
 macro_rules! trace_sfs {
     (target: $target:expr, $fmt_str:literal, $sfs:ident * $sites:expr) => {
-        log_sfs!(target: $target, log::Level::Info, $fmt_str, $sfs * $sites)
+        log_sfs!(target: $target, log::Level::Trace, $fmt_str, $sfs * $sites)
     };
 }
 
