@@ -85,6 +85,8 @@ pub trait EmSfs<const N: usize> {
 
     fn em_step(&self, input: &Self::Input) -> Self;
 
+    fn em_step_with_log_likelihood(&self, saf: &Self::Input) -> (f64, Self);
+
     fn log_likelihood(&self, input: &Self::Input) -> f64;
 
     fn window_em_step(
@@ -103,6 +105,13 @@ impl EmSfs<1> for Sfs1d {
         posterior.normalise();
 
         posterior
+    }
+
+    fn em_step_with_log_likelihood(&self, saf: &Self::Input) -> (f64, Self) {
+        let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood(saf.values());
+        posterior.normalise();
+
+        (log_likelihood, posterior)
     }
 
     fn log_likelihood(&self, saf: &Self::Input) -> f64 {
@@ -137,6 +146,15 @@ impl EmSfs<2> for Sfs2d {
         posterior.normalise();
 
         posterior
+    }
+
+    fn em_step_with_log_likelihood(&self, safs: &Self::Input) -> (f64, Self) {
+        let (row_sites, col_sites) = safs.values();
+
+        let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood(row_sites, col_sites);
+        posterior.normalise();
+
+        (log_likelihood, posterior)
     }
 
     fn log_likelihood(&self, safs: &Self::Input) -> f64 {
