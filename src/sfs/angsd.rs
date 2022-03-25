@@ -1,6 +1,6 @@
 use std::{error::Error, fmt, str::FromStr};
 
-use super::Sfs;
+use super::{Sfs, ShapeError};
 
 const ANGSD_HEADER_PREFIX: &str = "# Shape ";
 const ANGSD_SHAPE_SEP: &str = "/";
@@ -27,8 +27,7 @@ pub fn parse<const N: usize>(s: &str) -> Result<Sfs<N>, ParseAngsdError<N>> {
 
         let values = parse_values(flat.trim_end_matches(|x: char| x.is_ascii_whitespace()))?;
 
-        let n = values.len();
-        Sfs::from_vec_shape(values, shape).map_err(|_| ParseAngsdError::MismatchedShape { n })
+        Sfs::from_vec_shape(values, shape).map_err(ParseAngsdError::MismatchedShape)
     } else {
         Err(ParseAngsdError::Other(s.to_string()))
     }
@@ -63,7 +62,7 @@ pub enum ParseAngsdError<const N: usize> {
     /// Header dimensionality did not match requested.
     MismatchedDimensionality { dims: usize },
     /// Header shape did not match values.
-    MismatchedShape { n: usize },
+    MismatchedShape(ShapeError<N>),
     /// Other error.
     Other(String),
 }
@@ -76,9 +75,7 @@ impl<const N: usize> fmt::Display for ParseAngsdError<N> {
             ParseAngsdError::MismatchedDimensionality { dims } => {
                 write!(f, "found {dims}-dimensional SFS, expected {N}-dimensions")
             }
-            ParseAngsdError::MismatchedShape { n } => {
-                write!(f, "cannot construct {N}-dimensional SFS form {n} elements")
-            }
+            ParseAngsdError::MismatchedShape(e) => write!(f, "{e}"),
             ParseAngsdError::Other(s) => write!(
                 f,
                 "failed to parse SFS from ANGSD format from input:\n'{s}'"
