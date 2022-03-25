@@ -220,6 +220,13 @@ impl<const N: usize> IndexMut<[usize; N]> for Sfs<N> {
 }
 
 impl Sfs1d {
+    /// Creates a new SFS from a vector.
+    pub fn from_vec(values: Vec<f64>) -> Self {
+        let shape = [values.len()];
+
+        Self::new_unchecked(values, shape)
+    }
+
     /// Calculates the likelihood and posterior count probabilities given `self` of the
     /// SAF site `site`, adds the posterior probability to `posterior`, and returns the likelihood.
     ///
