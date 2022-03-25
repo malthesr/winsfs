@@ -97,11 +97,12 @@ pub struct Cli {
 impl Cli {
     pub fn run(self) -> clap::Result<()> {
         init_logger(self.verbose)?;
-        set_threads(self.threads)?;
 
         if let Some(subcommand) = self.subcommand {
             subcommand.run()
         } else {
+            set_threads(self.threads)?;
+
             match self.paths.as_slice() {
                 [path] => run_1d(path, &self),
                 [first_path, second_path] => run_2d(first_path, second_path, &self),
