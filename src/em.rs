@@ -51,7 +51,7 @@ where
         block_size: usize,
         epochs: usize,
     ) -> Self {
-        let mut window = Window::zeros(self.dim(), window_size);
+        let mut window = Window::zeros(self.shape(), window_size);
         let sites = input.sites();
         let mut sfs = self.clone();
 
@@ -186,10 +186,10 @@ impl<const N: usize> Window<N> {
     pub fn sum(&self) -> Sfs<N> {
         self.0
             .iter()
-            .fold(Sfs::zeros(self.0[0].dim()), |sum, item| sum + item)
+            .fold(Sfs::zeros(self.0[0].shape()), |sum, item| sum + item)
     }
 
-    pub fn zeros(dim: [usize; N], window_size: usize) -> Self {
-        Self(iter::repeat(Sfs::zeros(dim)).take(window_size).collect())
+    pub fn zeros(shape: [usize; N], window_size: usize) -> Self {
+        Self(iter::repeat(Sfs::zeros(shape)).take(window_size).collect())
     }
 }

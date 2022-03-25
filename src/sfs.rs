@@ -1,6 +1,7 @@
 use std::{
+    error::Error,
     fmt,
-    ops::{Add, AddAssign},
+    ops::{Add, AddAssign, Index, IndexMut},
     slice,
 };
 
@@ -12,6 +13,9 @@ use rayon::{
 pub type Sfs1d = Sfs<1>;
 pub type Sfs2d = Sfs<2>;
 
+mod angsd;
+pub use angsd::ParseAngsdError;
+
 /// An N-dimensional SFS.
 ///
 /// The SFS may or may not be normalised: that is, it may be in probability space or count space.
@@ -20,37 +24,94 @@ pub type Sfs2d = Sfs<2>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sfs<const N: usize> {
     values: Vec<f64>,
-    dim: [usize; N],
+    shape: [usize; N],
 }
 
 impl<const N: usize> Sfs<N> {
-    /// Returns the dimensions of the SFS.
-    pub fn dim(&self) -> [usize; N] {
-        self.dim
+    /// Creates a new SFS from a single element.
+    pub fn from_elem(elem: f64, shape: [usize; N]) -> Self {
+        let n = shape.iter().product();
+
+        Self::new_unchecked(vec![elem; n], shape)
     }
 
-    /// Creates a new SFS from a single element.
-    pub fn from_elem(elem: f64, dim: [usize; N]) -> Self {
-        let n = dim.iter().product();
+    /// Creates a new SFS from an iterator of values and a given shape.
+    pub fn from_iter_shape<I>(iter: I, shape: [usize; N]) -> Result<Self, ShapeError<N>>
+    where
+        I: IntoIterator<Item = f64>,
+    {
+        Self::from_vec_shape(iter.into_iter().collect(), shape)
+    }
 
-        Self {
-            values: vec![elem; n],
-            dim,
+    /// Creates a new SFS from a vector of values and a given shape.
+    pub fn from_vec_shape(vec: Vec<f64>, shape: [usize; N]) -> Result<Self, ShapeError<N>> {
+        let n: usize = shape.iter().product();
+
+        match vec.len() == n {
+            true => Ok(Self::new_unchecked(vec, shape)),
+            false => Err(ShapeError::new(n, shape)),
         }
     }
 
+    /// Returns the value at the specified index in the SFS, if it exists.
+    #[inline]
+    pub fn get(&self, index: [usize; N]) -> Option<&f64> {
+        self.values.get(compute_flat(index, self.shape))
+    }
+
+    /// Returns a mutable reference to the value at the specified index in the SFS, if it exists.
+    #[inline]
+    pub fn get_mut(&mut self, index: [usize; N]) -> Option<&mut f64> {
+        self.values.get_mut(compute_flat(index, self.shape))
+    }
+
+    /// Returns a string containing the SFS formatted in ANGSD format.
+    ///
+    /// The resulting string contains a header giving the shape of the SFS,
+    /// and a flat representation of the SFS.
+    pub fn format_angsd(&self, precision: Option<usize>) -> String {
+        angsd::format(self, precision)
+    }
+
+    /// Returns a string containing a flat represention of the SFS.
+    pub fn format_flat(&self, sep: &str, precision: usize) -> String {
+        if let Some(first) = self.values.first() {
+            let cap = self.values.len() * (precision + 3);
+            let mut init = String::with_capacity(cap);
+            init.push_str(&format!("{:.precision$}", first));
+
+            self.iter().skip(1).fold(init, |mut s, x| {
+                s.push_str(sep);
+                s.push_str(&format!("{x:.precision$}"));
+                s
+            })
+        } else {
+            String::new()
+        }
+    }
+
+    /// Creates a new SFS.
+    fn new_unchecked(values: Vec<f64>, shape: [usize; N]) -> Self {
+        Self { values, shape }
+    }
+
+    /// Creates a new SFS from a string containing an SFS formatted in ANGSD format.
+    pub fn parse_from_angsd(s: &str) -> Result<Self, ParseAngsdError<N>> {
+        angsd::parse(s)
+    }
+
     /// Creates a uniform SFS in probability space.
-    pub fn uniform(dim: [usize; N]) -> Self {
-        let n: usize = dim.iter().product();
+    pub fn uniform(shape: [usize; N]) -> Self {
+        let n: usize = shape.iter().product();
 
         let elem = 1.0 / n as f64;
 
-        Self::from_elem(elem, dim)
+        Self::from_elem(elem, shape)
     }
 
     /// Creates an SFS with all entries set to zero.
-    pub fn zeros(dim: [usize; N]) -> Self {
-        Self::from_elem(0.0, dim)
+    pub fn zeros(shape: [usize; N]) -> Self {
+        Self::from_elem(0.0, shape)
     }
 
     /// Returns an iterator over the elements in the SFS in row-major order.
@@ -77,6 +138,11 @@ impl<const N: usize> Sfs<N> {
     #[inline]
     pub fn scale(&mut self, scale: f64) {
         self.iter_mut().for_each(|x| *x *= scale)
+    }
+
+    /// Returns the SFS shape.
+    pub fn shape(&self) -> [usize; N] {
+        self.shape
     }
 
     /// Returns the sum of values in the SFS.
@@ -116,7 +182,7 @@ impl<const N: usize> AddAssign for Sfs<N> {
 impl<const N: usize> AddAssign<&Sfs<N>> for Sfs<N> {
     #[inline]
     fn add_assign(&mut self, rhs: &Self) {
-        assert_eq!(self.dim, rhs.dim);
+        assert_eq!(self.shape, rhs.shape);
 
         self.iter_mut()
             .zip(rhs.iter())
@@ -124,20 +190,19 @@ impl<const N: usize> AddAssign<&Sfs<N>> for Sfs<N> {
     }
 }
 
-impl<const N: usize> fmt::Display for Sfs<N> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let fmt_dim = self.dim.map(|x| x.to_string()).join("/");
-        writeln!(f, "# Dimensions: {fmt_dim}")?;
+impl<const N: usize> Index<[usize; N]> for Sfs<N> {
+    type Output = f64;
 
-        let precision = f.precision().unwrap_or(6);
-        let fmt_sfs = self
-            .iter()
-            .map(|v| format!("{v:.precision$}", precision = precision))
-            .collect::<Vec<_>>()
-            .join(" ");
-        write!(f, "{}", fmt_sfs)?;
+    #[inline]
+    fn index(&self, index: [usize; N]) -> &Self::Output {
+        self.get(index).unwrap()
+    }
+}
 
-        Ok(())
+impl<const N: usize> IndexMut<[usize; N]> for Sfs<N> {
+    #[inline]
+    fn index_mut(&mut self, index: [usize; N]) -> &mut Self::Output {
+        self.get_mut(index).unwrap()
     }
 }
 
@@ -151,7 +216,7 @@ impl Sfs1d {
     ///
     /// `self`, `site`, `posterior`, and `buf` should all be of the same shape.
     fn posterior_into(&self, site: &[f32], posterior: &mut Self, buf: &mut Self) -> f64 {
-        debug_assert_eq!(self.dim[0], site.len());
+        debug_assert_eq!(self.shape[0], site.len());
 
         let mut sum = 0.0;
 
@@ -174,11 +239,11 @@ impl Sfs1d {
     /// Calculates the sum posterior count probabilities given `self` of the SAF sites in `sites`.
     ///
     /// The `sites` will be chunked according to the shape of self, i.e. `sites.len()`
-    /// should be some multiple of `self.dim()[0]`.
+    /// should be some multiple of `self.shape()[0]`.
     pub(crate) fn e_step(&self, sites: &[f32]) -> Self {
         self.fold_with_sites(
             sites,
-            || (Self::zeros(self.dim), Self::zeros(self.dim)),
+            || (Self::zeros(self.shape), Self::zeros(self.shape)),
             |(mut post, mut buf), site| {
                 self.posterior_into(site, &mut post, &mut buf);
 
@@ -186,17 +251,17 @@ impl Sfs1d {
             },
         )
         .map(|(post, _buf)| post)
-        .reduce(|| Self::zeros(self.dim), |a, b| a + b)
+        .reduce(|| Self::zeros(self.shape), |a, b| a + b)
     }
 
     /// Calculates the sum posterior count probabilities given `self` of the SAF sites in `sites`.
     ///
     /// The `sites` will be chunked according to the shape of self, i.e. `sites.len()`
-    /// should be some multiple of `self.dim()[0]`.
+    /// should be some multiple of `self.shape()[0]`.
     pub(crate) fn e_step_with_log_likelihood(&self, sites: &[f32]) -> (f64, Self) {
         self.fold_with_sites(
             sites,
-            || (0.0, Self::zeros(self.dim), Self::zeros(self.dim)),
+            || (0.0, Self::zeros(self.shape), Self::zeros(self.shape)),
             |(mut ll, mut post, mut buf), site| {
                 ll += self.posterior_into(site, &mut post, &mut buf).ln();
 
@@ -205,7 +270,7 @@ impl Sfs1d {
         )
         .map(|(ll, post, _buf)| (ll, post))
         .reduce(
-            || (0.0, Self::zeros(self.dim)),
+            || (0.0, Self::zeros(self.shape)),
             |a, b| (a.0 + b.0, a.1 + b.1),
         )
     }
@@ -213,7 +278,7 @@ impl Sfs1d {
     /// Calculates the log-likelihood given `self` of the SAF sites in `sites`.
     ///
     /// The `sites` will be chunked according to the shape of self, i.e. `sites.len()`
-    /// should be some multiple of `self.dim()[0]`.
+    /// should be some multiple of `self.shape()[0]`.
     pub(crate) fn log_likelihood(&self, sites: &[f32]) -> f64 {
         self.fold_with_sites(
             sites,
@@ -227,7 +292,7 @@ impl Sfs1d {
     ///
     /// `self` and`site` should be of the same shape.
     fn site_log_likelihood(&self, site: &[f32]) -> f64 {
-        debug_assert_eq!(self.dim[0], site.len());
+        debug_assert_eq!(self.shape[0], site.len());
 
         self.iter()
             .zip(site.iter())
@@ -248,7 +313,7 @@ impl Sfs1d {
         F: Fn(T, &'a [f32]) -> T + Sync + Send,
         G: Fn() -> T + Sync + Send,
     {
-        let n = self.dim[0];
+        let n = self.shape[0];
         debug_assert_eq!(sites.len() % n, 0);
 
         sites.par_chunks(n).fold(init, fold)
@@ -275,8 +340,8 @@ impl Sfs2d {
         posterior: &mut Self,
         buf: &mut Self,
     ) -> f64 {
-        debug_assert_eq!(self.dim[0], row_site.len());
-        debug_assert_eq!(self.dim[1], col_site.len());
+        debug_assert_eq!(self.shape[0], row_site.len());
+        debug_assert_eq!(self.shape[1], col_site.len());
 
         let sum = matmul_into(&mut buf.values, &self.values, row_site, col_site);
 
@@ -290,13 +355,13 @@ impl Sfs2d {
     /// Calculates the sum posterior count probabilities given `self` of the SAF sites in `sites`.
     ///
     /// The `row_sites` and `col_sites` will be chunked according to the shape of self,
-    /// i.e. `row_sites.len()` should be some multiple of `self.dim()[0]` and `col_sites.len()`
-    /// should be some multiple of `self.dim()[1]`.
+    /// i.e. `row_sites.len()` should be some multiple of `self.shape()[0]` and `col_sites.len()`
+    /// should be some multiple of `self.shape()[1]`.
     pub(crate) fn e_step(&self, row_sites: &[f32], col_sites: &[f32]) -> Self {
         self.fold_with_sites(
             row_sites,
             col_sites,
-            || (Self::zeros(self.dim), Self::zeros(self.dim)),
+            || (Self::zeros(self.shape), Self::zeros(self.shape)),
             |(mut posterior, mut buf), (row_site, col_site)| {
                 self.posterior_into(row_site, col_site, &mut posterior, &mut buf);
 
@@ -304,14 +369,14 @@ impl Sfs2d {
             },
         )
         .map(|(posterior, _buf)| posterior)
-        .reduce(|| Self::zeros(self.dim), |a, b| a + b)
+        .reduce(|| Self::zeros(self.shape), |a, b| a + b)
     }
 
     /// Calculates the sum posterior count probabilities given `self` of the SAF sites in `sites`.
     ///
     /// The `row_sites` and `col_sites` will be chunked according to the shape of self,
-    /// i.e. `row_sites.len()` should be some multiple of `self.dim()[0]` and `col_sites.len()`
-    /// should be some multiple of `self.dim()[1]`.
+    /// i.e. `row_sites.len()` should be some multiple of `self.shape()[0]` and `col_sites.len()`
+    /// should be some multiple of `self.shape()[1]`.
     pub(crate) fn e_step_with_log_likelihood(
         &self,
         row_sites: &[f32],
@@ -320,7 +385,7 @@ impl Sfs2d {
         self.fold_with_sites(
             row_sites,
             col_sites,
-            || (0.0, Self::zeros(self.dim), Self::zeros(self.dim)),
+            || (0.0, Self::zeros(self.shape), Self::zeros(self.shape)),
             |(mut ll, mut post, mut buf), (row_site, col_site)| {
                 ll += self
                     .posterior_into(row_site, col_site, &mut post, &mut buf)
@@ -331,7 +396,7 @@ impl Sfs2d {
         )
         .map(|(ll, post, _buf)| (ll, post))
         .reduce(
-            || (0.0, Self::zeros(self.dim)),
+            || (0.0, Self::zeros(self.shape)),
             |a, b| (a.0 + b.0, a.1 + b.1),
         )
     }
@@ -339,8 +404,8 @@ impl Sfs2d {
     /// Calculates the log-likelihood given `self` of the SAF sites in `sites`.
     ///
     /// The `row_sites` and `col_sites` will be chunked according to the shape of self,
-    /// i.e. `row_sites.len()` should be some multiple of `self.dim()[0]` and `col_sites.len()`
-    /// should be some multiple of `self.dim()[1]`.
+    /// i.e. `row_sites.len()` should be some multiple of `self.shape()[0]` and `col_sites.len()`
+    /// should be some multiple of `self.shape()[1]`.
     pub(crate) fn log_likelihood(&self, row_sites: &[f32], col_sites: &[f32]) -> f64 {
         self.fold_with_sites(
             row_sites,
@@ -358,8 +423,8 @@ impl Sfs2d {
     /// `row_site.len()` should match the number of rows of the SFS, and `col_site.len()`
     /// should match the number of columns of the SFS.
     fn site_log_likelihood(&self, row_site: &[f32], col_site: &[f32]) -> f64 {
-        debug_assert_eq!(self.dim[0], row_site.len());
-        debug_assert_eq!(self.dim[1], col_site.len());
+        debug_assert_eq!(self.shape[0], row_site.len());
+        debug_assert_eq!(self.shape[1], col_site.len());
 
         matmul_sum(&self.values, row_site, col_site).ln()
     }
@@ -377,7 +442,7 @@ impl Sfs2d {
         F: Fn(T, (&'a [f32], &'a [f32])) -> T + Sync + Send,
         G: Fn() -> T + Sync + Send,
     {
-        let [rows, cols] = self.dim;
+        let [rows, cols] = self.shape;
         debug_assert_eq!(row_sites.len() % rows, 0);
         debug_assert_eq!(col_sites.len() % cols, 0);
 
@@ -433,6 +498,43 @@ fn matmul_into(into: &mut [f64], with: &[f64], a: &[f32], b: &[f32]) -> f64 {
     sum
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct ShapeError<const N: usize> {
+    n: usize,
+    shape: [usize; N],
+}
+
+impl<const N: usize> ShapeError<N> {
+    fn new(n: usize, shape: [usize; N]) -> Self {
+        Self { n, shape }
+    }
+}
+
+impl<const N: usize> fmt::Display for ShapeError<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let shape_fmt = self.shape.map(|x| x.to_string()).join("/");
+        let n = self.n;
+
+        write!(
+            f,
+            "cannot create {N}D SFS with shape {shape_fmt} from {n} elements"
+        )
+    }
+}
+
+impl<const N: usize> Error for ShapeError<N> {}
+
+fn compute_flat<const N: usize>(index: [usize; N], shape: [usize; N]) -> usize {
+    let mut flat = index[0];
+
+    for i in 1..N {
+        flat *= shape[i];
+        flat += index[i];
+    }
+
+    flat
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -440,18 +542,38 @@ mod tests {
     use approx::assert_abs_diff_eq;
 
     #[test]
+    fn test_index_1d() {
+        let sfs = Sfs1d::from_vec(vec![0., 1., 2., 3., 4., 5.]);
+        let n = sfs.shape;
+
+        for i in 0..n[0] {
+            assert_eq!(sfs[[i]], i as f64);
+        }
+
+        assert_eq!(sfs.get(n), None);
+    }
+
+    #[test]
+    fn test_index_2d() {
+        let sfs = Sfs2d::from_vec_shape(vec![0.0, 0.1, 0.2, 1.0, 1.1, 1.2], [2, 3]).unwrap();
+
+        assert_eq!(sfs[[0, 0]], 0.0);
+        assert_eq!(sfs[[1, 1]], 1.1);
+        assert_eq!(sfs[[1, 2]], 1.2);
+    }
+    #[test]
     fn test_sfs_1d_posterior() {
         let sfs = Sfs {
             values: vec![1., 2., 3.],
-            dim: [3],
+            shape: [3],
         };
 
         let site = &[2., 2., 2.];
         let mut posterior = Sfs {
             values: vec![10., 20., 30.],
-            dim: sfs.dim(),
+            shape: sfs.shape(),
         };
-        let mut buf = Sfs::zeros(sfs.dim());
+        let mut buf = Sfs::zeros(sfs.shape());
 
         sfs.posterior_into(site, &mut posterior, &mut buf);
 
@@ -463,13 +585,13 @@ mod tests {
     fn test_sfs_2d_posterior() {
         let sfs = Sfs {
             values: (1..16).map(|x| x as f64).collect(),
-            dim: [3, 5],
+            shape: [3, 5],
         };
 
         let row_site = &[2., 2., 2.];
         let col_site = &[2., 4., 6., 8., 10.];
-        let mut posterior = Sfs::from_elem(1., sfs.dim());
-        let mut buf = Sfs::zeros(sfs.dim());
+        let mut posterior = Sfs::from_elem(1., sfs.shape());
+        let mut buf = Sfs::zeros(sfs.shape());
 
         sfs.posterior_into(row_site, col_site, &mut posterior, &mut buf);
 

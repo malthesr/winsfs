@@ -31,7 +31,7 @@ macro_rules! run {
 
         estimate.scale($sites as f64);
 
-        println!("{estimate}");
+        println!("{}", estimate.format_angsd(None));
     }}
 }
 
