@@ -84,17 +84,6 @@ impl<const N: usize> Sfs<N> {
     fn sum(&self) -> f64 {
         self.iter().sum()
     }
-
-    /// Returns a string containing the space-delimited values of the SFS.
-    ///
-    /// Note that this does not include any dimensionality information.
-    #[inline]
-    pub fn values_to_string(&self, precision: usize) -> String {
-        self.iter()
-            .map(|v| format!("{v:.precision$}"))
-            .collect::<Vec<_>>()
-            .join(" ")
-    }
 }
 
 impl<const N: usize> Add for Sfs<N> {
@@ -141,7 +130,12 @@ impl<const N: usize> fmt::Display for Sfs<N> {
         writeln!(f, "# Dimensions: {fmt_dim}")?;
 
         let precision = f.precision().unwrap_or(6);
-        write!(f, "{}", self.values_to_string(precision))?;
+        let fmt_sfs = self
+            .iter()
+            .map(|v| format!("{v:.precision$}", precision = precision))
+            .collect::<Vec<_>>()
+            .join(" ");
+        write!(f, "{}", fmt_sfs)?;
 
         Ok(())
     }
