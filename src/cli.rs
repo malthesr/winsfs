@@ -18,50 +18,55 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 pub struct Cli {
     /// Input SAF file paths.
     ///
-    /// For each set of SAF file (conventially named [prefix].{saf.idx,saf.pos.gz,saf.gz}), give
-    /// either the shared prefix or the full path to any one member file. Up to two SAF files
-    /// currently supported.
-    #[clap(parse(from_os_str), max_values = 2, required = true)]
+    /// For each set of SAF files (conventially named [prefix].{saf.idx,saf.pos.gz,saf.gz}),
+    /// specify either the shared prefix or the full path to any one member file.
+    /// Up to two SAF files currently supported.
+    #[clap(
+        parse(from_os_str),
+        max_values = 2,
+        required = true,
+        value_name = "PATHS"
+    )]
     pub paths: Vec<PathBuf>,
 
     /// Number of blocks.
     ///
     /// If both this and `--block-size` are unset,
     /// the block size will be chosen so that approximately 500 blocks are created.
-    #[clap(short = 'B', long, group = "block")]
+    #[clap(short = 'B', long, group = "block", value_name = "INT")]
     pub blocks: Option<NonZeroUsize>,
 
     /// Number of sites per block.
     ///
     /// If both this and `--blocks` are unset,
     /// the block size will be chosen so that approximately 500 blocks are created.
-    #[clap(short = 'b', long, group = "block")]
+    #[clap(short = 'b', long, group = "block", value_name = "INT")]
     pub block_size: Option<NonZeroUsize>,
 
     #[clap(long, hide = true)]
     pub debug: bool,
 
     /// Number of epochs to run.
-    #[clap(short = 'n', long, default_value_t = 1)]
+    #[clap(short = 'n', long, default_value_t = 1, value_name = "INT")]
     pub epochs: usize,
 
     /// Initial SFS.
     ///
     /// If unset, a uniform SFS will be used to initialise optimisation.
-    #[clap(short = 'i', long)]
+    #[clap(short = 'i', long, value_name = "PATH")]
     pub initial: Option<PathBuf>,
 
     /// Random seed.
     ///
     /// If unset, a seed will be chosen at random.
-    #[clap(short = 's', long)]
+    #[clap(short = 's', long, value_name = "INT")]
     pub seed: Option<u64>,
 
     /// Number of threads.
     ///
     /// If the provided value is less than or equal to zero, the number of threads used will be
     /// equal to the available threads minus the provided value.
-    #[clap(short = 't', long, default_value_t = 4)]
+    #[clap(short = 't', long, default_value_t = 4, value_name = "INT")]
     pub threads: i32,
 
     /// Run vanilla EM.
@@ -77,7 +82,7 @@ pub struct Cli {
     /// Number of blocks per window.
     ///
     /// If unset, the window size will be chosen as approximately 1/5 of the number of blocks.
-    #[clap(short = 'w', long)]
+    #[clap(short = 'w', long, value_name = "INT")]
     pub window_size: Option<NonZeroUsize>,
 }
 
