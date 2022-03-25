@@ -52,7 +52,7 @@ where
 
     let mut saf = Saf1d::read(reader)?;
     let sites = saf.sites();
-    log::info!(target: "init", "Read {sites} sites in SAF files with dimensions {}.", saf.cols()[0]);
+    log::info!(target: "init", "Read {sites} sites in SAF file with {} cols.", saf.cols()[0]);
 
     run!(saf, args, sites);
 
@@ -68,7 +68,7 @@ where
 
     let mut safs = Saf2d::read(first_reader, second_reader)?;
     let sites = safs.sites();
-    log::info!(target: "init", "Read {sites} shared sites in SAF files with dimensions {}/{}.", safs.cols()[0], safs.cols()[1]);
+    log::info!(target: "init", "Read {sites} shared sites in SAF files with {}/{} cols.", safs.cols()[0], safs.cols()[1]);
 
     run!(safs, args, sites);
 
