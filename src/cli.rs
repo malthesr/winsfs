@@ -16,6 +16,11 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
 #[clap(group(ArgGroup::new("block")))]
 pub struct Cli {
+    /// Input SAF file paths.
+    ///
+    /// For each set of SAF file (conventially named [prefix].{saf.idx,saf.pos.gz,saf.gz}), give
+    /// either the shared prefix or the full path to any one member file. Up to two SAF files
+    /// currently supported.
     #[clap(parse(from_os_str), max_values = 2, required = true)]
     pub paths: Vec<PathBuf>,
 
