@@ -1,7 +1,9 @@
 use std::{
     error::Error,
-    fmt,
+    fmt, fs,
+    io::{self, Read},
     ops::{Add, AddAssign, Index, IndexMut},
+    path::Path,
     slice,
 };
 
@@ -98,6 +100,17 @@ impl<const N: usize> Sfs<N> {
     /// Creates a new SFS from a string containing an SFS formatted in ANGSD format.
     pub fn parse_from_angsd(s: &str) -> Result<Self, ParseAngsdError<N>> {
         angsd::parse(s)
+    }
+
+    /// Creates a new SFS from a path containing an SFS formatted in ANGSD format.
+    pub fn read_from_angsd<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let mut file = fs::File::open(path)?;
+        let mut buf = String::new();
+        file.read_to_string(&mut buf)?;
+        Self::parse_from_angsd(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
     /// Creates a uniform SFS in probability space.
