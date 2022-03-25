@@ -304,7 +304,7 @@ impl Sfs1d {
     /// Calculates the log-likelihood given `self` of the SAF site `site`.
     ///
     /// `self` and`site` should be of the same shape.
-    fn site_log_likelihood(&self, site: &[f32]) -> f64 {
+    pub(crate) fn site_log_likelihood(&self, site: &[f32]) -> f64 {
         debug_assert_eq!(self.shape[0], site.len());
 
         self.iter()
@@ -435,7 +435,7 @@ impl Sfs2d {
     ///
     /// `row_site.len()` should match the number of rows of the SFS, and `col_site.len()`
     /// should match the number of columns of the SFS.
-    fn site_log_likelihood(&self, row_site: &[f32], col_site: &[f32]) -> f64 {
+    pub(crate) fn site_log_likelihood(&self, row_site: &[f32], col_site: &[f32]) -> f64 {
         debug_assert_eq!(self.shape[0], row_site.len());
         debug_assert_eq!(self.shape[1], col_site.len());
 
