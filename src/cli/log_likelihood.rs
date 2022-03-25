@@ -33,7 +33,7 @@ pub struct LogLikelihood {
 }
 
 impl LogLikelihood {
-    pub(crate) fn run(&self) -> Result<(), clap::Error> {
+    pub(crate) fn run(self) -> Result<(), clap::Error> {
         match self.paths.as_slice() {
             [path] => run_1d(path, &self),
             [first_path, second_path] => run_2d(first_path, second_path, &self),
@@ -69,7 +69,7 @@ where
     while value_reader.read_values(site)?.is_not_done() {
         exp(site);
 
-        log_likelihood += sfs.site_log_likelihood(&site);
+        log_likelihood += sfs.site_log_likelihood(site);
     }
 
     println!("{log_likelihood}");
