@@ -19,7 +19,7 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 #[derive(Debug, Parser)]
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
 #[clap(group(ArgGroup::new("block")))]
-#[clap(subcommand_precedence_over_arg = true, subcommand_negates_reqs = true)]
+#[clap(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
 pub struct Cli {
     /// Input SAF file paths.
     ///
@@ -30,8 +30,7 @@ pub struct Cli {
         parse(from_os_str),
         max_values = 2,
         required = true,
-        value_name = "PATHS",
-        global = true
+        value_name = "PATHS"
     )]
     pub paths: Vec<PathBuf>,
 
@@ -183,5 +182,17 @@ mod tests {
             result.unwrap_err().kind(),
             clap::ErrorKind::ArgumentConflict
         );
+    }
+
+    #[test]
+    fn test_subcommand_conflicts_with_args() {
+        let result = try_parse_args("winsfs -b 5 log-likelihood --sfs /path/to/sfs /path/to/saf");
+        assert_eq!(result.unwrap_err().kind(), clap::ErrorKind::UnknownArgument,);
+    }
+
+    #[test]
+    fn test_subcommand_verbosity() {
+        let args = parse_args("winsfs log-likelihood -vv --sfs /path/to/sfs /path/to/saf");
+        assert_eq!(args.verbose, 2);
     }
 }

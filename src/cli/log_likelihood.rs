@@ -14,7 +14,17 @@ use super::utils::validate_shape;
 /// usage.
 #[derive(Args, Debug)]
 pub struct LogLikelihood {
-    #[clap(from_global)]
+    /// Input SAF file paths.
+    ///
+    /// For each set of SAF files (conventially named [prefix].{saf.idx,saf.pos.gz,saf.gz}),
+    /// specify either the shared prefix or the full path to any one member file.
+    /// Up to two SAF files currently supported.
+    #[clap(
+        parse(from_os_str),
+        max_values = 2,
+        required = true,
+        value_name = "PATHS"
+    )]
     pub paths: Vec<PathBuf>,
 
     /// Input SFS to calculate log-likelihood from.
