@@ -168,7 +168,7 @@ fn read_sfs<const N: usize>(args: &LogLikelihood) -> clap::Result<Vec<Sfs<N>>> {
         let mut buf = String::new();
         reader.read_to_string(&mut buf)?;
 
-        buf.lines().map(|s| PathBuf::from(s)).collect()
+        buf.lines().map(PathBuf::from).collect()
     } else if let Some(sfs) = &args.sfs {
         sfs.clone()
     } else {
