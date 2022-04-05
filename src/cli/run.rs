@@ -7,7 +7,7 @@ use super::{
     Cli,
 };
 
-use crate::{Saf1d, Saf2d, Sfs};
+use crate::{Saf1d, Saf2d, Sfs, Window};
 
 macro_rules! run {
     ($saf:ident, $args:ident, $sites:ident) => {{
@@ -35,7 +35,9 @@ macro_rules! run {
                 "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
             );
 
-            initial_sfs.window_em(&$saf.values(), window_size, block_size, $args.epochs)
+            let mut window = Window::new(initial_sfs, window_size, block_size, $args.epochs);
+            window.em(&$saf.values());
+            window.into_sfs()
         };
 
         estimate.scale($sites as f64);
