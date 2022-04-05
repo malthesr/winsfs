@@ -21,7 +21,7 @@ macro_rules! run {
         };
 
         let mut estimate = if $args.vanilla {
-            initial_sfs.em(&$saf, $args.epochs)
+            initial_sfs.em(&$saf.values(), $args.epochs)
         } else {
             let mut rng = get_rng($args.seed);
             $saf.shuffle(&mut rng);
@@ -35,7 +35,7 @@ macro_rules! run {
                 "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
             );
 
-            initial_sfs.window_em(&$saf, window_size, block_size, $args.epochs)
+            initial_sfs.window_em(&$saf.values(), window_size, block_size, $args.epochs)
         };
 
         estimate.scale($sites as f64);

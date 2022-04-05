@@ -8,7 +8,7 @@ use angsd_io::saf;
 
 use clap::{ArgGroup, Args};
 
-use crate::Sfs;
+use crate::{em::Em, Sfs};
 
 use super::utils::validate_shape;
 
@@ -147,7 +147,7 @@ where
             .zip(all_sfs.iter())
             .for_each(|(log_likelihood, sfs)| {
                 *log_likelihood +=
-                    sfs.site_log_likelihood(first_record.values(), second_record.values())
+                    sfs.site_log_likelihood((first_record.values(), second_record.values()))
             });
     }
 
