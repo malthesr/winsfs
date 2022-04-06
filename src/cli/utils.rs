@@ -73,7 +73,6 @@ pub fn init_logger(verbosity_arg: usize) -> clap::Result<()> {
 
     simple_logger::SimpleLogger::new()
         .with_level(level)
-        .with_colors(true)
         .init()
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise logger"))
 }
