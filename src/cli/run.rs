@@ -7,7 +7,10 @@ use super::{
     Cli,
 };
 
-use crate::{Saf1d, Saf2d, Sfs, Window};
+use crate::{
+    em::{StoppingRule, Window, DEFAULT_TOLERANCE},
+    Saf1d, Saf2d, Sfs,
+};
 
 macro_rules! run {
     ($saf:ident, $args:ident, $sites:ident) => {{
@@ -20,25 +23,36 @@ macro_rules! run {
             Sfs::uniform($saf.cols())
         };
 
-        let mut estimate = if $args.vanilla {
-            initial_sfs.em(&$saf.values(), $args.epochs)
-        } else {
-            let mut rng = get_rng($args.seed);
-            $saf.shuffle(&mut rng);
+        let mut rng = get_rng($args.seed);
+        $saf.shuffle(&mut rng);
 
-            let (block_size, blocks) =
-                get_block_size_and_blocks($args.block_size, $args.blocks, $sites);
-            let window_size = get_window_size($args.window_size, blocks);
+        let (block_size, blocks) =
+            get_block_size_and_blocks($args.block_size, $args.blocks, $sites);
+        let window_size = get_window_size($args.window_size, blocks);
 
-            log::info!(
-                target: "init",
-                "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
-            );
+        log::info!(
+            target: "init",
+            "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
+        );
 
-            let mut window = Window::new(initial_sfs, window_size, block_size, $args.epochs);
-            window.em(&$saf.values());
-            window.into_sfs()
+        let stopping_rule = match ($args.max_epochs, $args.tolerance) {
+            (Some(n), Some(v)) => {
+                StoppingRule::either(n, v)
+            },
+            (Some(n), None) => {
+                StoppingRule::epochs(n)
+            },
+            (None, Some(v)) => {
+                StoppingRule::log_likelihood(v)
+            },
+            (None, None) => {
+                StoppingRule::log_likelihood(DEFAULT_TOLERANCE)
+            }
         };
+
+        let mut window = Window::new(initial_sfs, window_size, block_size, stopping_rule);
+        window.em(&$saf.values());
+        let mut estimate = window.into_sfs();
 
         estimate.scale($sites as f64);
 
