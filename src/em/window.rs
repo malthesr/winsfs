@@ -21,7 +21,12 @@ where
 
         let mut epoch = 0;
         while !self.stopping_rule.stop() {
-            info_sfs!(target: "windowem", "Epoch {epoch}, current SFS: {}", self.sfs, sites);
+            log_sfs!(
+                target:
+                "windowem", log::Level::Debug,
+                "Epoch {epoch}, current SFS: {}",
+                self.sfs, sites
+            );
 
             self.em_step(input);
 
@@ -44,7 +49,11 @@ where
             self.sfs = self.window.sum();
             self.sfs.normalise();
 
-            trace_sfs!(target: "windowem", "Block {i}, current SFS: {}", self.sfs, sites);
+            log_sfs!(
+                target: "windowem",
+                log::Level::Trace, "Block {i}, current SFS: {}",
+                self.sfs, sites
+            );
 
             let block_sites = block.sites(self.sfs.shape());
             let norm_block_log_likelihood = block_log_likelihood / block_sites as f64;

@@ -92,7 +92,7 @@ impl EpochRule {
     }
 
     pub fn stop(&self) -> bool {
-        log::debug!(
+        log::info!(
             target: "stopping",
             "Epoch {epoch}, epoch stopping rule, current epoch: {epoch}/{max}",
             epoch=self.current, max=self.max
@@ -130,7 +130,7 @@ impl LogLikelihoodRule {
         let improv = current - last;
 
         if self.epoch >= 2 {
-            log::debug!(
+            log::info!(
                 target: "stopping",
                 "Epoch {}, log-likelihood stopping rule, current log-likelihood: {current:.8e} (Δ{improv:.8e})",
                 self.epoch

@@ -68,7 +68,13 @@ where
         let mut sfs = self.clone();
 
         for i in 0..epochs {
-            info_sfs!(target: "em", "Epoch {i}, current SFS: {}", sfs, sites);
+            log_sfs!(
+                target: "em",
+                log::Level::Debug,
+                "Epoch {i}, current SFS: {}",
+                sfs, sites
+            );
+
             sfs = sfs.em_step(input);
         }
 
