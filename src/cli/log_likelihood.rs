@@ -129,25 +129,21 @@ where
          in SAF files with {first_cols}/{second_cols} cols."
     );
 
-    let mut reader = saf::reader::Intersect::new(first_reader, second_reader);
+    let mut reader = first_reader.intersect(second_reader);
 
     let mut log_likelihoods = vec![0.0; all_sfs.len()];
 
-    let (mut first_record, mut second_record) = reader.create_record_buf();
+    let mut bufs = reader.create_record_bufs();
 
-    while reader
-        .read_record_pair(&mut first_record, &mut second_record)?
-        .is_not_done()
-    {
-        exp(first_record.values_mut());
-        exp(second_record.values_mut());
+    while reader.read_records(&mut bufs)?.is_not_done() {
+        exp(bufs[0].values_mut());
+        exp(bufs[1].values_mut());
 
         log_likelihoods
             .iter_mut()
             .zip(all_sfs.iter())
             .for_each(|(log_likelihood, sfs)| {
-                *log_likelihood +=
-                    sfs.site_log_likelihood((first_record.values(), second_record.values()))
+                *log_likelihood += sfs.site_log_likelihood((bufs[0].values(), bufs[1].values()))
             });
     }
 

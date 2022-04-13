@@ -117,15 +117,12 @@ impl Saf2d {
         let right_capacity = right_cols * max_sites;
         let mut right_values = Vec::with_capacity(right_capacity);
 
-        let mut reader = saf::reader::Intersect::new(first_reader, second_reader);
+        let mut reader = first_reader.intersect(second_reader);
 
-        let (mut left, mut right) = reader.create_record_buf();
-        while reader
-            .read_record_pair(&mut left, &mut right)?
-            .is_not_done()
-        {
-            left_values.extend_from_slice(left.values());
-            right_values.extend_from_slice(right.values());
+        let mut bufs = reader.create_record_bufs();
+        while reader.read_records(&mut bufs)?.is_not_done() {
+            left_values.extend_from_slice(bufs[0].values());
+            right_values.extend_from_slice(bufs[1].values());
         }
 
         left_values.shrink_to_fit();
