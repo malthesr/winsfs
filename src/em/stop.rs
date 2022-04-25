@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-pub const DEFAULT_TOLERANCE: f64 = 0.1;
+pub const DEFAULT_TOLERANCE: f64 = 0.0001;
 
 #[derive(Clone, Debug)]
 pub struct StoppingRule(StoppingRuleInner);
