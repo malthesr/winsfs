@@ -18,7 +18,7 @@ lto = "fat"
 approx = "0.5"
 
 [dependencies]
-angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "3c97356" }
+angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "62a4695" }
 clap = { version = "3.1", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
