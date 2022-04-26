@@ -95,7 +95,7 @@ where
         log_likelihoods
             .iter_mut()
             .zip(all_sfs.iter())
-            .for_each(|(log_likelihood, sfs)| *log_likelihood += sfs.site_log_likelihood(site));
+            .for_each(|(log_likelihood, sfs)| *log_likelihood += sfs.site_log_likelihood([site]));
     }
 
     for log_likelihood in log_likelihoods {
@@ -143,7 +143,7 @@ where
             .iter_mut()
             .zip(all_sfs.iter())
             .for_each(|(log_likelihood, sfs)| {
-                *log_likelihood += sfs.site_log_likelihood((bufs[0].values(), bufs[1].values()))
+                *log_likelihood += sfs.site_log_likelihood([bufs[0].values(), bufs[1].values()])
             });
     }
 

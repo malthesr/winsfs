@@ -13,7 +13,7 @@ macro_rules! log_sfs {
 }
 
 mod core;
-pub use self::core::{Em, Input};
+pub use self::core::{BlockIterator, Em, SiteIterator};
 
 mod stop;
 pub use stop::{StoppingRule, DEFAULT_TOLERANCE};

@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use crate::Sfs;
 
-use super::{Em, Input, StoppingRule};
+use super::{BlockIterator, Em, SiteIterator, StoppingRule};
 
 #[derive(Clone, Debug)]
 pub struct Window<const N: usize> {
@@ -14,9 +14,12 @@ pub struct Window<const N: usize> {
 
 impl<const N: usize> Window<N>
 where
-    for<'a> Sfs<N>: Em<'a, N>,
+    Sfs<N>: Em<N>,
 {
-    pub fn em(&mut self, input: &<Sfs<N> as Em<N>>::Input) {
+    pub fn em<'a, I: 'a>(&mut self, input: &I)
+    where
+        I: BlockIterator<'a, N>,
+    {
         let sites = input.sites(self.sfs.shape());
 
         let mut epoch = 0;
@@ -35,7 +38,10 @@ where
         }
     }
 
-    fn em_step(&mut self, input: &<Sfs<N> as Em<N>>::Input) {
+    fn em_step<'a, I: 'a>(&mut self, input: &I)
+    where
+        I: BlockIterator<'a, N>,
+    {
         let sites = input.sites(self.sfs.shape());
 
         for (i, block) in input

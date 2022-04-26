@@ -3,19 +3,22 @@ use rayon::{
     slice::ParallelSlice,
 };
 
-use crate::{Sfs, Sfs1d, Sfs2d};
+use crate::Sfs;
 
 impl<const N: usize> Sfs<N>
 where
-    for<'a> Self: Em<'a, N>,
+    Self: Em<N>,
 {
-    pub fn e_step(&self, input: &<Self as Em<N>>::Input) -> Self {
+    pub fn e_step<'a, I: 'a>(&self, input: &I) -> Self
+    where
+        I: SiteIterator<'a, N>,
+    {
         input
             .iter_sites(self.shape())
             .fold(
                 || (Self::zeros(self.shape()), Self::zeros(self.shape())),
                 |(mut post, mut buf), site| {
-                    self.posterior_into(site, &mut post, &mut buf);
+                    self.posterior_into(site.into_array(), &mut post, &mut buf);
 
                     (post, buf)
                 },
@@ -24,13 +27,18 @@ where
             .reduce(|| Self::zeros(self.shape()), |a, b| a + b)
     }
 
-    pub fn e_step_with_log_likelihood(&self, input: &<Self as Em<N>>::Input) -> (f64, Self) {
+    pub fn e_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
+    where
+        I: SiteIterator<'a, N>,
+    {
         input
             .iter_sites(self.shape())
             .fold(
                 || (0.0, Self::zeros(self.shape()), Self::zeros(self.shape())),
                 |(mut ll, mut post, mut buf), site| {
-                    ll += self.posterior_into(site, &mut post, &mut buf).ln();
+                    ll += self
+                        .posterior_into(site.into_array(), &mut post, &mut buf)
+                        .ln();
 
                     (ll, post, buf)
                 },
@@ -42,28 +50,43 @@ where
             )
     }
 
-    pub fn log_likelihood(&self, input: &<Self as Em<N>>::Input) -> f64 {
+    pub fn log_likelihood<'a, I: 'a>(&self, input: &I) -> f64
+    where
+        I: SiteIterator<'a, N>,
+    {
         input
             .iter_sites(self.shape())
-            .fold(|| 0.0, |ll, site| ll + self.site_log_likelihood(site))
+            .fold(
+                || 0.0,
+                |ll, site| ll + self.site_log_likelihood(site.into_array()),
+            )
             .sum()
     }
 
-    pub fn em_step(&self, input: &<Self as Em<N>>::Input) -> Self {
+    pub fn em_step<'a, I: 'a>(&self, input: &I) -> Self
+    where
+        I: SiteIterator<'a, N>,
+    {
         let mut posterior = self.e_step(input);
         posterior.normalise();
 
         posterior
     }
 
-    pub fn em_step_with_log_likelihood(&self, input: &<Self as Em<N>>::Input) -> (f64, Self) {
+    pub fn em_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
+    where
+        I: SiteIterator<'a, N>,
+    {
         let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood(input);
         posterior.normalise();
 
         (log_likelihood, posterior)
     }
 
-    pub fn em(&self, input: &<Self as Em<N>>::Input, epochs: usize) -> Self {
+    pub fn em<'a, I: 'a>(&self, input: &I, epochs: usize) -> Self
+    where
+        I: SiteIterator<'a, N>,
+    {
         let sites = input.sites(self.shape());
         let mut sfs = self.clone();
 
@@ -82,24 +105,18 @@ where
     }
 }
 
-pub trait Em<'a, const N: usize> {
-    // TODO: The trait lifetime should really be a GAT on this type once stable,
-    // see github.com/rust-lang/rust/issues/44265
-    type Input: Input<N>;
+pub trait Em<const N: usize> {
+    fn posterior_into(&self, site: [&[f32]; N], posterior: &mut Self, buf: &mut Self) -> f64;
 
-    fn posterior_into(&self, site: Self::Input, posterior: &mut Self, buf: &mut Self) -> f64;
-
-    fn site_log_likelihood(&self, site: Self::Input) -> f64;
+    fn site_log_likelihood(&self, site: [&[f32]; N]) -> f64;
 }
 
-impl<'a> Em<'a, 1> for Sfs1d {
-    type Input = &'a [f32];
-
-    fn posterior_into(&self, site: Self::Input, posterior: &mut Self, buf: &mut Self) -> f64 {
+impl Em<1> for Sfs<1> {
+    fn posterior_into(&self, site: [&[f32]; 1], posterior: &mut Self, buf: &mut Self) -> f64 {
         let mut sum = 0.0;
 
         self.iter()
-            .zip(site.iter())
+            .zip(site[0].iter())
             .zip(buf.iter_mut())
             .for_each(|((&sfs, &site), buf)| {
                 let v = sfs * site as f64;
@@ -114,20 +131,18 @@ impl<'a> Em<'a, 1> for Sfs1d {
         sum
     }
 
-    fn site_log_likelihood(&self, site: Self::Input) -> f64 {
+    fn site_log_likelihood(&self, site: [&[f32]; 1]) -> f64 {
         self.iter()
-            .zip(site.iter())
+            .zip(site[0].iter())
             .map(|(&sfs, &site)| sfs * site as f64)
             .sum::<f64>()
             .ln()
     }
 }
 
-impl<'a> Em<'a, 2> for Sfs2d {
-    type Input = (&'a [f32], &'a [f32]);
-
-    fn posterior_into(&self, site: Self::Input, posterior: &mut Self, buf: &mut Self) -> f64 {
-        let (row_site, col_site) = site;
+impl Em<2> for Sfs<2> {
+    fn posterior_into(&self, site: [&[f32]; 2], posterior: &mut Self, buf: &mut Self) -> f64 {
+        let [row_site, col_site] = site;
 
         let cols = col_site.len();
 
@@ -158,8 +173,8 @@ impl<'a> Em<'a, 2> for Sfs2d {
         sum
     }
 
-    fn site_log_likelihood(&self, site: Self::Input) -> f64 {
-        let (row_site, col_site) = site;
+    fn site_log_likelihood(&self, site: [&[f32]; 2]) -> f64 {
+        let [row_site, col_site] = site;
 
         let mut sum = 0.0;
 
@@ -178,50 +193,37 @@ impl<'a> Em<'a, 2> for Sfs2d {
     }
 }
 
-pub trait Input<const N: usize> {
-    // TODO: These types are long, and should be replaced by TAIT once stable,
+pub trait SiteIterator<'a, const N: usize> {
+    // TODO: These types should be replaced by TAIT once stable,
     // see github.com/rust-lang/rust/issues/63063
-    type SiteIter: IndexedParallelIterator<Item = Self>;
-    type BlockIter: ExactSizeIterator<Item = Self>;
-
-    fn sites(&self, shape: [usize; N]) -> usize;
+    // TODO: The trait lifetime should be a GAT once stable,
+    // see github.com/rust-lang/rust/issues/44265
+    type Site: IntoArray<N, &'a [f32]>;
+    type SiteIter: IndexedParallelIterator<Item = Self::Site>;
 
     fn iter_sites(&self, shape: [usize; N]) -> Self::SiteIter;
 
-    fn iter_blocks(&self, shape: [usize; N], block_size: usize) -> Self::BlockIter;
+    fn sites(&self, shape: [usize; N]) -> usize;
 }
 
-impl<'a> Input<1> for &'a [f32] {
+impl<'a> SiteIterator<'a, 1> for &'a [f32] {
+    type Site = &'a [f32];
     type SiteIter = rayon::slice::Chunks<'a, f32>;
-    type BlockIter = std::slice::Chunks<'a, f32>;
-
-    fn sites(&self, shape: [usize; 1]) -> usize {
-        assert_eq!(self.len() % shape[0], 0);
-        self.len() / shape[0]
-    }
 
     fn iter_sites(&self, shape: [usize; 1]) -> Self::SiteIter {
         assert_eq!(self.len() % shape[0], 0);
         self.par_chunks(shape[0])
     }
 
-    fn iter_blocks(&self, shape: [usize; 1], block_size: usize) -> Self::BlockIter {
+    fn sites(&self, shape: [usize; 1]) -> usize {
         assert_eq!(self.len() % shape[0], 0);
-        self.chunks(shape[0] * block_size)
+        self.len() / shape[0]
     }
 }
 
-impl<'a> Input<2> for (&'a [f32], &'a [f32]) {
+impl<'a> SiteIterator<'a, 2> for (&'a [f32], &'a [f32]) {
+    type Site = (&'a [f32], &'a [f32]);
     type SiteIter = rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>;
-    type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
-
-    fn sites(&self, shape: [usize; 2]) -> usize {
-        let [n, m] = shape;
-        assert_eq!(self.0.len() % n, 0);
-        assert_eq!(self.1.len() % m, 0);
-        assert_eq!(self.0.len() / n, self.1.len() / m);
-        self.0.len() / n
-    }
 
     fn iter_sites(&self, shape: [usize; 2]) -> Self::SiteIter {
         let [n, m] = shape;
@@ -230,6 +232,40 @@ impl<'a> Input<2> for (&'a [f32], &'a [f32]) {
         self.0.par_chunks(n).zip(self.1.par_chunks(m))
     }
 
+    fn sites(&self, shape: [usize; 2]) -> usize {
+        let [n, m] = shape;
+        assert_eq!(self.0.len() % n, 0);
+        assert_eq!(self.1.len() % m, 0);
+        assert_eq!(self.0.len() / n, self.1.len() / m);
+        self.0.len() / n
+    }
+}
+
+pub trait BlockIterator<'a, const N: usize>: SiteIterator<'a, N> {
+    // TODO: These types should be replaced by TAIT once stable,
+    // see github.com/rust-lang/rust/issues/63063
+    // TODO: The trait lifetime should be a GAT once stable,
+    // see github.com/rust-lang/rust/issues/44265
+    type Block: SiteIterator<'a, N>;
+    type BlockIter: Iterator<Item = Self::Block>;
+
+    fn iter_blocks(&self, shape: [usize; N], block_size: usize) -> Self::BlockIter;
+}
+
+impl<'a> BlockIterator<'a, 1> for &'a [f32] {
+    type Block = &'a [f32];
+    type BlockIter = std::slice::Chunks<'a, f32>;
+
+    fn iter_blocks(&self, shape: [usize; 1], block_size: usize) -> Self::BlockIter {
+        assert_eq!(self.len() % shape[0], 0);
+        self.chunks(shape[0] * block_size)
+    }
+}
+
+impl<'a> BlockIterator<'a, 2> for (&'a [f32], &'a [f32]) {
+    type Block = (&'a [f32], &'a [f32]);
+    type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
+
     fn iter_blocks(&self, shape: [usize; 2], block_size: usize) -> Self::BlockIter {
         let [n, m] = shape;
         assert_eq!(self.0.len() % n, 0);
@@ -237,6 +273,28 @@ impl<'a> Input<2> for (&'a [f32], &'a [f32]) {
         self.0
             .chunks(n * block_size)
             .zip(self.1.chunks(m * block_size))
+    }
+}
+
+pub trait IntoArray<const N: usize, T> {
+    fn into_array(self) -> [T; N];
+}
+
+impl<T> IntoArray<1, T> for T {
+    fn into_array(self) -> [T; 1] {
+        [self]
+    }
+}
+
+impl<T> IntoArray<2, T> for (T, T) {
+    fn into_array(self) -> [T; 2] {
+        [self.0, self.1]
+    }
+}
+
+impl<const N: usize, T> IntoArray<N, T> for [T; N] {
+    fn into_array(self) -> [T; N] {
+        self
     }
 }
 
@@ -254,7 +312,7 @@ mod tests {
         let mut posterior = Sfs::from_vec_shape(vec![10., 20., 30.], sfs.shape()).unwrap();
         let mut buf = Sfs::zeros(sfs.shape());
 
-        sfs.posterior_into(site, &mut posterior, &mut buf);
+        sfs.posterior_into([site], &mut posterior, &mut buf);
 
         let expected = vec![10. + 1. / 6., 20. + 1. / 3., 30. + 1. / 2.];
         assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice());
@@ -269,7 +327,7 @@ mod tests {
         let mut posterior = Sfs::from_elem(1., sfs.shape());
         let mut buf = Sfs::zeros(sfs.shape());
 
-        sfs.posterior_into((row_site, col_site), &mut posterior, &mut buf);
+        sfs.posterior_into([row_site, col_site], &mut posterior, &mut buf);
 
         #[rustfmt::skip]
         let expected = vec![
