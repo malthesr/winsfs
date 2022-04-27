@@ -15,6 +15,8 @@ pub use sfs::{Sfs, Sfs1d, Sfs2d};
 
 mod em;
 
+pub mod io;
+
 fn main() {
     let args = Cli::parse();
 
