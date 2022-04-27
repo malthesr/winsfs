@@ -88,22 +88,58 @@ where
     Ok(())
 }
 
-pub fn run_2d<P>(first_path: P, second_path: P, args: &Cli) -> clap::Result<()>
+pub fn run_2d<P>(fst_path: P, snd_path: P, args: &Cli) -> clap::Result<()>
 where
     P: AsRef<Path>,
 {
     log::info!(
         target: "init",
         "Reading and intersecting SAF files into memory:\n\t{}\n\t{}",
-        first_path.as_ref().display(), second_path.as_ref().display()
+        fst_path.as_ref().display(), snd_path.as_ref().display()
     );
 
-    let first_reader = saf::Reader::from_bgzf_member_path(&first_path)?;
-    let second_reader = saf::Reader::from_bgzf_member_path(&second_path)?;
+    let fst_reader = saf::Reader::from_bgzf_member_path(&fst_path)?;
+    let snd_reader = saf::Reader::from_bgzf_member_path(&snd_path)?;
 
-    let mut safs = JointSaf::read([first_reader, second_reader])?;
+    let mut safs = JointSaf::read([fst_reader, snd_reader])?;
     let sites = safs.sites();
-    log::info!(target: "init", "Read {sites} shared sites in SAF files with {}/{} cols.", safs.cols()[0], safs.cols()[1]);
+
+    log::info!(
+        target: "init",
+        "Read {sites} shared sites in SAF files with {}/{} cols.",
+        safs.cols()[0],
+        safs.cols()[1]
+    );
+
+    run!(safs, args, sites);
+
+    Ok(())
+}
+
+pub fn run_3d<P>(fst_path: P, snd_path: P, trd_path: P, args: &Cli) -> clap::Result<()>
+where
+    P: AsRef<Path>,
+{
+    log::info!(
+        target: "init",
+        "Reading and intersecting SAF files into memory:\n\t{}\n\t{}\n\t{}",
+        fst_path.as_ref().display(), snd_path.as_ref().display(), trd_path.as_ref().display()
+    );
+
+    let fst_reader = saf::Reader::from_bgzf_member_path(&fst_path)?;
+    let snd_reader = saf::Reader::from_bgzf_member_path(&snd_path)?;
+    let trd_reader = saf::Reader::from_bgzf_member_path(&trd_path)?;
+
+    let mut safs = JointSaf::read([fst_reader, snd_reader, trd_reader])?;
+    let sites = safs.sites();
+
+    log::info!(
+        target: "init",
+        "Read {sites} shared sites in SAF files with {}/{}/{} cols.",
+        safs.cols()[0],
+        safs.cols()[1],
+        safs.cols()[2]
+    );
 
     run!(safs, args, sites);
 

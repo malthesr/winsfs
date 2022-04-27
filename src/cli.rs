@@ -12,7 +12,7 @@ mod shuffle;
 use shuffle::Shuffle;
 
 mod run;
-use run::{run_1d, run_2d, run_io};
+use run::{run_1d, run_2d, run_3d, run_io};
 
 const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -32,7 +32,7 @@ pub struct Cli {
     /// Up to two SAF files currently supported.
     #[clap(
         parse(from_os_str),
-        max_values = 2,
+        max_values = 3,
         required = true,
         help_heading = "INPUT",
         value_name = "PATHS"
@@ -225,7 +225,8 @@ impl Cli {
                     Format::Standard => run_1d(path, &self),
                     Format::Shuffled => run_io(path, &self),
                 },
-                [first_path, second_path] => run_2d(first_path, second_path, &self),
+                [fst_path, snd_path] => run_2d(fst_path, snd_path, &self),
+                [fst_path, snd_path, trd_path] => run_3d(fst_path, snd_path, trd_path, &self),
                 _ => unreachable!(), // Checked by clap
             }
         }
@@ -270,8 +271,8 @@ mod tests {
     }
 
     #[test]
-    fn test_three_paths_errors() {
-        let result = try_parse_args("winsfs a b c");
+    fn test_four_paths_errors() {
+        let result = try_parse_args("winsfs a b c d");
 
         assert_eq!(result.unwrap_err().kind(), clap::ErrorKind::TooManyValues);
     }
