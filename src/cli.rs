@@ -1,9 +1,9 @@
-use std::{num::NonZeroUsize, path::PathBuf};
+use std::{fs, io, num::NonZeroUsize, path::PathBuf};
 
-use clap::{ArgGroup, Parser, Subcommand};
+use clap::{ArgGroup, CommandFactory, Parser, Subcommand};
 
 mod utils;
-use utils::{init_logger, set_threads};
+use utils::{infer_format, init_logger, Format};
 
 mod log_likelihood;
 use log_likelihood::LogLikelihood;
@@ -12,7 +12,7 @@ mod shuffle;
 use shuffle::Shuffle;
 
 mod run;
-use run::{run_1d, run_2d};
+use run::{run_1d, run_2d, run_io};
 
 const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -137,10 +137,17 @@ impl Cli {
         if let Some(subcommand) = self.subcommand {
             subcommand.run()
         } else {
-            set_threads(self.threads)?;
-
             match self.paths.as_slice() {
-                [path] => run_1d(path, &self),
+                [path] => {
+                    let mut reader = fs::File::open(path).map(io::BufReader::new)?;
+
+                    match infer_format(&mut reader)? {
+                        Some(Format::Standard) => run_1d(path, &self),
+                        Some(Format::Shuffled) => run_io(path, &self),
+                        None => Err(Cli::command()
+                            .error(clap::ErrorKind::Io, "unrecognised SAF file format")),
+                    }
+                }
                 [first_path, second_path] => run_2d(first_path, second_path, &self),
                 _ => unreachable!(), // Checked by clap
             }
