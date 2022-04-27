@@ -8,6 +8,9 @@ use utils::{init_logger, set_threads};
 mod log_likelihood;
 use log_likelihood::LogLikelihood;
 
+mod shuffle;
+use shuffle::Shuffle;
+
 mod run;
 use run::{run_1d, run_2d};
 
@@ -147,12 +150,14 @@ impl Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    Shuffle(Shuffle),
     LogLikelihood(LogLikelihood),
 }
 
 impl Command {
     fn run(self) -> Result<(), clap::Error> {
         match self {
+            Command::Shuffle(shuffle) => shuffle.run(),
             Command::LogLikelihood(log_likelihood) => log_likelihood.run(),
         }
     }
