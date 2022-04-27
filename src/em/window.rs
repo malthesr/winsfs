@@ -1,6 +1,9 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, io};
 
-use crate::Sfs;
+use crate::{
+    io::{Header, Reader},
+    Sfs,
+};
 
 use super::{BlockIterator, Em, SiteIterator, StoppingRule};
 
@@ -24,51 +27,81 @@ where
 
         let mut epoch = 0;
         while !self.stopping_rule.stop() {
-            log_sfs!(
-                target:
-                "windowem", log::Level::Debug,
-                "Epoch {epoch}, current SFS: {}",
-                self.sfs, sites
-            );
-
             self.em_step(input);
 
-            self.stopping_rule.epoch_update();
+            self.epoch_update(epoch, sites);
+
             epoch += 1;
         }
+    }
+
+    pub fn em_io<R>(&mut self, reader: &mut Reader<R>, header: &Header) -> io::Result<()>
+    where
+        R: io::BufRead + io::Seek,
+    {
+        let sites = header.sites() as usize;
+
+        let mut epoch = 0;
+        while !self.stopping_rule.stop() {
+            if epoch > 0 {
+                reader.rewind(header)?;
+            }
+
+            self.em_step_io(reader, header)?;
+
+            self.epoch_update(epoch, sites);
+
+            epoch += 1;
+        }
+
+        Ok(())
     }
 
     fn em_step<'a, I: 'a>(&mut self, input: &I)
     where
         I: BlockIterator<'a, N>,
     {
-        let sites = input.sites(self.sfs.shape());
-
         for (i, block) in input
             .iter_blocks(self.sfs.shape(), self.block_size)
             .enumerate()
         {
-            let (block_log_likelihood, block_posterior) =
-                self.sfs.e_step_with_log_likelihood(&block);
-            self.window.update(block_posterior);
+            let (log_likelihood, posterior) = self.sfs.e_step_with_log_likelihood(&block);
 
-            self.sfs = self.window.sum();
-            self.sfs.normalise();
+            self.block_update(
+                i,
+                log_likelihood,
+                posterior,
+                input.sites(self.sfs.shape()),
+                block.sites(self.sfs.shape()),
+            );
+        }
+    }
 
-            log_sfs!(
-                target: "windowem",
-                log::Level::Trace, "Block {i}, current SFS: {}",
-                self.sfs, sites
+    pub fn em_step_io<R>(&mut self, reader: &mut Reader<R>, header: &Header) -> io::Result<()>
+    where
+        R: io::BufRead,
+    {
+        let mut i = 0;
+
+        loop {
+            let mut block_reader = reader.take(self.block_size);
+
+            let (log_likelihood, posterior) =
+                self.sfs.e_step_with_log_likelihood_io(&mut block_reader)?;
+
+            self.block_update(
+                i,
+                log_likelihood,
+                posterior,
+                header.sites() as usize,
+                block_reader.current(),
             );
 
-            let block_sites = block.sites(self.sfs.shape());
-            let norm_block_log_likelihood = block_log_likelihood / block_sites as f64;
-            self.stopping_rule.block_update(norm_block_log_likelihood);
+            i += 0;
 
-            log::trace!(
-                target: "windowem",
-                "Block {i}, block log-likelihood: {block_log_likelihood:.8e} ({block_sites} sites)"
-            );
+            if reader.is_done()? {
+                break Ok(());
+            }
         }
     }
 
@@ -90,6 +123,45 @@ where
             block_size,
             stopping_rule,
         }
+    }
+
+    fn epoch_update(&mut self, epoch: usize, sites: usize) {
+        log_sfs!(
+            target:
+            "windowem", log::Level::Debug,
+            "Epoch {epoch}, current SFS: {}",
+            self.sfs, sites
+        );
+
+        self.stopping_rule.epoch_update();
+    }
+
+    fn block_update(
+        &mut self,
+        i: usize,
+        log_likelihood: f64,
+        posterior: Sfs<N>,
+        total_sites: usize,
+        block_sites: usize,
+    ) {
+        self.window.update(posterior);
+
+        self.sfs = self.window.sum();
+        self.sfs.normalise();
+
+        log_sfs!(
+            target: "windowem",
+            log::Level::Trace, "Block {i}, current SFS: {}",
+            self.sfs, total_sites
+        );
+
+        let norm_log_likelihood = log_likelihood / block_sites as f64;
+        self.stopping_rule.block_update(norm_log_likelihood);
+
+        log::trace!(
+            target: "windowem",
+            "Block {i}, block log-likelihood: {log_likelihood:.8e} ({block_sites} sites)"
+        );
     }
 }
 

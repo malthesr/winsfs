@@ -1,9 +1,11 @@
+use std::io;
+
 use rayon::{
     iter::{IndexedParallelIterator, ParallelIterator},
     slice::ParallelSlice,
 };
 
-use crate::Sfs;
+use crate::{io::ReadSite, Sfs};
 
 impl<const N: usize> Sfs<N>
 where
@@ -18,13 +20,28 @@ where
             .fold(
                 || (Self::zeros(self.shape()), Self::zeros(self.shape())),
                 |(mut post, mut buf), site| {
-                    self.posterior_into(site.into_array(), &mut post, &mut buf);
+                    self.posterior_into(&site.into_array(), &mut post, &mut buf);
 
                     (post, buf)
                 },
             )
             .map(|(post, _buf)| post)
             .reduce(|| Self::zeros(self.shape()), |a, b| a + b)
+    }
+
+    pub fn e_step_io<R>(&self, reader: &mut R) -> io::Result<Self>
+    where
+        R: ReadSite,
+    {
+        let mut post = Self::zeros(self.shape());
+        let mut buf = Self::zeros(self.shape());
+
+        let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
+        while reader.read_site(&mut site)?.is_not_done() {
+            self.posterior_into(&site, &mut post, &mut buf);
+        }
+
+        Ok(post)
     }
 
     pub fn e_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
@@ -37,7 +54,7 @@ where
                 || (0.0, Self::zeros(self.shape()), Self::zeros(self.shape())),
                 |(mut ll, mut post, mut buf), site| {
                     ll += self
-                        .posterior_into(site.into_array(), &mut post, &mut buf)
+                        .posterior_into(&site.into_array(), &mut post, &mut buf)
                         .ln();
 
                     (ll, post, buf)
@@ -50,6 +67,22 @@ where
             )
     }
 
+    pub fn e_step_with_log_likelihood_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    where
+        R: ReadSite,
+    {
+        let mut post = Self::zeros(self.shape());
+        let mut buf = Self::zeros(self.shape());
+
+        let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
+        let mut ll = 0.0;
+        while reader.read_site(&mut site)?.is_not_done() {
+            ll += self.posterior_into(&site, &mut post, &mut buf).ln();
+        }
+
+        Ok((ll, post))
+    }
+
     pub fn log_likelihood<'a, I: 'a>(&self, input: &I) -> f64
     where
         I: SiteIterator<'a, N>,
@@ -58,7 +91,7 @@ where
             .iter_sites(self.shape())
             .fold(
                 || 0.0,
-                |ll, site| ll + self.site_log_likelihood(site.into_array()),
+                |ll, site| ll + self.site_log_likelihood(&site.into_array()),
             )
             .sum()
     }
@@ -73,6 +106,16 @@ where
         posterior
     }
 
+    pub fn em_step_io<R>(&self, reader: &mut R) -> io::Result<Self>
+    where
+        R: ReadSite,
+    {
+        let mut posterior = self.e_step_io(reader)?;
+        posterior.normalise();
+
+        Ok(posterior)
+    }
+
     pub fn em_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
     where
         I: SiteIterator<'a, N>,
@@ -81,6 +124,16 @@ where
         posterior.normalise();
 
         (log_likelihood, posterior)
+    }
+
+    pub fn em_step_with_log_likelihood_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    where
+        R: ReadSite,
+    {
+        let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood_io(reader)?;
+        posterior.normalise();
+
+        Ok((log_likelihood, posterior))
     }
 
     pub fn em<'a, I: 'a>(&self, input: &I, epochs: usize) -> Self
@@ -106,17 +159,24 @@ where
 }
 
 pub trait Em<const N: usize> {
-    fn posterior_into(&self, site: [&[f32]; N], posterior: &mut Self, buf: &mut Self) -> f64;
+    fn posterior_into<T>(&self, site: &[T; N], posterior: &mut Self, buf: &mut Self) -> f64
+    where
+        T: AsRef<[f32]>;
 
-    fn site_log_likelihood(&self, site: [&[f32]; N]) -> f64;
+    fn site_log_likelihood<T>(&self, site: &[T; N]) -> f64
+    where
+        T: AsRef<[f32]>;
 }
 
 impl Em<1> for Sfs<1> {
-    fn posterior_into(&self, site: [&[f32]; 1], posterior: &mut Self, buf: &mut Self) -> f64 {
+    fn posterior_into<T>(&self, site: &[T; 1], posterior: &mut Self, buf: &mut Self) -> f64
+    where
+        T: AsRef<[f32]>,
+    {
         let mut sum = 0.0;
 
         self.iter()
-            .zip(site[0].iter())
+            .zip(site[0].as_ref().iter())
             .zip(buf.iter_mut())
             .for_each(|((&sfs, &site), buf)| {
                 let v = sfs * site as f64;
@@ -131,9 +191,12 @@ impl Em<1> for Sfs<1> {
         sum
     }
 
-    fn site_log_likelihood(&self, site: [&[f32]; 1]) -> f64 {
+    fn site_log_likelihood<T>(&self, site: &[T; 1]) -> f64
+    where
+        T: AsRef<[f32]>,
+    {
         self.iter()
-            .zip(site[0].iter())
+            .zip(site[0].as_ref().iter())
             .map(|(&sfs, &site)| sfs * site as f64)
             .sum::<f64>()
             .ln()
@@ -141,8 +204,12 @@ impl Em<1> for Sfs<1> {
 }
 
 impl Em<2> for Sfs<2> {
-    fn posterior_into(&self, site: [&[f32]; 2], posterior: &mut Self, buf: &mut Self) -> f64 {
-        let [row_site, col_site] = site;
+    fn posterior_into<T>(&self, site: &[T; 2], posterior: &mut Self, buf: &mut Self) -> f64
+    where
+        T: AsRef<[f32]>,
+    {
+        let row_site = site[0].as_ref();
+        let col_site = site[1].as_ref();
 
         let cols = col_site.len();
 
@@ -173,8 +240,12 @@ impl Em<2> for Sfs<2> {
         sum
     }
 
-    fn site_log_likelihood(&self, site: [&[f32]; 2]) -> f64 {
-        let [row_site, col_site] = site;
+    fn site_log_likelihood<T>(&self, site: &[T; 2]) -> f64
+    where
+        T: AsRef<[f32]>,
+    {
+        let row_site = site[0].as_ref();
+        let col_site = site[1].as_ref();
 
         let mut sum = 0.0;
 
