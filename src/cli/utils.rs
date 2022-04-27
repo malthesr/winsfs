@@ -1,30 +1,13 @@
-use std::{io, num::NonZeroUsize, thread};
+use std::{num::NonZeroUsize, thread};
 
 use clap::CommandFactory;
 
 use rand::{rngs::StdRng, SeedableRng};
 
-use super::{Cli, Format};
+use super::Cli;
 
 const DEFAULT_NUMBER_OF_BLOCKS: usize = 500;
 const DEFAULT_BLOCKS_TO_WINDOWS: usize = 5;
-
-pub fn infer_format<R>(reader: &mut R) -> io::Result<Option<Format>>
-where
-    R: io::Read + io::Seek,
-{
-    const MAGIC_NUMBER_LEN: usize = angsd_io::saf::MAGIC_NUMBER.len();
-
-    let mut buf = [0; MAGIC_NUMBER_LEN];
-    reader.read_exact(&mut buf)?;
-    reader.seek(io::SeekFrom::Current(-(MAGIC_NUMBER_LEN as i64)))?;
-
-    Ok(match &buf {
-        angsd_io::saf::MAGIC_NUMBER => Some(Format::Standard),
-        crate::io::MAGIC_NUMBER => Some(Format::Shuffled),
-        _ => None,
-    })
-}
 
 pub fn get_block_size_and_blocks(
     block_size_arg: Option<NonZeroUsize>,

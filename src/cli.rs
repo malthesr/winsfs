@@ -3,7 +3,7 @@ use std::{fs, io, num::NonZeroUsize, path::PathBuf};
 use clap::{ArgEnum, ArgGroup, CommandFactory, Parser, Subcommand};
 
 mod utils;
-use utils::{infer_format, init_logger};
+use utils::init_logger;
 
 mod log_likelihood;
 use log_likelihood::LogLikelihood;
@@ -149,6 +149,68 @@ pub enum Format {
     Shuffled,
 }
 
+impl Format {
+    pub fn infer<R>(reader: &mut R) -> io::Result<Option<Self>>
+    where
+        R: io::Read + io::Seek,
+    {
+        const MAGIC_NUMBER_LEN: usize = angsd_io::saf::MAGIC_NUMBER.len();
+
+        let mut buf = [0; MAGIC_NUMBER_LEN];
+        reader.read_exact(&mut buf)?;
+        reader.seek(io::SeekFrom::Current(-(MAGIC_NUMBER_LEN as i64)))?;
+
+        Ok(match &buf {
+            angsd_io::saf::MAGIC_NUMBER => Some(Self::Standard),
+            crate::io::MAGIC_NUMBER => Some(Self::Shuffled),
+            _ => None,
+        })
+    }
+}
+
+impl TryFrom<&Cli> for Format {
+    type Error = clap::Error;
+
+    fn try_from(args: &Cli) -> Result<Self, Self::Error> {
+        match args.paths.as_slice() {
+            [] => unreachable!(), // Checked by clap
+            [path] => {
+                let mut reader = fs::File::open(path).map(io::BufReader::new)?;
+
+                match Self::infer(&mut reader)? {
+                    Some(inferred_format) => {
+                        if let Some(expected_format) = args.input_format {
+                            if inferred_format != expected_format {
+                                return Err(
+                                    Cli::command().error(
+                                        clap::ErrorKind::ValueValidation,
+                                        "expected input file format does not match the inferred file format"
+                                    ));
+                            }
+                        }
+
+                        Ok(inferred_format)
+                    }
+                    None => {
+                        Err(Cli::command()
+                            .error(clap::ErrorKind::Io, "unrecognised SAF file format"))
+                    }
+                }
+            }
+            [..] => {
+                if let Some(Format::Shuffled) = args.input_format {
+                    Err(Cli::command().error(
+                        clap::ErrorKind::ValueValidation,
+                        "only standard input file format valid for more than a single input path",
+                    ))
+                } else {
+                    Ok(Format::Standard)
+                }
+            }
+        }
+    }
+}
+
 impl Cli {
     pub fn run(self) -> clap::Result<()> {
         init_logger(self.verbose)?;
@@ -156,42 +218,14 @@ impl Cli {
         if let Some(subcommand) = self.subcommand {
             subcommand.run()
         } else {
+            let format = Format::try_from(&self)?;
+
             match self.paths.as_slice() {
-                [path] => {
-                    let mut reader = fs::File::open(path).map(io::BufReader::new)?;
-
-                    match infer_format(&mut reader)? {
-                        Some(inferred_format) => {
-                            if let Some(format) = self.input_format {
-                                if inferred_format != format {
-                                    return Err(
-                                        Cli::command().error(
-                                            clap::ErrorKind::ValueValidation,
-                                            "expected input file format does not match the inferred file format"
-                                        ));
-                                }
-                            }
-
-                            match inferred_format {
-                                Format::Standard => run_1d(path, &self),
-                                Format::Shuffled => run_io(path, &self),
-                            }
-                        }
-                        None => Err(Cli::command()
-                            .error(clap::ErrorKind::Io, "unrecognised SAF file format")),
-                    }
-                }
-                [first_path, second_path] => {
-                    if let Some(Format::Shuffled) = self.input_format {
-                        return Err(
-                            Cli::command().error(
-                                clap::ErrorKind::ValueValidation,
-                                "only standard input file format valid for more than a single input path"
-                            ));
-                    }
-
-                    run_2d(first_path, second_path, &self)
-                }
+                [path] => match format {
+                    Format::Standard => run_1d(path, &self),
+                    Format::Shuffled => run_io(path, &self),
+                },
+                [first_path, second_path] => run_2d(first_path, second_path, &self),
                 _ => unreachable!(), // Checked by clap
             }
         }
