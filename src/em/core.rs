@@ -406,7 +406,7 @@ mod tests {
         let mut posterior = Sfs::from_vec_shape(vec![10., 20., 30.], sfs.shape()).unwrap();
         let mut buf = Sfs::zeros(sfs.shape());
 
-        sfs.posterior_into([site], &mut posterior, &mut buf);
+        sfs.posterior_into(&[site], &mut posterior, &mut buf);
 
         let expected = vec![10. + 1. / 6., 20. + 1. / 3., 30. + 1. / 2.];
         assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice());
@@ -416,12 +416,12 @@ mod tests {
     fn test_sfs_2d_posterior() {
         let sfs = Sfs::from_vec_shape((1..16).map(|x| x as f64).collect(), [3, 5]).unwrap();
 
-        let row_site = &[2., 2., 2.];
-        let col_site = &[2., 4., 6., 8., 10.];
+        let row_site = &[2., 2., 2.][..];
+        let col_site = &[2., 4., 6., 8., 10.][..];
         let mut posterior = Sfs::from_elem(1., sfs.shape());
         let mut buf = Sfs::zeros(sfs.shape());
 
-        sfs.posterior_into([row_site, col_site], &mut posterior, &mut buf);
+        sfs.posterior_into(&[row_site, col_site], &mut posterior, &mut buf);
 
         #[rustfmt::skip]
         let expected = vec![
