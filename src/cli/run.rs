@@ -188,10 +188,12 @@ where
     match alleles[..] {
         [n] => run_io!(reader, header, args, [n], sites),
         [n, m] => run_io!(reader, header, args, [n, m], sites),
+        [n, m, o] => run_io!(reader, header, args, [n, m, o], sites),
         _ => {
             return Err(Cli::command().error(
                 clap::ErrorKind::InvalidValue,
-                "max two dimensions currently supported",
+                "max three dimensions currently supported; \
+                if you are affected by this, please open an issue",
             ))
         }
     }
