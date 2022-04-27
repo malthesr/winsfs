@@ -4,15 +4,10 @@ use clap::CommandFactory;
 
 use rand::{rngs::StdRng, SeedableRng};
 
-use super::Cli;
+use super::{Cli, Format};
+
 const DEFAULT_NUMBER_OF_BLOCKS: usize = 500;
 const DEFAULT_BLOCKS_TO_WINDOWS: usize = 5;
-
-#[derive(Debug)]
-pub enum Format {
-    Standard,
-    Shuffled,
-}
 
 pub fn infer_format<R>(reader: &mut R) -> io::Result<Option<Format>>
 where

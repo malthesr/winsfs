@@ -1,9 +1,9 @@
 use std::{fs, io, num::NonZeroUsize, path::PathBuf};
 
-use clap::{ArgGroup, CommandFactory, Parser, Subcommand};
+use clap::{ArgEnum, ArgGroup, CommandFactory, Parser, Subcommand};
 
 mod utils;
-use utils::{infer_format, init_logger, Format};
+use utils::{infer_format, init_logger};
 
 mod log_likelihood;
 use log_likelihood::LogLikelihood;
@@ -82,6 +82,19 @@ pub struct Cli {
     #[clap(short = 'i', long, help_heading = "INPUT", value_name = "PATH")]
     pub initial: Option<PathBuf>,
 
+    /// Input format file type.
+    ///
+    /// By default, the input file format is inferred from the file magic bytes, but this can be
+    /// specified if it is preferred to be explicit.
+    #[clap(
+        short = 'I',
+        long,
+        arg_enum,
+        help_heading = "INPUT",
+        value_name = "STRING"
+    )]
+    pub input_format: Option<Format>,
+
     /// Random seed.
     ///
     /// If unset, a seed will be chosen at random.
@@ -130,6 +143,12 @@ pub struct Cli {
     pub subcommand: Option<Command>,
 }
 
+#[derive(ArgEnum, Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Format {
+    Standard,
+    Shuffled,
+}
+
 impl Cli {
     pub fn run(self) -> clap::Result<()> {
         init_logger(self.verbose)?;
@@ -142,13 +161,37 @@ impl Cli {
                     let mut reader = fs::File::open(path).map(io::BufReader::new)?;
 
                     match infer_format(&mut reader)? {
-                        Some(Format::Standard) => run_1d(path, &self),
-                        Some(Format::Shuffled) => run_io(path, &self),
+                        Some(inferred_format) => {
+                            if let Some(format) = self.input_format {
+                                if inferred_format != format {
+                                    return Err(
+                                        Cli::command().error(
+                                            clap::ErrorKind::ValueValidation,
+                                            "expected input file format does not match the inferred file format"
+                                        ));
+                                }
+                            }
+
+                            match inferred_format {
+                                Format::Standard => run_1d(path, &self),
+                                Format::Shuffled => run_io(path, &self),
+                            }
+                        }
                         None => Err(Cli::command()
                             .error(clap::ErrorKind::Io, "unrecognised SAF file format")),
                     }
                 }
-                [first_path, second_path] => run_2d(first_path, second_path, &self),
+                [first_path, second_path] => {
+                    if let Some(Format::Shuffled) = self.input_format {
+                        return Err(
+                            Cli::command().error(
+                                clap::ErrorKind::ValueValidation,
+                                "only standard input file format valid for more than a single input path"
+                            ));
+                    }
+
+                    run_2d(first_path, second_path, &self)
+                }
                 _ => unreachable!(), // Checked by clap
             }
         }
