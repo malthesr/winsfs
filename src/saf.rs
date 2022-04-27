@@ -5,15 +5,15 @@ use angsd_io::saf;
 use rand::Rng;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Saf1d {
+pub struct Saf {
     values: Vec<f32>,
     sites: usize,
     cols: usize,
 }
 
-impl Saf1d {
-    pub fn cols(&self) -> [usize; 1] {
-        [self.cols]
+impl Saf {
+    pub fn cols(&self) -> usize {
+        self.cols
     }
 
     pub fn read<R>(mut reader: saf::BgzfReader<R>) -> io::Result<Self>
@@ -77,11 +77,16 @@ impl Saf1d {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Saf2d(Saf1d, Saf1d);
+pub struct JointSaf<const N: usize>([Saf; N]);
 
-impl Saf2d {
-    pub fn cols(&self) -> [usize; 2] {
-        [self.0.cols, self.1.cols]
+impl<const N: usize> JointSaf<N> {
+    pub fn cols(&self) -> [usize; N] {
+        self.0
+            .iter()
+            .map(|saf| saf.cols())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
     }
 
     pub fn shuffle<R>(&mut self, rng: &mut R)
@@ -92,64 +97,80 @@ impl Saf2d {
         for i in (1..self.sites()).rev() {
             let j = rng.gen_range(0..i + 1);
 
-            self.0.swap_sites(i, j);
-            self.1.swap_sites(i, j);
+            for n in 0..N {
+                self.0[n].swap_sites(i, j);
+            }
         }
     }
 
-    pub fn read<R>(
-        first_reader: saf::BgzfReader<R>,
-        second_reader: saf::BgzfReader<R>,
-    ) -> io::Result<Self>
+    pub fn read<R>(readers: [saf::BgzfReader<R>; N]) -> io::Result<Self>
     where
         R: io::BufRead + io::Seek,
     {
-        let max_sites = usize::min(
-            first_reader.index().total_sites(),
-            second_reader.index().total_sites(),
-        );
+        let max_sites = readers
+            .iter()
+            .map(|reader| reader.index().total_sites())
+            .min()
+            .expect("no readers provided");
 
-        let left_cols = first_reader.index().alleles() + 1;
-        let left_capacity = left_cols * max_sites;
-        let mut left_values = Vec::with_capacity(left_capacity);
+        let cols: Vec<usize> = readers
+            .iter()
+            .map(|reader| reader.index().alleles() + 1)
+            .collect();
 
-        let right_cols = second_reader.index().alleles() + 1;
-        let right_capacity = right_cols * max_sites;
-        let mut right_values = Vec::with_capacity(right_capacity);
+        let mut vecs: Vec<Vec<f32>> = cols
+            .iter()
+            .map(|cols| Vec::with_capacity(cols * max_sites))
+            .collect();
 
-        let mut reader = first_reader.intersect(second_reader);
+        let readers = Vec::from(readers);
+        let mut intersect = saf::reader::Intersect::new(readers).unwrap();
 
-        let mut bufs = reader.create_record_bufs();
-        while reader.read_records(&mut bufs)?.is_not_done() {
-            left_values.extend_from_slice(bufs[0].values());
-            right_values.extend_from_slice(bufs[1].values());
+        let mut bufs = intersect.create_record_bufs();
+        while intersect.read_records(&mut bufs)?.is_not_done() {
+            for (buf, vec) in bufs.iter().zip(vecs.iter_mut()) {
+                vec.extend_from_slice(buf.values());
+            }
         }
 
-        left_values.shrink_to_fit();
-        right_values.shrink_to_fit();
+        let safs = vecs
+            .into_iter()
+            .zip(cols.iter())
+            .map(|(mut vec, cols)| {
+                vec.shrink_to_fit();
+                let n = vec.len();
 
-        let left_sites = left_values.len() / left_cols;
-        let right_sites = right_values.len() / right_cols;
+                assert_eq!(n % cols, 0);
+                let sites = n / cols;
 
-        Ok(Self::new(
-            Saf1d::from_log(left_values, left_sites),
-            Saf1d::from_log(right_values, right_sites),
-        ))
+                Saf::from_log(vec, sites)
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        Ok(Self::new(safs))
     }
 
     pub fn sites(&self) -> usize {
         // Equal length maintained as invariant, so either is fine
-        self.0.sites()
+        self.0[0].sites()
     }
 
-    pub fn values(&self) -> (&[f32], &[f32]) {
-        (self.0.values(), self.1.values())
+    pub fn values(&self) -> [&[f32]; N] {
+        self.0
+            .iter()
+            .map(|saf| saf.values())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
     }
 
-    fn new(left: Saf1d, right: Saf1d) -> Self {
-        assert_eq!(left.sites(), right.sites());
+    fn new(safs: [Saf; N]) -> Self {
+        safs.windows(2)
+            .for_each(|x| assert_eq!(x[0].sites(), x[1].sites()));
 
-        Self(left, right)
+        Self(safs)
     }
 }
 

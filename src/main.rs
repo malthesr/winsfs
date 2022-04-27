@@ -8,7 +8,7 @@ mod cli;
 use cli::Cli;
 
 mod saf;
-pub use saf::{Saf1d, Saf2d};
+pub use saf::{JointSaf, Saf};
 
 mod sfs;
 pub use sfs::{Sfs, Sfs1d, Sfs2d};

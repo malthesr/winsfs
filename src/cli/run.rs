@@ -10,8 +10,8 @@ use super::{
 };
 
 use crate::{
-    em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
-    Saf1d, Saf2d, Sfs,
+    em::{Em, IntoArray, StoppingRule, Window, DEFAULT_TOLERANCE},
+    JointSaf, Saf, Sfs,
 };
 
 fn create_runner<const N: usize>(
@@ -61,7 +61,7 @@ macro_rules! run {
         let mut rng = get_rng($args.seed);
         $saf.shuffle(&mut rng);
 
-        let mut window = create_runner($saf.cols(), $saf.sites(), $args)?;
+        let mut window = create_runner($saf.cols().into_array(), $saf.sites(), $args)?;
         window.em(&$saf.values());
         let mut estimate = window.into_sfs();
 
@@ -79,9 +79,9 @@ where
 
     let reader = saf::Reader::from_bgzf_member_path(path)?;
 
-    let mut saf = Saf1d::read(reader)?;
+    let mut saf = Saf::read(reader)?;
     let sites = saf.sites();
-    log::info!(target: "init", "Read {sites} sites in SAF file with {} cols.", saf.cols()[0]);
+    log::info!(target: "init", "Read {sites} sites in SAF file with {} cols.", saf.cols());
 
     run!(saf, args, sites);
 
@@ -101,7 +101,7 @@ where
     let first_reader = saf::Reader::from_bgzf_member_path(&first_path)?;
     let second_reader = saf::Reader::from_bgzf_member_path(&second_path)?;
 
-    let mut safs = Saf2d::read(first_reader, second_reader)?;
+    let mut safs = JointSaf::read([first_reader, second_reader])?;
     let sites = safs.sites();
     log::info!(target: "init", "Read {sites} shared sites in SAF files with {}/{} cols.", safs.cols()[0], safs.cols()[1]);
 
