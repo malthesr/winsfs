@@ -297,18 +297,33 @@ impl<'a> SiteIterator<'a, 2> for (&'a [f32], &'a [f32]) {
     type SiteIter = rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>;
 
     fn iter_sites(&self, shape: [usize; 2]) -> Self::SiteIter {
-        let [n, m] = shape;
-        assert_eq!(self.0.len() % n, 0);
-        assert_eq!(self.1.len() % m, 0);
-        self.0.par_chunks(n).zip(self.1.par_chunks(m))
+        [self.0, self.1].iter_sites(shape)
     }
 
     fn sites(&self, shape: [usize; 2]) -> usize {
+        [self.0, self.1].sites(shape)
+    }
+}
+
+impl<'a> SiteIterator<'a, 2> for [&'a [f32]; 2] {
+    type Site = (&'a [f32], &'a [f32]);
+    type SiteIter = rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>;
+
+    fn iter_sites(&self, shape: [usize; 2]) -> Self::SiteIter {
+        let [fst, snd] = self;
         let [n, m] = shape;
-        assert_eq!(self.0.len() % n, 0);
-        assert_eq!(self.1.len() % m, 0);
-        assert_eq!(self.0.len() / n, self.1.len() / m);
-        self.0.len() / n
+        assert_eq!(fst.len() % n, 0);
+        assert_eq!(snd.len() % m, 0);
+        fst.par_chunks(n).zip(snd.par_chunks(m))
+    }
+
+    fn sites(&self, shape: [usize; 2]) -> usize {
+        let [fst, snd] = self;
+        let [n, m] = shape;
+        assert_eq!(fst.len() % n, 0);
+        assert_eq!(snd.len() % m, 0);
+        assert_eq!(fst.len() / n, snd.len() / m);
+        fst.len() / n
     }
 }
 
@@ -338,12 +353,20 @@ impl<'a> BlockIterator<'a, 2> for (&'a [f32], &'a [f32]) {
     type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
 
     fn iter_blocks(&self, shape: [usize; 2], block_size: usize) -> Self::BlockIter {
+        [self.0, self.1].iter_blocks(shape, block_size)
+    }
+}
+
+impl<'a> BlockIterator<'a, 2> for [&'a [f32]; 2] {
+    type Block = (&'a [f32], &'a [f32]);
+    type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
+
+    fn iter_blocks(&self, shape: [usize; 2], block_size: usize) -> Self::BlockIter {
+        let [fst, snd] = self;
         let [n, m] = shape;
-        assert_eq!(self.0.len() % n, 0);
-        assert_eq!(self.1.len() % m, 0);
-        self.0
-            .chunks(n * block_size)
-            .zip(self.1.chunks(m * block_size))
+        assert_eq!(fst.len() % n, 0);
+        assert_eq!(snd.len() % m, 0);
+        fst.chunks(n * block_size).zip(snd.chunks(m * block_size))
     }
 }
 
