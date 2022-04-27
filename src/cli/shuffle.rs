@@ -26,7 +26,7 @@ pub struct Shuffle {
     /// Up to two SAF files currently supported.
     #[clap(
         parse(from_os_str),
-        max_values = 2,
+        max_values = 3,
         required = true,
         value_name = "PATHS"
     )]
@@ -49,7 +49,7 @@ impl Shuffle {
         match self.paths.as_slice() {
             [] => unreachable!(), // Checked by clap
             [path] => run_1d(path, &self),
-            paths => run_2d(paths, &self),
+            paths => run_nd(paths, &self),
         }
     }
 }
@@ -90,7 +90,7 @@ where
     Ok(())
 }
 
-fn run_2d<P>(paths: &[P], args: &Shuffle) -> clap::Result<()>
+fn run_nd<P>(paths: &[P], args: &Shuffle) -> clap::Result<()>
 where
     P: AsRef<Path>,
 {
