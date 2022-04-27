@@ -264,6 +264,66 @@ impl Em<2> for Sfs<2> {
     }
 }
 
+impl Em<3> for Sfs<3> {
+    fn posterior_into<T>(&self, site: &[T; 3], posterior: &mut Self, buf: &mut Self) -> f64
+    where
+        T: AsRef<[f32]>,
+    {
+        let fst_site = site[0].as_ref();
+        let snd_site = site[1].as_ref();
+        let trd_site = site[2].as_ref();
+
+        let [n, m, o] = self.shape();
+
+        let mut sum = 0.0;
+
+        for i in 0..n {
+            for j in 0..m {
+                for k in 0..o {
+                    let v = self[[i, j, k]]
+                        * fst_site[i] as f64
+                        * snd_site[j] as f64
+                        * trd_site[k] as f64;
+                    sum += v;
+                    buf[[i, j, k]] = v;
+                }
+            }
+        }
+
+        buf.iter_mut().for_each(|x| *x /= sum);
+
+        *posterior += &*buf;
+
+        sum
+    }
+
+    fn site_log_likelihood<T>(&self, site: &[T; 3]) -> f64
+    where
+        T: AsRef<[f32]>,
+    {
+        let fst_site = site[0].as_ref();
+        let snd_site = site[1].as_ref();
+        let trd_site = site[2].as_ref();
+
+        let [n, m, o] = self.shape();
+
+        let mut sum = 0.0;
+
+        for i in 0..n {
+            for j in 0..m {
+                for k in 0..o {
+                    sum += self[[i, j, k]]
+                        * fst_site[i] as f64
+                        * snd_site[j] as f64
+                        * trd_site[k] as f64;
+                }
+            }
+        }
+
+        sum
+    }
+}
+
 pub trait SiteIterator<'a, const N: usize> {
     // TODO: These types should be replaced by TAIT once stable,
     // see github.com/rust-lang/rust/issues/63063
@@ -275,6 +335,8 @@ pub trait SiteIterator<'a, const N: usize> {
     fn iter_sites(&self, shape: [usize; N]) -> Self::SiteIter;
 
     fn sites(&self, shape: [usize; N]) -> usize;
+
+    fn check(&self, shape: [usize; N]);
 }
 
 impl<'a> SiteIterator<'a, 1> for &'a [f32] {
@@ -282,13 +344,17 @@ impl<'a> SiteIterator<'a, 1> for &'a [f32] {
     type SiteIter = rayon::slice::Chunks<'a, f32>;
 
     fn iter_sites(&self, shape: [usize; 1]) -> Self::SiteIter {
-        assert_eq!(self.len() % shape[0], 0);
+        self.check(shape);
         self.par_chunks(shape[0])
     }
 
     fn sites(&self, shape: [usize; 1]) -> usize {
-        assert_eq!(self.len() % shape[0], 0);
+        self.check(shape);
         self.len() / shape[0]
+    }
+
+    fn check(&self, shape: [usize; 1]) {
+        assert_eq!(self.len() % shape[0], 0);
     }
 }
 
@@ -303,6 +369,10 @@ impl<'a> SiteIterator<'a, 2> for (&'a [f32], &'a [f32]) {
     fn sites(&self, shape: [usize; 2]) -> usize {
         [self.0, self.1].sites(shape)
     }
+
+    fn check(&self, shape: [usize; 2]) {
+        [self.0, self.1].check(shape)
+    }
 }
 
 impl<'a> SiteIterator<'a, 2> for [&'a [f32]; 2] {
@@ -310,20 +380,79 @@ impl<'a> SiteIterator<'a, 2> for [&'a [f32]; 2] {
     type SiteIter = rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>;
 
     fn iter_sites(&self, shape: [usize; 2]) -> Self::SiteIter {
+        self.check(shape);
         let [fst, snd] = self;
         let [n, m] = shape;
-        assert_eq!(fst.len() % n, 0);
-        assert_eq!(snd.len() % m, 0);
         fst.par_chunks(n).zip(snd.par_chunks(m))
     }
 
     fn sites(&self, shape: [usize; 2]) -> usize {
+        self.check(shape);
+        let [fst, _] = self;
+        let [n, _] = shape;
+        fst.len() / n
+    }
+
+    fn check(&self, shape: [usize; 2]) {
         let [fst, snd] = self;
         let [n, m] = shape;
         assert_eq!(fst.len() % n, 0);
         assert_eq!(snd.len() % m, 0);
         assert_eq!(fst.len() / n, snd.len() / m);
+    }
+}
+
+impl<'a> SiteIterator<'a, 3> for ((&'a [f32], &'a [f32]), &'a [f32]) {
+    type Site = ((&'a [f32], &'a [f32]), &'a [f32]);
+    type SiteIter = rayon::iter::Zip<
+        rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>,
+        rayon::slice::Chunks<'a, f32>,
+    >;
+
+    fn iter_sites(&self, shape: [usize; 3]) -> Self::SiteIter {
+        [self.0 .0, self.0 .1, self.1].iter_sites(shape)
+    }
+
+    fn sites(&self, shape: [usize; 3]) -> usize {
+        [self.0 .0, self.0 .1, self.1].sites(shape)
+    }
+
+    fn check(&self, shape: [usize; 3]) {
+        [self.0 .0, self.0 .1, self.1].check(shape)
+    }
+}
+
+impl<'a> SiteIterator<'a, 3> for [&'a [f32]; 3] {
+    type Site = ((&'a [f32], &'a [f32]), &'a [f32]);
+    type SiteIter = rayon::iter::Zip<
+        rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>,
+        rayon::slice::Chunks<'a, f32>,
+    >;
+
+    fn iter_sites(&self, shape: [usize; 3]) -> Self::SiteIter {
+        self.check(shape);
+        let [fst, snd, trd] = self;
+        let [n, m, o] = shape;
+        fst.par_chunks(n)
+            .zip(snd.par_chunks(m))
+            .zip(trd.par_chunks(o))
+    }
+
+    fn sites(&self, shape: [usize; 3]) -> usize {
+        self.check(shape);
+        let [fst, ..] = self;
+        let [n, ..] = shape;
         fst.len() / n
+    }
+
+    fn check(&self, shape: [usize; 3]) {
+        let [fst, snd, trd] = self;
+        let [n, m, o] = shape;
+        assert_eq!(fst.len() % n, 0);
+        assert_eq!(snd.len() % m, 0);
+        assert_eq!(trd.len() % o, 0);
+        assert_eq!(fst.len() / n, snd.len() / m);
+        assert_eq!(snd.len() / m, trd.len() / o);
     }
 }
 
@@ -343,7 +472,7 @@ impl<'a> BlockIterator<'a, 1> for &'a [f32] {
     type BlockIter = std::slice::Chunks<'a, f32>;
 
     fn iter_blocks(&self, shape: [usize; 1], block_size: usize) -> Self::BlockIter {
-        assert_eq!(self.len() % shape[0], 0);
+        self.check(shape);
         self.chunks(shape[0] * block_size)
     }
 }
@@ -362,11 +491,39 @@ impl<'a> BlockIterator<'a, 2> for [&'a [f32]; 2] {
     type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
 
     fn iter_blocks(&self, shape: [usize; 2], block_size: usize) -> Self::BlockIter {
+        self.check(shape);
         let [fst, snd] = self;
         let [n, m] = shape;
-        assert_eq!(fst.len() % n, 0);
-        assert_eq!(snd.len() % m, 0);
         fst.chunks(n * block_size).zip(snd.chunks(m * block_size))
+    }
+}
+
+impl<'a> BlockIterator<'a, 3> for ((&'a [f32], &'a [f32]), &'a [f32]) {
+    type Block = ((&'a [f32], &'a [f32]), &'a [f32]);
+    type BlockIter = std::iter::Zip<
+        std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>,
+        std::slice::Chunks<'a, f32>,
+    >;
+
+    fn iter_blocks(&self, shape: [usize; 3], block_size: usize) -> Self::BlockIter {
+        [self.0 .0, self.0 .1, self.1].iter_blocks(shape, block_size)
+    }
+}
+
+impl<'a> BlockIterator<'a, 3> for [&'a [f32]; 3] {
+    type Block = ((&'a [f32], &'a [f32]), &'a [f32]);
+    type BlockIter = std::iter::Zip<
+        std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>,
+        std::slice::Chunks<'a, f32>,
+    >;
+
+    fn iter_blocks(&self, shape: [usize; 3], block_size: usize) -> Self::BlockIter {
+        self.check(shape);
+        let [fst, snd, trd] = self;
+        let [n, m, o] = shape;
+        fst.chunks(n * block_size)
+            .zip(snd.chunks(m * block_size))
+            .zip(trd.chunks(o * block_size))
     }
 }
 
@@ -383,6 +540,12 @@ impl<T> IntoArray<1, T> for T {
 impl<T> IntoArray<2, T> for (T, T) {
     fn into_array(self) -> [T; 2] {
         [self.0, self.1]
+    }
+}
+
+impl<T> IntoArray<3, T> for ((T, T), T) {
+    fn into_array(self) -> [T; 3] {
+        [self.0 .0, self.0 .1, self.1]
     }
 }
 
@@ -428,6 +591,35 @@ mod tests {
             1.002564, 1.010256, 1.023077, 1.041026, 1.064103,
             1.015385, 1.035897, 1.061538, 1.092308, 1.128205,
             1.028205, 1.061538, 1.100000, 1.143590, 1.192308,
+        ];
+        assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice(), epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_sfs_3d_posterior() {
+        let sfs = Sfs::from_vec_shape((1..28).map(|x| x as f64).collect(), [3, 3, 3]).unwrap();
+
+        let fst_site = &[1., 2., 3.][..];
+        let snd_site = &[4., 5., 6.][..];
+        let trd_site = &[7., 8., 9.][..];
+        let mut posterior = Sfs::from_elem(1., sfs.shape());
+        let mut buf = Sfs::zeros(sfs.shape());
+
+        sfs.posterior_into(&[fst_site, snd_site, trd_site], &mut posterior, &mut buf);
+
+        #[rustfmt::skip]
+        let expected = vec![
+            1.000741, 1.001694, 1.002859,
+            1.003707, 1.005296, 1.007149,
+            1.007785, 1.010168, 1.012869,
+
+            1.014828, 1.018642, 1.022878,
+            1.024097, 1.029657, 1.035748,
+            1.035589, 1.043215, 1.051477,
+
+            1.042262, 1.050842, 1.0600571,
+            1.061169, 1.073085, 1.0857959,
+            1.083412, 1.099142, 1.1158245,
         ];
         assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice(), epsilon = 1e-6);
     }
