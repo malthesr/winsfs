@@ -35,22 +35,6 @@ where
             )
     }
 
-    pub fn e_step_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
-    where
-        R: ReadSite,
-    {
-        let mut post = Self::zeros(self.shape());
-        let mut buf = Self::zeros(self.shape());
-
-        let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
-        let mut ll = 0.0;
-        while reader.read_site(&mut site)?.is_not_done() {
-            ll += self.posterior_into(&site, &mut post, &mut buf).ln();
-        }
-
-        Ok((ll, post))
-    }
-
     pub fn log_likelihood<'a, I: 'a>(&self, input: &I) -> f64
     where
         I: ParSiteIterator<'a, N>,
@@ -74,11 +58,27 @@ where
         (log_likelihood, posterior)
     }
 
-    pub fn em_step_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    pub fn streaming_e_step<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
     where
         R: ReadSite,
     {
-        let (log_likelihood, mut posterior) = self.e_step_io(reader)?;
+        let mut post = Self::zeros(self.shape());
+        let mut buf = Self::zeros(self.shape());
+
+        let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
+        let mut ll = 0.0;
+        while reader.read_site(&mut site)?.is_not_done() {
+            ll += self.posterior_into(&site, &mut post, &mut buf).ln();
+        }
+
+        Ok((ll, post))
+    }
+
+    pub fn streaming_em_step<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    where
+        R: ReadSite,
+    {
+        let (log_likelihood, mut posterior) = self.streaming_e_step(reader)?;
         posterior.normalise();
 
         Ok((log_likelihood, posterior))

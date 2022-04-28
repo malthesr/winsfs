@@ -36,7 +36,7 @@ where
         }
     }
 
-    pub fn em_io<R>(&mut self, reader: &mut Reader<R>, header: &Header) -> io::Result<()>
+    pub fn streaming_em<R>(&mut self, reader: &mut Reader<R>, header: &Header) -> io::Result<()>
     where
         R: io::BufRead + io::Seek,
     {
@@ -48,7 +48,7 @@ where
                 reader.rewind(header)?;
             }
 
-            self.em_step_io(reader, header)?;
+            self.streaming_em_step(reader, header)?;
 
             self.epoch_update(epoch, sites);
 
@@ -69,7 +69,11 @@ where
         }
     }
 
-    pub fn em_step_io<R>(&mut self, reader: &mut Reader<R>, header: &Header) -> io::Result<()>
+    pub fn streaming_em_step<R>(
+        &mut self,
+        reader: &mut Reader<R>,
+        header: &Header,
+    ) -> io::Result<()>
     where
         R: io::BufRead,
     {
@@ -78,7 +82,7 @@ where
         loop {
             let mut block_reader = reader.take(self.block_size);
 
-            let (log_likelihood, posterior) = self.sfs.e_step_io(&mut block_reader)?;
+            let (log_likelihood, posterior) = self.sfs.streaming_e_step(&mut block_reader)?;
 
             self.block_update(
                 i,

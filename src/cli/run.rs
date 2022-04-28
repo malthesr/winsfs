@@ -155,7 +155,7 @@ macro_rules! run_io {
     ($reader:ident, $header:ident, $args:ident, $shape:expr, $sites:ident) => {{
         let mut window = create_runner($shape, $sites, $args)?;
 
-        window.em_io(&mut $reader, &$header)?;
+        window.streaming_em(&mut $reader, &$header)?;
         let mut estimate = window.into_sfs();
 
         estimate.scale($sites as f64);
