@@ -1,6 +1,6 @@
 #![allow(unstable_name_collisions)]
 
-use std::{error::Error, fmt, io};
+use std::{error::Error, fmt, io, path::Path};
 
 use angsd_io::saf;
 
@@ -79,6 +79,15 @@ impl Saf {
             .read_values(values.as_mut_slice())?;
 
         Self::from_log(values, shape).map_err(io::Error::from)
+    }
+
+    pub fn read_from_path<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let reader = saf::reader::BgzfReader::from_bgzf_member_path(path)?;
+
+        Self::read(reader)
     }
 
     pub fn shuffle<R>(&mut self, rng: &mut R)
