@@ -3,7 +3,7 @@ use std::io;
 use rayon::iter::ParallelIterator;
 
 use crate::{
-    saf::{IntoArray, JointSafView, ParSiteIterator},
+    saf::{IntoArray, ParSiteIterator},
     stream::ReadSite,
     Sfs,
 };
@@ -12,40 +12,7 @@ impl<const N: usize> Sfs<N>
 where
     Self: Em<N>,
 {
-    pub fn e_step<'a, I: 'a>(&self, input: &I) -> Self
-    where
-        I: ParSiteIterator<'a, N>,
-    {
-        input
-            .par_iter_sites()
-            .fold(
-                || (Self::zeros(self.shape()), Self::zeros(self.shape())),
-                |(mut post, mut buf), site| {
-                    self.posterior_into(&site.into_array(), &mut post, &mut buf);
-
-                    (post, buf)
-                },
-            )
-            .map(|(post, _buf)| post)
-            .reduce(|| Self::zeros(self.shape()), |a, b| a + b)
-    }
-
-    pub fn e_step_io<R>(&self, reader: &mut R) -> io::Result<Self>
-    where
-        R: ReadSite,
-    {
-        let mut post = Self::zeros(self.shape());
-        let mut buf = Self::zeros(self.shape());
-
-        let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
-        while reader.read_site(&mut site)?.is_not_done() {
-            self.posterior_into(&site, &mut post, &mut buf);
-        }
-
-        Ok(post)
-    }
-
-    pub fn e_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
+    pub fn e_step<'a, I: 'a>(&self, input: &I) -> (f64, Self)
     where
         I: ParSiteIterator<'a, N>,
     {
@@ -68,7 +35,7 @@ where
             )
     }
 
-    pub fn e_step_with_log_likelihood_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    pub fn e_step_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
     where
         R: ReadSite,
     {
@@ -97,65 +64,24 @@ where
             .sum()
     }
 
-    pub fn em_step<'a, I: 'a>(&self, input: &I) -> Self
+    pub fn em_step<'a, I: 'a>(&self, input: &I) -> (f64, Self)
     where
         I: ParSiteIterator<'a, N>,
     {
-        let mut posterior = self.e_step(input);
-        posterior.normalise();
-
-        posterior
-    }
-
-    pub fn em_step_io<R>(&self, reader: &mut R) -> io::Result<Self>
-    where
-        R: ReadSite,
-    {
-        let mut posterior = self.e_step_io(reader)?;
-        posterior.normalise();
-
-        Ok(posterior)
-    }
-
-    pub fn em_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
-    where
-        I: ParSiteIterator<'a, N>,
-    {
-        let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood(input);
+        let (log_likelihood, mut posterior) = self.e_step(input);
         posterior.normalise();
 
         (log_likelihood, posterior)
     }
 
-    pub fn em_step_with_log_likelihood_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    pub fn em_step_io<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
     where
         R: ReadSite,
     {
-        let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood_io(reader)?;
+        let (log_likelihood, mut posterior) = self.e_step_io(reader)?;
         posterior.normalise();
 
         Ok((log_likelihood, posterior))
-    }
-
-    pub fn em<'a>(&self, input: &JointSafView<'a, N>, epochs: usize) -> Self
-    where
-        JointSafView<'a, N>: ParSiteIterator<'a, N>,
-    {
-        let sites = input.sites();
-        let mut sfs = self.clone();
-
-        for i in 0..epochs {
-            log_sfs!(
-                target: "em",
-                log::Level::Debug,
-                "Epoch {i}, current SFS: {}",
-                sfs, sites
-            );
-
-            sfs = sfs.em_step(input);
-        }
-
-        sfs
     }
 }
 

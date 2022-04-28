@@ -63,7 +63,7 @@ where
         JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
     {
         for (i, block) in input.iter_blocks(self.block_size).enumerate() {
-            let (log_likelihood, posterior) = self.sfs.e_step_with_log_likelihood(&block);
+            let (log_likelihood, posterior) = self.sfs.e_step(&block);
 
             self.block_update(i, log_likelihood, posterior, input.sites(), block.sites());
         }
@@ -78,8 +78,7 @@ where
         loop {
             let mut block_reader = reader.take(self.block_size);
 
-            let (log_likelihood, posterior) =
-                self.sfs.e_step_with_log_likelihood_io(&mut block_reader)?;
+            let (log_likelihood, posterior) = self.sfs.e_step_io(&mut block_reader)?;
 
             self.block_update(
                 i,
