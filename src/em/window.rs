@@ -2,10 +2,11 @@ use std::{collections::VecDeque, io};
 
 use crate::{
     io::{Header, Reader},
+    saf::{BlockIterator, JointSafView},
     Sfs,
 };
 
-use super::{BlockIterator, Em, SiteIterator, StoppingRule};
+use super::{Em, StoppingRule};
 
 #[derive(Clone, Debug)]
 pub struct Window<const N: usize> {
@@ -19,11 +20,11 @@ impl<const N: usize> Window<N>
 where
     Sfs<N>: Em<N>,
 {
-    pub fn em<'a, I: 'a>(&mut self, input: &I)
+    pub fn em<'a>(&mut self, input: &JointSafView<'a, N>)
     where
-        I: BlockIterator<'a, N>,
+        JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
     {
-        let sites = input.sites(self.sfs.shape());
+        let sites: usize = input.sites();
 
         let mut epoch = 0;
         while !self.stopping_rule.stop() {
@@ -57,23 +58,14 @@ where
         Ok(())
     }
 
-    fn em_step<'a, I: 'a>(&mut self, input: &I)
+    fn em_step<'a>(&mut self, input: &JointSafView<'a, N>)
     where
-        I: BlockIterator<'a, N>,
+        JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
     {
-        for (i, block) in input
-            .iter_blocks(self.sfs.shape(), self.block_size)
-            .enumerate()
-        {
+        for (i, block) in input.iter_blocks(self.block_size).enumerate() {
             let (log_likelihood, posterior) = self.sfs.e_step_with_log_likelihood(&block);
 
-            self.block_update(
-                i,
-                log_likelihood,
-                posterior,
-                input.sites(self.sfs.shape()),
-                block.sites(self.sfs.shape()),
-            );
+            self.block_update(i, log_likelihood, posterior, input.sites(), block.sites());
         }
     }
 

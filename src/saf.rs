@@ -1,19 +1,68 @@
-use std::io;
+#![allow(unstable_name_collisions)]
+
+use std::{error::Error, fmt, io};
 
 use angsd_io::saf;
 
 use rand::Rng;
 
+use rayon::slice::ParallelSlice;
+
+mod joint_saf;
+pub use joint_saf::{JointSaf, JointSafView, JointShapeError};
+
+mod blocks;
+pub use blocks::Blocks;
+
+mod traits;
+pub(self) use traits::ArrayExt;
+pub use traits::{BlockIterator, IntoArray, ParSiteIterator};
+
+macro_rules! impl_shared_saf_methods {
+    () => {
+        pub fn as_slice(&self) -> &[f32] {
+            &self.values
+        }
+
+        pub fn sites(&self) -> usize {
+            self.values.len() / self.shape
+        }
+
+        pub fn shape(&self) -> usize {
+            self.shape
+        }
+    };
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Saf {
     values: Vec<f32>,
-    sites: usize,
-    cols: usize,
+    shape: usize,
 }
 
 impl Saf {
-    pub fn cols(&self) -> usize {
-        self.cols
+    pub fn as_mut_slice(&mut self) -> &mut [f32] {
+        &mut self.values
+    }
+
+    pub(super) fn from_log(mut values: Vec<f32>, shape: usize) -> Result<Self, ShapeError> {
+        values.iter_mut().for_each(|x| *x = x.exp());
+
+        Self::new(values, shape)
+    }
+
+    pub fn new(values: Vec<f32>, shape: usize) -> Result<Self, ShapeError> {
+        let len = values.len();
+
+        if len % shape == 0 {
+            Ok(Self::new_unchecked(values, shape))
+        } else {
+            Err(ShapeError { len, shape })
+        }
+    }
+
+    fn new_unchecked(values: Vec<f32>, shape: usize) -> Self {
+        Self { values, shape }
     }
 
     pub fn read<R>(mut reader: saf::BgzfReader<R>) -> io::Result<Self>
@@ -21,15 +70,16 @@ impl Saf {
         R: io::BufRead,
     {
         let total_sites: usize = reader.index().total_sites();
+        let shape = reader.index().alleles() + 1;
 
-        let capacity = (reader.index().alleles() + 1) * total_sites;
+        let capacity = shape * total_sites;
         let mut values = vec![0.0; capacity];
 
         reader
             .value_reader_mut()
             .read_values(values.as_mut_slice())?;
 
-        Ok(Self::from_log(values, total_sites))
+        Self::from_log(values, shape).map_err(io::Error::from)
     }
 
     pub fn shuffle<R>(&mut self, rng: &mut R)
@@ -44,133 +94,65 @@ impl Saf {
         }
     }
 
-    pub fn sites(&self) -> usize {
-        self.sites
+    pub(super) fn swap_sites(&mut self, i: usize, j: usize) {
+        swap_chunks(self.values.as_mut_slice(), i, j, self.shape);
     }
 
-    pub fn values(&self) -> &[f32] {
-        &self.values
+    pub fn view(&self) -> SafView<'_> {
+        SafView::new_unchecked(&self.values, self.shape)
     }
 
-    fn from_log(mut values: Vec<f32>, sites: usize) -> Self {
-        values.iter_mut().for_each(|x| *x = x.exp());
+    impl_shared_saf_methods!();
+}
 
-        Self::new(values, sites)
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SafView<'a> {
+    values: &'a [f32],
+    shape: usize,
+}
+
+impl<'a> SafView<'a> {
+    fn new_unchecked(values: &'a [f32], shape: usize) -> Self {
+        Self { values, shape }
     }
 
-    fn new(values: Vec<f32>, sites: usize) -> Self {
-        assert_eq!(values.len() % sites, 0);
-
-        let cols = values.len() / sites;
-
-        Self {
-            values,
-            sites,
-            cols,
-        }
+    pub fn par_iter_sites(&self) -> rayon::slice::Chunks<'a, f32> {
+        self.values.par_chunks(self.shape)
     }
 
-    #[inline]
-    fn swap_sites(&mut self, i: usize, j: usize) {
-        swap_chunks(self.values.as_mut_slice(), i, j, self.cols);
+    pub fn split_at_site(&self, site: usize) -> (Self, Self) {
+        let (hd, tl) = self.values.split_at(site * self.shape);
+
+        (
+            Self::new_unchecked(hd, self.shape),
+            Self::new_unchecked(tl, self.shape),
+        )
+    }
+
+    impl_shared_saf_methods!();
+}
+
+#[derive(Clone, Debug)]
+pub struct ShapeError {
+    shape: usize,
+    len: usize,
+}
+
+impl fmt::Display for ShapeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "cannot construct a SAF of shape {} from {} values",
+            self.shape, self.len,
+        )
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct JointSaf<const N: usize>([Saf; N]);
+impl Error for ShapeError {}
 
-impl<const N: usize> JointSaf<N> {
-    pub fn cols(&self) -> [usize; N] {
-        self.0
-            .iter()
-            .map(|saf| saf.cols())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
-    }
-
-    pub fn shuffle<R>(&mut self, rng: &mut R)
-    where
-        R: Rng,
-    {
-        // Modified from rand::seq::SliceRandom::shuffle
-        for i in (1..self.sites()).rev() {
-            let j = rng.gen_range(0..i + 1);
-
-            for n in 0..N {
-                self.0[n].swap_sites(i, j);
-            }
-        }
-    }
-
-    pub fn read<R>(readers: [saf::BgzfReader<R>; N]) -> io::Result<Self>
-    where
-        R: io::BufRead + io::Seek,
-    {
-        let max_sites = readers
-            .iter()
-            .map(|reader| reader.index().total_sites())
-            .min()
-            .expect("no readers provided");
-
-        let cols: Vec<usize> = readers
-            .iter()
-            .map(|reader| reader.index().alleles() + 1)
-            .collect();
-
-        let mut vecs: Vec<Vec<f32>> = cols
-            .iter()
-            .map(|cols| Vec::with_capacity(cols * max_sites))
-            .collect();
-
-        let readers = Vec::from(readers);
-        let mut intersect = saf::reader::Intersect::new(readers).unwrap();
-
-        let mut bufs = intersect.create_record_bufs();
-        while intersect.read_records(&mut bufs)?.is_not_done() {
-            for (buf, vec) in bufs.iter().zip(vecs.iter_mut()) {
-                vec.extend_from_slice(buf.values());
-            }
-        }
-
-        let safs = vecs
-            .into_iter()
-            .zip(cols.iter())
-            .map(|(mut vec, cols)| {
-                vec.shrink_to_fit();
-                let n = vec.len();
-
-                assert_eq!(n % cols, 0);
-                let sites = n / cols;
-
-                Saf::from_log(vec, sites)
-            })
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        Ok(Self::new(safs))
-    }
-
-    pub fn sites(&self) -> usize {
-        // Equal length maintained as invariant, so either is fine
-        self.0[0].sites()
-    }
-
-    pub fn values(&self) -> [&[f32]; N] {
-        self.0
-            .iter()
-            .map(|saf| saf.values())
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap()
-    }
-
-    fn new(safs: [Saf; N]) -> Self {
-        safs.windows(2)
-            .for_each(|x| assert_eq!(x[0].sites(), x[1].sites()));
-
-        Self(safs)
+impl From<ShapeError> for io::Error {
+    fn from(e: ShapeError) -> Self {
+        io::Error::new(io::ErrorKind::InvalidData, e)
     }
 }
 
@@ -194,6 +176,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_split_at_site() {
+        let values = vec![1., 1., 1., 2., 2., 2., 3., 3., 3.];
+        let saf = Saf::new_unchecked(values, 3);
+
+        let (hd, tl) = saf.view().split_at_site(1);
+        assert_eq!(hd.values, &[1., 1., 1.]);
+        assert_eq!(tl.values, &[2., 2., 2., 3., 3., 3.]);
+    }
 
     #[test]
     fn test_swap_chunks() {

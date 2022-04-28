@@ -1,11 +1,12 @@
 use std::io;
 
-use rayon::{
-    iter::{IndexedParallelIterator, ParallelIterator},
-    slice::ParallelSlice,
-};
+use rayon::iter::ParallelIterator;
 
-use crate::{io::ReadSite, Sfs};
+use crate::{
+    io::ReadSite,
+    saf::{IntoArray, JointSafView, ParSiteIterator},
+    Sfs,
+};
 
 impl<const N: usize> Sfs<N>
 where
@@ -13,10 +14,10 @@ where
 {
     pub fn e_step<'a, I: 'a>(&self, input: &I) -> Self
     where
-        I: SiteIterator<'a, N>,
+        I: ParSiteIterator<'a, N>,
     {
         input
-            .iter_sites(self.shape())
+            .par_iter_sites()
             .fold(
                 || (Self::zeros(self.shape()), Self::zeros(self.shape())),
                 |(mut post, mut buf), site| {
@@ -46,10 +47,10 @@ where
 
     pub fn e_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
     where
-        I: SiteIterator<'a, N>,
+        I: ParSiteIterator<'a, N>,
     {
         input
-            .iter_sites(self.shape())
+            .par_iter_sites()
             .fold(
                 || (0.0, Self::zeros(self.shape()), Self::zeros(self.shape())),
                 |(mut ll, mut post, mut buf), site| {
@@ -85,10 +86,10 @@ where
 
     pub fn log_likelihood<'a, I: 'a>(&self, input: &I) -> f64
     where
-        I: SiteIterator<'a, N>,
+        I: ParSiteIterator<'a, N>,
     {
         input
-            .iter_sites(self.shape())
+            .par_iter_sites()
             .fold(
                 || 0.0,
                 |ll, site| ll + self.site_log_likelihood(&site.into_array()),
@@ -98,7 +99,7 @@ where
 
     pub fn em_step<'a, I: 'a>(&self, input: &I) -> Self
     where
-        I: SiteIterator<'a, N>,
+        I: ParSiteIterator<'a, N>,
     {
         let mut posterior = self.e_step(input);
         posterior.normalise();
@@ -118,7 +119,7 @@ where
 
     pub fn em_step_with_log_likelihood<'a, I: 'a>(&self, input: &I) -> (f64, Self)
     where
-        I: SiteIterator<'a, N>,
+        I: ParSiteIterator<'a, N>,
     {
         let (log_likelihood, mut posterior) = self.e_step_with_log_likelihood(input);
         posterior.normalise();
@@ -136,11 +137,11 @@ where
         Ok((log_likelihood, posterior))
     }
 
-    pub fn em<'a, I: 'a>(&self, input: &I, epochs: usize) -> Self
+    pub fn em<'a>(&self, input: &JointSafView<'a, N>, epochs: usize) -> Self
     where
-        I: SiteIterator<'a, N>,
+        JointSafView<'a, N>: ParSiteIterator<'a, N>,
     {
-        let sites = input.sites(self.shape());
+        let sites = input.sites();
         let mut sfs = self.clone();
 
         for i in 0..epochs {
@@ -321,237 +322,6 @@ impl Em<3> for Sfs<3> {
         }
 
         sum
-    }
-}
-
-pub trait SiteIterator<'a, const N: usize> {
-    // TODO: These types should be replaced by TAIT once stable,
-    // see github.com/rust-lang/rust/issues/63063
-    // TODO: The trait lifetime should be a GAT once stable,
-    // see github.com/rust-lang/rust/issues/44265
-    type Site: IntoArray<N, &'a [f32]>;
-    type SiteIter: IndexedParallelIterator<Item = Self::Site>;
-
-    fn iter_sites(&self, shape: [usize; N]) -> Self::SiteIter;
-
-    fn sites(&self, shape: [usize; N]) -> usize;
-
-    fn check(&self, shape: [usize; N]);
-}
-
-impl<'a> SiteIterator<'a, 1> for &'a [f32] {
-    type Site = &'a [f32];
-    type SiteIter = rayon::slice::Chunks<'a, f32>;
-
-    fn iter_sites(&self, shape: [usize; 1]) -> Self::SiteIter {
-        self.check(shape);
-        self.par_chunks(shape[0])
-    }
-
-    fn sites(&self, shape: [usize; 1]) -> usize {
-        self.check(shape);
-        self.len() / shape[0]
-    }
-
-    fn check(&self, shape: [usize; 1]) {
-        assert_eq!(self.len() % shape[0], 0);
-    }
-}
-
-impl<'a> SiteIterator<'a, 2> for (&'a [f32], &'a [f32]) {
-    type Site = (&'a [f32], &'a [f32]);
-    type SiteIter = rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>;
-
-    fn iter_sites(&self, shape: [usize; 2]) -> Self::SiteIter {
-        [self.0, self.1].iter_sites(shape)
-    }
-
-    fn sites(&self, shape: [usize; 2]) -> usize {
-        [self.0, self.1].sites(shape)
-    }
-
-    fn check(&self, shape: [usize; 2]) {
-        [self.0, self.1].check(shape)
-    }
-}
-
-impl<'a> SiteIterator<'a, 2> for [&'a [f32]; 2] {
-    type Site = (&'a [f32], &'a [f32]);
-    type SiteIter = rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>;
-
-    fn iter_sites(&self, shape: [usize; 2]) -> Self::SiteIter {
-        self.check(shape);
-        let [fst, snd] = self;
-        let [n, m] = shape;
-        fst.par_chunks(n).zip(snd.par_chunks(m))
-    }
-
-    fn sites(&self, shape: [usize; 2]) -> usize {
-        self.check(shape);
-        let [fst, _] = self;
-        let [n, _] = shape;
-        fst.len() / n
-    }
-
-    fn check(&self, shape: [usize; 2]) {
-        let [fst, snd] = self;
-        let [n, m] = shape;
-        assert_eq!(fst.len() % n, 0);
-        assert_eq!(snd.len() % m, 0);
-        assert_eq!(fst.len() / n, snd.len() / m);
-    }
-}
-
-impl<'a> SiteIterator<'a, 3> for ((&'a [f32], &'a [f32]), &'a [f32]) {
-    type Site = ((&'a [f32], &'a [f32]), &'a [f32]);
-    type SiteIter = rayon::iter::Zip<
-        rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>,
-        rayon::slice::Chunks<'a, f32>,
-    >;
-
-    fn iter_sites(&self, shape: [usize; 3]) -> Self::SiteIter {
-        [self.0 .0, self.0 .1, self.1].iter_sites(shape)
-    }
-
-    fn sites(&self, shape: [usize; 3]) -> usize {
-        [self.0 .0, self.0 .1, self.1].sites(shape)
-    }
-
-    fn check(&self, shape: [usize; 3]) {
-        [self.0 .0, self.0 .1, self.1].check(shape)
-    }
-}
-
-impl<'a> SiteIterator<'a, 3> for [&'a [f32]; 3] {
-    type Site = ((&'a [f32], &'a [f32]), &'a [f32]);
-    type SiteIter = rayon::iter::Zip<
-        rayon::iter::Zip<rayon::slice::Chunks<'a, f32>, rayon::slice::Chunks<'a, f32>>,
-        rayon::slice::Chunks<'a, f32>,
-    >;
-
-    fn iter_sites(&self, shape: [usize; 3]) -> Self::SiteIter {
-        self.check(shape);
-        let [fst, snd, trd] = self;
-        let [n, m, o] = shape;
-        fst.par_chunks(n)
-            .zip(snd.par_chunks(m))
-            .zip(trd.par_chunks(o))
-    }
-
-    fn sites(&self, shape: [usize; 3]) -> usize {
-        self.check(shape);
-        let [fst, ..] = self;
-        let [n, ..] = shape;
-        fst.len() / n
-    }
-
-    fn check(&self, shape: [usize; 3]) {
-        let [fst, snd, trd] = self;
-        let [n, m, o] = shape;
-        assert_eq!(fst.len() % n, 0);
-        assert_eq!(snd.len() % m, 0);
-        assert_eq!(trd.len() % o, 0);
-        assert_eq!(fst.len() / n, snd.len() / m);
-        assert_eq!(snd.len() / m, trd.len() / o);
-    }
-}
-
-pub trait BlockIterator<'a, const N: usize>: SiteIterator<'a, N> {
-    // TODO: These types should be replaced by TAIT once stable,
-    // see github.com/rust-lang/rust/issues/63063
-    // TODO: The trait lifetime should be a GAT once stable,
-    // see github.com/rust-lang/rust/issues/44265
-    type Block: SiteIterator<'a, N>;
-    type BlockIter: Iterator<Item = Self::Block>;
-
-    fn iter_blocks(&self, shape: [usize; N], block_size: usize) -> Self::BlockIter;
-}
-
-impl<'a> BlockIterator<'a, 1> for &'a [f32] {
-    type Block = &'a [f32];
-    type BlockIter = std::slice::Chunks<'a, f32>;
-
-    fn iter_blocks(&self, shape: [usize; 1], block_size: usize) -> Self::BlockIter {
-        self.check(shape);
-        self.chunks(shape[0] * block_size)
-    }
-}
-
-impl<'a> BlockIterator<'a, 2> for (&'a [f32], &'a [f32]) {
-    type Block = (&'a [f32], &'a [f32]);
-    type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
-
-    fn iter_blocks(&self, shape: [usize; 2], block_size: usize) -> Self::BlockIter {
-        [self.0, self.1].iter_blocks(shape, block_size)
-    }
-}
-
-impl<'a> BlockIterator<'a, 2> for [&'a [f32]; 2] {
-    type Block = (&'a [f32], &'a [f32]);
-    type BlockIter = std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>;
-
-    fn iter_blocks(&self, shape: [usize; 2], block_size: usize) -> Self::BlockIter {
-        self.check(shape);
-        let [fst, snd] = self;
-        let [n, m] = shape;
-        fst.chunks(n * block_size).zip(snd.chunks(m * block_size))
-    }
-}
-
-impl<'a> BlockIterator<'a, 3> for ((&'a [f32], &'a [f32]), &'a [f32]) {
-    type Block = ((&'a [f32], &'a [f32]), &'a [f32]);
-    type BlockIter = std::iter::Zip<
-        std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>,
-        std::slice::Chunks<'a, f32>,
-    >;
-
-    fn iter_blocks(&self, shape: [usize; 3], block_size: usize) -> Self::BlockIter {
-        [self.0 .0, self.0 .1, self.1].iter_blocks(shape, block_size)
-    }
-}
-
-impl<'a> BlockIterator<'a, 3> for [&'a [f32]; 3] {
-    type Block = ((&'a [f32], &'a [f32]), &'a [f32]);
-    type BlockIter = std::iter::Zip<
-        std::iter::Zip<std::slice::Chunks<'a, f32>, std::slice::Chunks<'a, f32>>,
-        std::slice::Chunks<'a, f32>,
-    >;
-
-    fn iter_blocks(&self, shape: [usize; 3], block_size: usize) -> Self::BlockIter {
-        self.check(shape);
-        let [fst, snd, trd] = self;
-        let [n, m, o] = shape;
-        fst.chunks(n * block_size)
-            .zip(snd.chunks(m * block_size))
-            .zip(trd.chunks(o * block_size))
-    }
-}
-
-pub trait IntoArray<const N: usize, T> {
-    fn into_array(self) -> [T; N];
-}
-
-impl<T> IntoArray<1, T> for T {
-    fn into_array(self) -> [T; 1] {
-        [self]
-    }
-}
-
-impl<T> IntoArray<2, T> for (T, T) {
-    fn into_array(self) -> [T; 2] {
-        [self.0, self.1]
-    }
-}
-
-impl<T> IntoArray<3, T> for ((T, T), T) {
-    fn into_array(self) -> [T; 3] {
-        [self.0 .0, self.0 .1, self.1]
-    }
-}
-
-impl<const N: usize, T> IntoArray<N, T> for [T; N] {
-    fn into_array(self) -> [T; N] {
-        self
     }
 }
 

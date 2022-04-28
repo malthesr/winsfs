@@ -10,8 +10,9 @@ use super::{
 };
 
 use crate::{
-    em::{Em, IntoArray, StoppingRule, Window, DEFAULT_TOLERANCE},
-    JointSaf, Saf, Sfs,
+    em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
+    saf::{JointSaf, Saf},
+    Sfs,
 };
 
 fn create_runner<const N: usize>(
@@ -55,14 +56,14 @@ where
 }
 
 macro_rules! run {
-    ($saf:ident, $args:ident, $sites:ident) => {{
+    ($saf:ident, $args:ident, $sites:ident, $shape:ident) => {{
         set_threads($args.threads)?;
 
         let mut rng = get_rng($args.seed);
         $saf.shuffle(&mut rng);
 
-        let mut window = create_runner($saf.cols().into_array(), $saf.sites(), $args)?;
-        window.em(&$saf.values());
+        let mut window = create_runner($shape, $sites, $args)?;
+        window.em(&$saf.view());
         let mut estimate = window.into_sfs();
 
         estimate.scale($sites as f64);
@@ -79,11 +80,12 @@ where
 
     let reader = saf::Reader::from_bgzf_member_path(path)?;
 
-    let mut saf = Saf::read(reader)?;
+    let mut saf = JointSaf::from(Saf::read(reader)?);
+    let shape = saf.shape();
     let sites = saf.sites();
-    log::info!(target: "init", "Read {sites} sites in SAF file with {} cols.", saf.cols());
+    log::info!(target: "init", "Read {sites} sites in SAF file with shape {}.", saf.shape()[0]);
 
-    run!(saf, args, sites);
+    run!(saf, args, sites, shape);
 
     Ok(())
 }
@@ -103,15 +105,16 @@ where
 
     let mut safs = JointSaf::read([fst_reader, snd_reader])?;
     let sites = safs.sites();
+    let shape = safs.shape();
 
     log::info!(
         target: "init",
-        "Read {sites} shared sites in SAF files with {}/{} cols.",
-        safs.cols()[0],
-        safs.cols()[1]
+        "Read {sites} shared sites in SAF files with shape {}/{}.",
+        safs.shape()[0],
+        safs.shape()[1]
     );
 
-    run!(safs, args, sites);
+    run!(safs, args, sites, shape);
 
     Ok(())
 }
@@ -132,16 +135,17 @@ where
 
     let mut safs = JointSaf::read([fst_reader, snd_reader, trd_reader])?;
     let sites = safs.sites();
+    let shape = safs.shape();
 
     log::info!(
         target: "init",
         "Read {sites} shared sites in SAF files with {}/{}/{} cols.",
-        safs.cols()[0],
-        safs.cols()[1],
-        safs.cols()[2]
+        safs.shape()[0],
+        safs.shape()[1],
+        safs.shape()[2]
     );
 
-    run!(safs, args, sites);
+    run!(safs, args, sites, shape);
 
     Ok(())
 }

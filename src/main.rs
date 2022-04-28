@@ -1,5 +1,3 @@
-#![deny(unsafe_code)]
-
 use std::process;
 
 use clap::Parser;
@@ -7,8 +5,7 @@ use clap::Parser;
 mod cli;
 use cli::Cli;
 
-mod saf;
-pub use saf::{JointSaf, Saf};
+pub mod saf;
 
 mod sfs;
 pub use sfs::{Sfs, Sfs1d, Sfs2d};
