@@ -61,6 +61,13 @@ impl<const N: usize> JointSaf<N> {
     where
         R: io::BufRead + io::Seek,
     {
+        if N < 2 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "at least two readers required for intersected reading of joint SAFs",
+            ));
+        }
+
         let max_sites = readers
             .iter()
             .map(|reader| reader.index().total_sites())
