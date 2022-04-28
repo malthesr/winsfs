@@ -1,4 +1,4 @@
-use std::{error::Error, fmt, io};
+use std::{error::Error, fmt, io, path::Path};
 
 use angsd_io::saf;
 
@@ -96,6 +96,22 @@ impl<const N: usize> JointSaf<N> {
             .unwrap();
 
         Self::new(safs).map_err(io::Error::from)
+    }
+
+    pub fn read_from_paths<P>(paths: [P; N]) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        // TODO: Use array::try_map when stable here
+        let readers: [_; N] = paths
+            .iter()
+            .map(saf::Reader::from_bgzf_member_path)
+            .collect::<io::Result<Vec<_>>>()?
+            .try_into()
+            .map_err(|_| ()) // Reader is not debug, so this is necessary to unwrap
+            .unwrap();
+
+        Self::read(readers)
     }
 
     pub fn view(&self) -> JointSafView<N> {
