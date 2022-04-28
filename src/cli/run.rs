@@ -12,6 +12,7 @@ use super::{
 use crate::{
     em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
     saf::{JointSaf, Saf},
+    stream::Reader,
     Sfs,
 };
 
@@ -173,7 +174,7 @@ where
         path.as_ref().display()
     );
 
-    let mut reader = crate::io::Reader::from_path(path)?;
+    let mut reader = Reader::from_path(path)?;
     let header = reader.read_header()?;
 
     let alleles = header

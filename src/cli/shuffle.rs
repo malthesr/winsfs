@@ -7,7 +7,7 @@ use angsd_io::saf;
 
 use clap::{Args, CommandFactory};
 
-use crate::io::{Header, Writers};
+use crate::stream::{Header, Writers};
 
 use super::Cli;
 

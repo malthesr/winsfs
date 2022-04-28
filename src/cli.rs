@@ -162,7 +162,7 @@ impl Format {
 
         Ok(match &buf {
             angsd_io::saf::MAGIC_NUMBER => Some(Self::Standard),
-            crate::io::MAGIC_NUMBER => Some(Self::Shuffled),
+            crate::stream::MAGIC_NUMBER => Some(Self::Shuffled),
             _ => None,
         })
     }

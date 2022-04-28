@@ -3,8 +3,8 @@ use std::io;
 use rayon::iter::ParallelIterator;
 
 use crate::{
-    io::ReadSite,
     saf::{IntoArray, JointSafView, ParSiteIterator},
+    stream::ReadSite,
     Sfs,
 };
 

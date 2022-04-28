@@ -1,8 +1,8 @@
 use std::{collections::VecDeque, io};
 
 use crate::{
-    io::{Header, Reader},
     saf::{BlockIterator, JointSafView},
+    stream::{Header, Reader},
     Sfs,
 };
 
