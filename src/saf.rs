@@ -15,8 +15,7 @@ mod blocks;
 pub use blocks::Blocks;
 
 mod traits;
-pub(self) use traits::ArrayExt;
-pub use traits::{BlockIterator, IntoArray, ParSiteIterator};
+pub use traits::{ArrayExt, BlockIterator, IntoArray, ParSiteIterator};
 
 macro_rules! impl_shared_saf_methods {
     () => {

@@ -130,7 +130,7 @@ impl<const N: usize, T> IntoArray<N, T> for [T; N] {
     }
 }
 
-pub(super) trait ArrayExt<const N: usize, T> {
+pub trait ArrayExt<const N: usize, T> {
     fn each_ref(&self) -> [&T; N];
 
     fn each_mut(&mut self) -> [&mut T; N];
