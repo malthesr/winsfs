@@ -1,6 +1,6 @@
-use std::path::Path;
+#![allow(unstable_name_collisions)]
 
-use angsd_io::saf;
+use std::path::Path;
 
 use clap::CommandFactory;
 
@@ -11,7 +11,7 @@ use super::{
 
 use crate::{
     em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
-    saf::{JointSaf, Saf},
+    saf::{ArrayExt, BlockIterator, JointSaf, JointSafView, Saf},
     stream::Reader,
     Sfs,
 };
@@ -56,97 +56,65 @@ where
     ))
 }
 
-macro_rules! run {
-    ($saf:ident, $args:ident, $sites:ident, $shape:ident) => {{
-        set_threads($args.threads)?;
-
-        let mut rng = get_rng($args.seed);
-        $saf.shuffle(&mut rng);
-
-        let mut window = create_runner($shape, $sites, $args)?;
-        window.em(&$saf.view());
-        let mut estimate = window.into_sfs();
-
-        estimate.scale($sites as f64);
-
-        println!("{}", estimate.format_angsd(None));
-    }};
-}
-
-pub fn run_1d<P>(path: P, args: &Cli) -> clap::Result<()>
-where
-    P: AsRef<Path>,
-{
-    log::info!(target: "init", "Reading SAF file into memory:\n\t{}", path.as_ref().display());
-
-    let reader = saf::Reader::from_bgzf_member_path(path)?;
-
-    let mut saf = JointSaf::from(Saf::read(reader)?);
-    let shape = saf.shape();
-    let sites = saf.sites();
-    log::info!(target: "init", "Read {sites} sites in SAF file with shape {}.", saf.shape()[0]);
-
-    run!(saf, args, sites, shape);
-
-    Ok(())
-}
-
-pub fn run_2d<P>(fst_path: P, snd_path: P, args: &Cli) -> clap::Result<()>
+pub fn read_saf<P>(path: P) -> clap::Result<JointSaf<1>>
 where
     P: AsRef<Path>,
 {
     log::info!(
         target: "init",
-        "Reading and intersecting SAF files into memory:\n\t{}\n\t{}",
-        fst_path.as_ref().display(), snd_path.as_ref().display()
+        "Reading SAF file into memory:\n\t{}",
+        path.as_ref().display()
     );
 
-    let fst_reader = saf::Reader::from_bgzf_member_path(&fst_path)?;
-    let snd_reader = saf::Reader::from_bgzf_member_path(&snd_path)?;
+    Saf::read_from_path(path)
+        .map(|saf| JointSaf::new([saf]).expect("joint SAF constructor cannot fail with single SAF"))
+        .map_err(clap::Error::from)
+}
 
-    let mut safs = JointSaf::read([fst_reader, snd_reader])?;
-    let sites = safs.sites();
+pub fn read_safs<const N: usize, P>(paths: [P; N]) -> clap::Result<JointSaf<N>>
+where
+    P: AsRef<Path>,
+{
+    log::info!(
+        target: "init",
+        "Reading and intersecting SAF files into memory:\n\t{}",
+        paths.each_ref().map(|p| p.as_ref().display().to_string()).join("\n\t")
+    );
+
+    JointSaf::read_from_paths(paths).map_err(clap::Error::from)
+}
+
+pub fn run<const N: usize>(mut safs: JointSaf<N>, args: &Cli) -> clap::Result<()>
+where
+    Sfs<N>: Em<N>,
+    for<'a> JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
+{
+    set_threads(args.threads)?;
+
     let shape = safs.shape();
-
-    log::info!(
-        target: "init",
-        "Read {sites} shared sites in SAF files with shape {}/{}.",
-        safs.shape()[0],
-        safs.shape()[1]
-    );
-
-    run!(safs, args, sites, shape);
-
-    Ok(())
-}
-
-pub fn run_3d<P>(fst_path: P, snd_path: P, trd_path: P, args: &Cli) -> clap::Result<()>
-where
-    P: AsRef<Path>,
-{
-    log::info!(
-        target: "init",
-        "Reading and intersecting SAF files into memory:\n\t{}\n\t{}\n\t{}",
-        fst_path.as_ref().display(), snd_path.as_ref().display(), trd_path.as_ref().display()
-    );
-
-    let fst_reader = saf::Reader::from_bgzf_member_path(&fst_path)?;
-    let snd_reader = saf::Reader::from_bgzf_member_path(&snd_path)?;
-    let trd_reader = saf::Reader::from_bgzf_member_path(&trd_path)?;
-
-    let mut safs = JointSaf::read([fst_reader, snd_reader, trd_reader])?;
     let sites = safs.sites();
-    let shape = safs.shape();
 
     log::info!(
         target: "init",
-        "Read {sites} shared sites in SAF files with {}/{}/{} cols.",
-        safs.shape()[0],
-        safs.shape()[1],
-        safs.shape()[2]
+        "Read {sites} sites with shape {}.",
+        shape.each_ref().map(|p| p.to_string()).join("/")
     );
 
-    run!(safs, args, sites, shape);
+    let mut rng = get_rng(args.seed);
+    log::info!(
+        target: "init",
+        "Shuffling sites with {} seed.",
+        args.seed.map_or_else(|| String::from("random"), |s| s.to_string())
+    );
+    safs.shuffle(&mut rng);
+
+    let mut window = create_runner(shape, sites, args)?;
+    window.em(&safs.view());
+    let mut estimate = window.into_sfs();
+
+    estimate.scale(sites as f64);
+
+    println!("{}", estimate.format_angsd(None));
 
     Ok(())
 }

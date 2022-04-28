@@ -12,7 +12,7 @@ mod shuffle;
 use shuffle::Shuffle;
 
 mod run;
-use run::{run_1d, run_2d, run_3d, run_io};
+use run::{read_saf, read_safs, run, run_io};
 
 const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -221,12 +221,21 @@ impl Cli {
             let format = Format::try_from(&self)?;
 
             match self.paths.as_slice() {
-                [path] => match format {
-                    Format::Standard => run_1d(path, &self),
-                    Format::Shuffled => run_io(path, &self),
+                [p] => match format {
+                    Format::Standard => {
+                        let saf = read_saf(p)?;
+                        run(saf, &self)
+                    }
+                    Format::Shuffled => run_io(p, &self),
                 },
-                [fst_path, snd_path] => run_2d(fst_path, snd_path, &self),
-                [fst_path, snd_path, trd_path] => run_3d(fst_path, snd_path, trd_path, &self),
+                [p1, p2] => {
+                    let safs = read_safs([p1, p2])?;
+                    run(safs, &self)
+                }
+                [p1, p2, p3] => {
+                    let safs = read_safs([p1, p2, p3])?;
+                    run(safs, &self)
+                }
                 _ => unreachable!(), // Checked by clap
             }
         }
