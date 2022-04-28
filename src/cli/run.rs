@@ -1,6 +1,6 @@
 #![allow(unstable_name_collisions)]
 
-use std::path::Path;
+use std::{io, path::Path};
 
 use clap::CommandFactory;
 
@@ -12,7 +12,7 @@ use super::{
 use crate::{
     em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
     saf::{ArrayExt, BlockIterator, JointSaf, JointSafView, Saf},
-    stream::Reader,
+    stream::{Header, Reader},
     Sfs,
 };
 
@@ -119,20 +119,7 @@ where
     Ok(())
 }
 
-macro_rules! run_io {
-    ($reader:ident, $header:ident, $args:ident, $shape:expr, $sites:ident) => {{
-        let mut window = create_runner($shape, $sites, $args)?;
-
-        window.streaming_em(&mut $reader, &$header)?;
-        let mut estimate = window.into_sfs();
-
-        estimate.scale($sites as f64);
-
-        println!("{}", estimate.format_angsd(None));
-    }};
-}
-
-pub fn run_io<P>(path: P, args: &Cli) -> clap::Result<()>
+pub fn streaming_run<P>(path: P, args: &Cli) -> clap::Result<()>
 where
     P: AsRef<Path>,
 {
@@ -145,23 +132,10 @@ where
     let mut reader = Reader::from_path(path)?;
     let header = reader.read_header()?;
 
-    let alleles = header
-        .alleles()
-        .iter()
-        .map(|x| (x + 1) as usize)
-        .collect::<Vec<_>>();
-    let sites = header.sites() as usize;
-
-    log::info!(
-        target: "init",
-        "Streaming {sites} sites in pseudo-shuffled SAF file with {} cols and {} blocks.",
-        alleles.iter().map(|x| x.to_string()).collect::<Vec<_>>().join("/"), header.blocks()
-    );
-
-    match alleles[..] {
-        [n] => run_io!(reader, header, args, [n], sites),
-        [n, m] => run_io!(reader, header, args, [n, m], sites),
-        [n, m, o] => run_io!(reader, header, args, [n, m, o], sites),
+    match header.alleles().len() {
+        1 => streaming_run_inner::<1, _>(reader, header, args),
+        2 => streaming_run_inner::<2, _>(reader, header, args),
+        3 => streaming_run_inner::<3, _>(reader, header, args),
         _ => {
             return Err(Cli::command().error(
                 clap::ErrorKind::InvalidValue,
@@ -170,6 +144,40 @@ where
             ))
         }
     }
+}
+
+fn streaming_run_inner<const N: usize, R>(
+    mut reader: Reader<R>,
+    header: Header,
+    args: &Cli,
+) -> clap::Result<()>
+where
+    R: io::BufRead + io::Seek,
+    Sfs<N>: Em<N>,
+{
+    let shape: [usize; N] = header
+        .alleles()
+        .iter()
+        .map(|x| (x + 1) as usize)
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("unexpected number of alleles in header");
+    let sites = header.sites() as usize;
+    let blocks = header.blocks();
+
+    log::info!(
+        target: "init",
+        "Streaming {sites} sites in pseudo-shuffled SAF file with shape {} and {blocks} blocks.",
+        shape.map(|x| x.to_string()).join("/")
+    );
+
+    let mut window = create_runner(shape, sites, args)?;
+    window.streaming_em(&mut reader, &header)?;
+    let mut estimate = window.into_sfs();
+
+    estimate.scale(sites as f64);
+
+    println!("{}", estimate.format_angsd(None));
 
     Ok(())
 }

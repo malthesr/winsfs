@@ -12,7 +12,7 @@ mod shuffle;
 use shuffle::Shuffle;
 
 mod run;
-use run::{read_saf, read_safs, run, run_io};
+use run::{read_saf, read_safs, run, streaming_run};
 
 const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -226,7 +226,7 @@ impl Cli {
                         let saf = read_saf(p)?;
                         run(saf, &self)
                     }
-                    Format::Shuffled => run_io(p, &self),
+                    Format::Shuffled => streaming_run(p, &self),
                 },
                 [p1, p2] => {
                     let safs = read_safs([p1, p2])?;
