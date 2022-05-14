@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-pub const DEFAULT_TOLERANCE: f64 = 0.0001;
+pub const DEFAULT_TOLERANCE: f64 = 1e-4;
 
 #[derive(Clone, Debug)]
 pub struct StoppingRule(StoppingRuleInner);
@@ -125,8 +125,8 @@ impl LogLikelihoodRule {
     }
 
     pub fn stop(&self) -> bool {
-        let current = self.current.normalised_sum();
-        let last = self.last.normalised_sum();
+        let current = self.current.sum;
+        let last = self.last.sum;
         let improv = current - last;
 
         if self.epoch >= 2 {
@@ -171,10 +171,6 @@ impl LogLikelihoods {
     pub fn add(&mut self, item: f64) {
         self.log_likelihoods.push_back(item);
         self.sum += item;
-    }
-
-    pub fn normalised_sum(&self) -> f64 {
-        self.sum / self.log_likelihoods.len() as f64
     }
 
     pub fn remove(&mut self) -> Option<f64> {

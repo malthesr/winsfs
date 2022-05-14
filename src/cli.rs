@@ -71,7 +71,7 @@ pub struct Cli {
     /// Maximum number of epochs to run.
     ///
     /// If both this and `--tolerance` are unset, the default stopping rule is a log-likelihood
-    /// tolerance of 0.0001. If both are set, the first stopping rule to be triggered will stop the
+    /// tolerance of 1e-4. If both are set, the first stopping rule to be triggered will stop the
     /// algorithm.
     #[clap(long, help_heading = "STOPPING", value_name = "INT")]
     pub max_epochs: Option<usize>,
@@ -110,7 +110,7 @@ pub struct Cli {
     /// set `--max-epochs 1` if you wish to run one epoch only.
     ///
     /// If both this and `--max-epochs` are unset, the default stopping rule is a log-likelihood
-    /// tolerance of 0.0001. If both are set, the first stopping rule to be triggered will stop the
+    /// tolerance of 1e-4. If both are set, the first stopping rule to be triggered will stop the
     /// algorithm.
     #[clap(short = 'l', long, help_heading = "STOPPING", value_name = "FLOAT")]
     pub tolerance: Option<f64>,
