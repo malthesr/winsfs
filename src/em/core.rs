@@ -200,20 +200,27 @@ impl Em<3> for Sfs<3> {
         let snd_site = site[1].as_ref();
         let trd_site = site[2].as_ref();
 
-        let [n, m, o] = self.shape();
+        let [_, rows, cols] = self.shape();
 
         let mut sum = 0.0;
 
-        for i in 0..n {
-            for j in 0..m {
-                for k in 0..o {
-                    let v = self[[i, j, k]]
-                        * fst_site[i] as f64
-                        * snd_site[j] as f64
-                        * trd_site[k] as f64;
-                    sum += v;
-                    buf[[i, j, k]] = v;
-                }
+        for (i, x) in fst_site.iter().enumerate() {
+            let sfs_slice = &self.as_slice()[i * rows * cols..];
+            let buf_slice = &mut buf.as_mut_slice()[i * rows * cols..];
+
+            for (j, y) in snd_site.iter().enumerate() {
+                let sfs_row = &sfs_slice[j * cols..];
+                let buf_row = &mut buf_slice[j * cols..];
+
+                sfs_row
+                    .iter()
+                    .zip(trd_site.iter())
+                    .zip(buf_row.iter_mut())
+                    .for_each(|((sfs, z), buf)| {
+                        let v = sfs * (*x as f64) * (*y as f64) * (*z as f64);
+                        *buf = v;
+                        sum += v;
+                    });
             }
         }
 
@@ -232,18 +239,19 @@ impl Em<3> for Sfs<3> {
         let snd_site = site[1].as_ref();
         let trd_site = site[2].as_ref();
 
-        let [n, m, o] = self.shape();
+        let [_, rows, cols] = self.shape();
 
         let mut sum = 0.0;
 
-        for i in 0..n {
-            for j in 0..m {
-                for k in 0..o {
-                    sum += self[[i, j, k]]
-                        * fst_site[i] as f64
-                        * snd_site[j] as f64
-                        * trd_site[k] as f64;
-                }
+        for (i, x) in fst_site.iter().enumerate() {
+            let sfs_slice = &self.as_slice()[i * rows * cols..];
+
+            for (j, y) in snd_site.iter().enumerate() {
+                let sfs_row = &sfs_slice[j * cols..];
+
+                sfs_row.iter().zip(trd_site.iter()).for_each(|(sfs, z)| {
+                    sum += sfs * (*x as f64) * (*y as f64) * (*z as f64);
+                });
             }
         }
 
