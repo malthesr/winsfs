@@ -135,9 +135,11 @@ impl LogLikelihoodRule {
                 "Epoch {}, log-likelihood stopping rule, current log-likelihood: {current:.8e} (Δ{improv:.8e})",
                 self.epoch
             );
-        }
 
-        improv < self.tolerance
+            improv < self.tolerance
+        } else {
+            false
+        }
     }
 
     pub fn block_update(&mut self, item: f64) {
