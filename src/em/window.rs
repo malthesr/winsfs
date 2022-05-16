@@ -30,9 +30,9 @@ where
         while !self.stopping_rule.stop() {
             self.em_step(input);
 
-            self.epoch_update(epoch, sites);
-
             epoch += 1;
+
+            self.epoch_update(epoch, sites);
         }
     }
 
