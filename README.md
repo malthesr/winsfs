@@ -40,19 +40,5 @@ cargo install --git https://github.com/malthesr/winsfs
 
 This will install to `$HOME/.cargo/bin` by default.
 
-Optionally, the code may be optimised for your specific CPU (for potentially better performance), using:
-
-```
-RUSTFLAGS="-C target-cpu=native" cargo install --git https://github.com/malthesr/winsfs
-```
-
-### Pre-compiled
-
-Pre-compiled binaries are available from the [releases][releases] page ([linux][linux-binary], [mac][mac-binary], [windows][windows-binary]).
-
 [saf]: http://www.popgen.dk/angsd/index.php/Safv3
-[releases]: https://github.com/malthesr/winsfs/releases/latest/
-[linux-binary]: https://github.com/malthesr/winsfs/releases/latest/download/winsfs-x86_64-unknown-linux-gnu.tar.gz
-[mac-binary]: https://github.com/malthesr/winsfs/releases/latest/download/winsfs-x86_64-apple-darwin.tar.gz
-[windows-binary]: https://github.com/malthesr/winsfs/releases/latest/download/winsfs-x86_64-pc-windows-msvc.zip
 [rust-installation]: https://www.rust-lang.org/tools/install
