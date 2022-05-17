@@ -32,13 +32,28 @@ For more settings, see `winsfs -h` (short help) or `winsfs --help` (long help).
 
 ### From source
 
-To build from source, install the Rust toolchain (see [instructions][rust-installation]), and run:
+To build from source, a recent Rust toolchain is required. Currently, this can be installed by running:
 
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
 ```
+
+See [instructions][rust-installation] for more details.
+
+Once the toolchain is installed, `winsfs` can be installed using `cargo`:
+
+```shell
 cargo install --git https://github.com/malthesr/winsfs
 ```
 
-This will install to `$HOME/.cargo/bin` by default.
+This will install to `$HOME/.cargo/bin` by default, which should be in the `$PATH` after installing `cargo`. Alternatively:
+
+```shell
+cargo install --git https://github.com/malthesr/winsfs --root $HOME
+```
+
+Will install to `$HOME/bin`.
 
 [saf]: http://www.popgen.dk/angsd/index.php/Safv3
 [rust-installation]: https://www.rust-lang.org/tools/install
