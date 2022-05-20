@@ -1,6 +1,6 @@
 use std::mem::MaybeUninit;
 
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use super::{Blocks, JointSaf, JointSafView};
 
@@ -13,6 +13,19 @@ pub trait ParSiteIterator<'a, const N: usize> {
     type SiteIter: IndexedParallelIterator<Item = Self::Site>;
 
     fn par_iter_sites(&self) -> Self::SiteIter;
+}
+
+impl<'a, const N: usize, T> ParSiteIterator<'a, N> for [T; 2]
+where
+    T: ParSiteIterator<'a, N>,
+{
+    type Site = T::Site;
+    type SiteIter = rayon::iter::Chain<T::SiteIter, T::SiteIter>;
+
+    fn par_iter_sites(&self) -> Self::SiteIter {
+        let [hd, tl] = self;
+        hd.par_iter_sites().chain(tl.par_iter_sites())
+    }
 }
 
 impl<'a> ParSiteIterator<'a, 1> for JointSafView<'a, 1> {
@@ -73,9 +86,22 @@ pub trait BlockIterator<'a, const N: usize>: ParSiteIterator<'a, N> {
     // TODO: The trait lifetime should be a GAT once stable,
     // see github.com/rust-lang/rust/issues/44265
     type Block: BlockIterator<'a, N>;
-    type BlockIter: ExactSizeIterator<Item = Self::Block>;
+    type BlockIter: Iterator<Item = Self::Block>;
 
     fn iter_blocks(&self, block_size: usize) -> Self::BlockIter;
+}
+
+impl<'a, const N: usize, T> BlockIterator<'a, N> for [T; 2]
+where
+    T: BlockIterator<'a, N>,
+{
+    type Block = T::Block;
+    type BlockIter = std::iter::Chain<T::BlockIter, T::BlockIter>;
+
+    fn iter_blocks(&self, block_size: usize) -> Self::BlockIter {
+        let [hd, tl] = self;
+        hd.iter_blocks(block_size).chain(tl.iter_blocks(block_size))
+    }
 }
 
 impl<'a, const N: usize> BlockIterator<'a, N> for JointSafView<'a, N>
