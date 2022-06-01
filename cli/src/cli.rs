@@ -2,8 +2,7 @@ use std::{fs, io, num::NonZeroUsize, path::PathBuf};
 
 use clap::{ArgEnum, ArgGroup, CommandFactory, Parser, Subcommand};
 
-mod utils;
-use utils::init_logger;
+use crate::utils::init_logger;
 
 mod log_likelihood;
 use log_likelihood::LogLikelihood;
@@ -162,7 +161,7 @@ impl Format {
 
         Ok(match &buf {
             angsd_io::saf::MAGIC_NUMBER => Some(Self::Standard),
-            crate::stream::MAGIC_NUMBER => Some(Self::Shuffled),
+            winsfs::stream::MAGIC_NUMBER => Some(Self::Shuffled),
             _ => None,
         })
     }

@@ -8,9 +8,9 @@ use angsd_io::saf;
 
 use clap::{ArgGroup, Args};
 
-use crate::{em::Em, Sfs};
+use winsfs::{em::Em, Sfs};
 
-use super::utils::validate_shape;
+use crate::utils::validate_shape;
 
 /// Calculate log-likelihood of site frequency spectrum.
 ///

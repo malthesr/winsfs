@@ -4,17 +4,18 @@ use std::{io, path::Path};
 
 use clap::CommandFactory;
 
-use super::{
-    utils::{get_block_size_and_blocks, get_rng, get_window_size, set_threads, validate_shape},
-    Cli,
-};
-
-use crate::{
+use winsfs::{
     em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
     saf::{ArrayExt, BlockIterator, JointSaf, JointSafView, Saf},
     stream::{Header, Reader},
     Sfs,
 };
+
+use crate::utils::{
+    get_block_size_and_blocks, get_rng, get_window_size, set_threads, validate_shape,
+};
+
+use super::Cli;
 
 fn create_runner<const N: usize>(
     shape: [usize; N],

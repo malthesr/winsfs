@@ -5,14 +5,7 @@ use clap::Parser;
 mod cli;
 use cli::Cli;
 
-mod em;
-
-pub mod saf;
-
-mod sfs;
-pub use sfs::{Sfs, Sfs1d, Sfs2d};
-
-pub mod stream;
+pub mod utils;
 
 fn main() {
     let args = Cli::parse();
