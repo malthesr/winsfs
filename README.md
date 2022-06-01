@@ -44,13 +44,13 @@ See [instructions][rust-installation] for more details.
 Once the toolchain is installed, `winsfs` can be installed using `cargo`:
 
 ```shell
-cargo install --path cli --git https://github.com/malthesr/winsfs
+cargo install --git https://github.com/malthesr/winsfs
 ```
 
 This will install to `$HOME/.cargo/bin` by default, which should be in the `$PATH` after installing `cargo`. Alternatively:
 
 ```shell
-cargo install --path cli --git https://github.com/malthesr/winsfs --root $HOME
+cargo install --git https://github.com/malthesr/winsfs --root $HOME
 ```
 
 Will install to `$HOME/bin`.
