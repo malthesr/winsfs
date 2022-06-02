@@ -8,6 +8,12 @@ use crate::{
 
 use super::{Em, StoppingRule};
 
+pub mod defaults {
+    pub const DEFAULT_WINDOW_SIZE: usize = 100;
+    pub const DEFAULT_BLOCKS: usize = 500;
+    pub const DEFAULT_TOLERANCE: f64 = 1e-4;
+}
+
 #[derive(Clone, Debug)]
 pub struct Window<const N: usize> {
     sfs: Sfs<N>,

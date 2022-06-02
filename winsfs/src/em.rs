@@ -16,7 +16,7 @@ mod core;
 pub use self::core::Em;
 
 mod stop;
-pub use stop::{StoppingRule, DEFAULT_TOLERANCE};
+pub use stop::StoppingRule;
 
 mod window;
 pub use window::Window;
