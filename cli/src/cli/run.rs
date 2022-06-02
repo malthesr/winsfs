@@ -25,6 +25,12 @@ where
     let mut builder = Window::builder();
 
     if let Some(path) = &args.initial {
+        log::info!(
+            target: "init",
+            "Reading initial SFS from path:\n\t{}",
+            path.display()
+        );
+
         let mut initial_sfs = Sfs::read_from_angsd(path)?;
         initial_sfs.normalise();
         builder = builder.initial_sfs(initial_sfs);
