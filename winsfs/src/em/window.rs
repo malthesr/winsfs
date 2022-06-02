@@ -8,6 +8,9 @@ use crate::{
 
 use super::{Em, StoppingRule};
 
+mod builder;
+pub use builder::WindowBuilder;
+
 pub mod defaults {
     pub const DEFAULT_WINDOW_SIZE: usize = 100;
     pub const DEFAULT_BLOCKS: usize = 500;
@@ -25,6 +28,10 @@ pub struct Window<const N: usize> {
 impl<const N: usize> Window<N> {
     pub fn block_size(&self) -> usize {
         self.block_size
+    }
+
+    pub fn builder() -> WindowBuilder<N> {
+        WindowBuilder::default()
     }
 
     pub fn into_sfs(self) -> Sfs<N> {
