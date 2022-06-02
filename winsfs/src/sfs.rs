@@ -41,10 +41,10 @@ pub use angsd::ParseAngsdError;
 #[macro_export]
 macro_rules! sfs1d {
     ($elem:expr; $n:expr) => {
-        ::winsfs::sfs::Sfs1d::from_elem($elem, [$n])
+        $crate::sfs::Sfs::from_elem($elem, [$n])
     };
     ($($x:expr),+ $(,)?) => {
-        ::winsfs::sfs::Sfs1d::from_vec(vec![$($x),+])
+        $crate::sfs::Sfs::from_vec(vec![$($x),+])
     };
 }
 
