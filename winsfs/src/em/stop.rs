@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct StoppingRule(StoppingRuleInner);
 
 impl StoppingRule {
@@ -34,7 +34,7 @@ impl StoppingRule {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 enum StoppingRuleInner {
     Epochs(EpochRule),
     LogLikelihood(LogLikelihoodRule),
@@ -78,7 +78,7 @@ impl StoppingRuleInner {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct EpochRule {
     current: usize,
     max: usize,
@@ -104,7 +104,7 @@ impl EpochRule {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 struct LogLikelihoodRule {
     epoch: usize,
     current: LogLikelihoods,
@@ -161,7 +161,7 @@ impl LogLikelihoodRule {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct LogLikelihoods {
     log_likelihoods: VecDeque<f64>,
     sum: f64,
