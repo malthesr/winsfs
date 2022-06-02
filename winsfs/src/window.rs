@@ -1,3 +1,5 @@
+//! Window expectation-maximization ("EM") algorithm.
+
 use std::{collections::VecDeque, io};
 
 use crate::{
@@ -14,11 +16,27 @@ mod stop;
 pub use stop::StoppingRule;
 
 pub mod defaults {
+    //! Defaults for the window EM algorithm.
+
+    /// Default window size, given in number of blocks.
     pub const DEFAULT_WINDOW_SIZE: usize = 100;
+
+    /// Default number of blocks.
+    ///
+    /// This is converted to a block size at construction.
+    /// Note also that where the number of blocks does not evenly divide the number of sites,
+    /// an extra, partial block will be appended at the end of extra epoch. The partial
+    /// block will be weighted according to its relative size.
     pub const DEFAULT_BLOCKS: usize = 500;
+
+    /// Default log-likelihood stopping tolerance.
     pub const DEFAULT_TOLERANCE: f64 = 1e-4;
 }
 
+/// A runner for the window expectation-maximization ("EM") algorithm.
+///
+/// The runner is created using the builder pattern via the [`WindowBuilder`].
+/// See [`Window::builder`].
 #[derive(Clone, Debug)]
 pub struct Window<const N: usize> {
     sfs: Sfs<N>,
@@ -28,14 +46,17 @@ pub struct Window<const N: usize> {
 }
 
 impl<const N: usize> Window<N> {
+    /// Returns the runner block size.
     pub fn block_size(&self) -> usize {
         self.block_size
     }
 
+    /// Returns a builder to create a runner.
     pub fn builder() -> WindowBuilder<N> {
         WindowBuilder::default()
     }
 
+    /// Returns the current SFS estimate, consuming `self`.
     pub fn into_sfs(self) -> Sfs<N> {
         self.sfs
     }
@@ -56,14 +77,17 @@ impl<const N: usize> Window<N> {
         }
     }
 
+    /// Returns the current SFS estimate.
     pub fn sfs(&self) -> &Sfs<N> {
         &self.sfs
     }
 
+    /// Returns the stopping rule of the runner.
     pub fn stopping_rule(&self) -> &StoppingRule {
         &self.stopping_rule
     }
 
+    /// Returns the runner window size.
     pub fn window_size(&self) -> usize {
         self.window.len()
     }
