@@ -18,5 +18,5 @@ pub use self::core::Em;
 mod stop;
 pub use stop::StoppingRule;
 
-mod window;
-pub use window::Window;
+pub mod window;
+pub use window::{Window, WindowBuilder};
