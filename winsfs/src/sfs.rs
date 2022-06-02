@@ -1,3 +1,5 @@
+//! N-dimensional site frequency spectra.
+
 use std::{
     error::Error,
     fmt, fs,
@@ -13,11 +15,75 @@ pub type Sfs2d = Sfs<2>;
 mod angsd;
 pub use angsd::ParseAngsdError;
 
-/// An N-dimensional SFS.
+/// Creates a 1D SFS containing the arguments.
 ///
-/// The SFS may or may not be normalised: that is, it may be in probability space or count space.
+/// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
 ///
-/// Elements in the SFS are stored in row-major order.
+/// # Examples
+///
+/// Create SFS by repeating an element:
+///
+/// ```
+/// use winsfs::sfs1d;
+/// let sfs = sfs1d![0.1; 10];
+/// assert!(sfs.iter().all(|&x| x == 0.1));
+/// ```
+///
+/// Create SFS from a list of elements:
+///
+/// ```
+/// use winsfs::sfs1d;
+/// let sfs = sfs1d![0.1, 0.2, 0.3];
+/// assert_eq!(sfs[[0]], 0.1);
+/// assert_eq!(sfs[[1]], 0.2);
+/// assert_eq!(sfs[[2]], 0.3);
+/// ```
+#[macro_export]
+macro_rules! sfs1d {
+    ($elem:expr; $n:expr) => {
+        ::winsfs::sfs::Sfs1d::from_elem($elem, [$n])
+    };
+    ($($x:expr),+ $(,)?) => {
+        ::winsfs::sfs::Sfs1d::from_vec(vec![$($x),+])
+    };
+}
+
+/// Creates a 2D SFS containing the arguments.
+///
+/// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
+///
+/// # Examples
+///
+/// ```
+/// use winsfs::sfs2d;
+/// let sfs = sfs2d![
+///     [0.1, 0.2, 0.3],
+///     [0.4, 0.5, 0.6],
+///     [0.7, 0.8, 0.9],
+/// ];
+/// assert_eq!(sfs[[0, 0]], 0.1);
+/// assert_eq!(sfs[[1, 0]], 0.4);
+/// assert_eq!(sfs[[2, 0]], 0.7);
+/// ```
+#[macro_export]
+macro_rules! sfs2d {
+    ($([$($x:literal),+ $(,)?]),+ $(,)?) => {{
+        let cols = vec![$(sfs2d!(count: $($x),+)),+];
+        assert!(cols.windows(2).all(|w| w[0] == w[1]));
+        let shape = [cols.len(), cols[0]];
+        let vec = vec![$($($x),+),+];
+        ::winsfs::sfs::Sfs2d::from_vec_shape(vec, shape).unwrap()
+    }};
+    (replace: $x:expr) => {()};
+    (count: $($x:expr),+) => {
+        <[()]>::len(&[$(sfs2d!(replace: $x)),*])
+    }
+}
+
+/// An N-dimensional site frequency spectrum ("SFS").
+///
+/// Elements are stored in row-major order: the last index varies the fastest.
+/// The SFS may or may not be normalised.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sfs<const N: usize> {
     values: Vec<f64>,
@@ -25,14 +91,32 @@ pub struct Sfs<const N: usize> {
 }
 
 impl<const N: usize> Sfs<N> {
-    /// Creates a new SFS from a single element.
+    /// Creates a new SFS by repeating a single value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::from_elem(0.1, [7, 5]);
+    /// assert_eq!(sfs.shape(), [7, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.1));
+    /// ```
     pub fn from_elem(elem: f64, shape: [usize; N]) -> Self {
         let n = shape.iter().product();
 
         Self::new_unchecked(vec![elem; n], shape)
     }
 
-    /// Creates a new SFS from an iterator of values and a given shape.
+    /// Creates a new SFS from an iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let iter = (0..9).map(|x| x as f64);
+    /// let sfs = Sfs::from_iter_shape(iter, [3, 3]).expect("shape didn't fit iterator!");
+    /// assert_eq!(sfs[[1, 2]], 5.0);
+    /// ```
     pub fn from_iter_shape<I>(iter: I, shape: [usize; N]) -> Result<Self, ShapeError<N>>
     where
         I: IntoIterator<Item = f64>,
@@ -40,7 +124,16 @@ impl<const N: usize> Sfs<N> {
         Self::from_vec_shape(iter.into_iter().collect(), shape)
     }
 
-    /// Creates a new SFS from a vector of values and a given shape.
+    /// Creates a new SFS from a vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let vec: Vec<f64> = (0..9).map(|x| x as f64).collect();
+    /// let sfs = Sfs::from_vec_shape(vec, [3, 3]).expect("shape didn't fit vector!");
+    /// assert_eq!(sfs[[2, 0]], 6.0);
+    /// ```
     pub fn from_vec_shape(vec: Vec<f64>, shape: [usize; N]) -> Result<Self, ShapeError<N>> {
         let n: usize = shape.iter().product();
 
@@ -50,13 +143,58 @@ impl<const N: usize> Sfs<N> {
         }
     }
 
-    /// Returns the value at the specified index in the SFS, if it exists.
+    /// Returns a value at an index in the SFS.
+    ///
+    /// If the index is out of bounds, `None` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let sfs = sfs1d![0.0, 0.1, 0.2];
+    /// assert_eq!(sfs.get([0]), Some(&0.0));
+    /// assert_eq!(sfs.get([1]), Some(&0.1));
+    /// assert_eq!(sfs.get([2]), Some(&0.2));
+    /// assert_eq!(sfs.get([3]), None);
+    /// ```
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5], [0.6, 0.7, 0.8]];
+    /// assert_eq!(sfs.get([0, 0]), Some(&0.0));
+    /// assert_eq!(sfs.get([1, 2]), Some(&0.5));
+    /// assert_eq!(sfs.get([3, 0]), None);
+    /// ```
     #[inline]
     pub fn get(&self, index: [usize; N]) -> Option<&f64> {
         self.values.get(compute_flat(index, self.shape))
     }
 
-    /// Returns a mutable reference to the value at the specified index in the SFS, if it exists.
+    /// Returns a mutable reference to a value at an index in the SFS.
+    ///
+    /// If the index is out of bounds, `None` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let mut sfs = sfs1d![0.0, 0.1, 0.2];
+    /// assert_eq!(sfs[[0]], 0.0);
+    /// if let Some(v) = sfs.get_mut([0]) {
+    ///     *v = 0.5;
+    /// }
+    /// assert_eq!(sfs[[0]], 0.5);
+    /// ```
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let mut sfs = sfs2d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5], [0.6, 0.7, 0.8]];
+    /// assert_eq!(sfs[[0, 0]], 0.0);
+    /// if let Some(v) = sfs.get_mut([0, 0]) {
+    ///     *v = 0.5;
+    /// }
+    /// assert_eq!(sfs[[0, 0]], 0.5);
+    /// ```
     #[inline]
     pub fn get_mut(&mut self, index: [usize; N]) -> Option<&mut f64> {
         self.values.get_mut(compute_flat(index, self.shape))
@@ -70,7 +208,21 @@ impl<const N: usize> Sfs<N> {
         angsd::format(self, precision)
     }
 
-    /// Returns a string containing a flat represention of the SFS.
+    /// Returns a string containing a flat, row-major represention of the SFS.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let sfs = sfs1d![0.0, 0.1, 0.2];
+    /// assert_eq!(sfs.format_flat(" ", 1), "0.0 0.1 0.2");
+    /// ```
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let  sfs = sfs2d![[0.01, 0.12], [0.23, 0.34]];
+    /// assert_eq!(sfs.format_flat(",", 2), "0.01,0.12,0.23,0.34");
+    /// ```
     pub fn format_flat(&self, sep: &str, precision: usize) -> String {
         if let Some(first) = self.values.first() {
             let cap = self.values.len() * (precision + 3);
