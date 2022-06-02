@@ -5,15 +5,12 @@ use std::{io, path::Path};
 use clap::CommandFactory;
 
 use winsfs::{
-    em::{Em, StoppingRule, Window, DEFAULT_TOLERANCE},
     saf::{ArrayExt, BlockIterator, JointSaf, JointSafView, Saf},
     stream::{Header, Reader},
-    Sfs,
+    Em, Sfs, StoppingRule, Window,
 };
 
-use crate::utils::{
-    get_block_size_and_blocks, get_rng, get_window_size, set_threads, validate_shape,
-};
+use crate::utils::{get_rng, set_threads};
 
 use super::Cli;
 
@@ -25,36 +22,47 @@ fn create_runner<const N: usize>(
 where
     Sfs<N>: Em<N>,
 {
-    let initial_sfs = if let Some(path) = &args.initial {
-        let mut sfs = Sfs::read_from_angsd(path)?;
-        validate_shape(sfs.shape(), shape)?;
-        sfs.normalise();
-        sfs
-    } else {
-        Sfs::uniform(shape)
-    };
+    let mut builder = Window::builder();
 
-    let (block_size, blocks) = get_block_size_and_blocks(args.block_size, args.blocks, sites);
-    let window_size = get_window_size(args.window_size, blocks);
+    if let Some(path) = &args.initial {
+        let mut initial_sfs = Sfs::read_from_angsd(path)?;
+        initial_sfs.normalise();
+        builder = builder.initial_sfs(initial_sfs);
+    }
+
+    match (args.block_size, args.blocks) {
+        (None, None) => (),
+        (None, Some(blocks)) => builder = builder.blocks(blocks.get()),
+        (Some(block_size), None) => builder = builder.block_size(block_size.get()),
+        (Some(_), Some(_)) => {
+            unreachable!("clap checks '--blocks' and '--block-size' conflict")
+        }
+    }
+
+    if let Some(window_size) = args.window_size {
+        builder = builder.window_size(window_size.get())
+    }
+
+    match (args.max_epochs, args.tolerance) {
+        (Some(n), Some(v)) => builder = builder.stopping_rule(StoppingRule::either(n, v)),
+        (Some(n), None) => builder = builder.stopping_rule(StoppingRule::epochs(n)),
+        (None, Some(v)) => builder = builder.stopping_rule(StoppingRule::log_likelihood(v)),
+        (None, None) => (),
+    }
+
+    let runner = builder
+        .build(sites, shape)
+        .map_err(|e| Cli::command().error(clap::ErrorKind::ValueValidation, e))?;
 
     log::info!(
         target: "init",
-        "Using window size {window_size}/{blocks} blocks ({block_size} sites per block)."
+        "Using {blocks} blocks, {block_size} sites per block, {window_size} blocks per window.",
+        block_size = runner.block_size(),
+        blocks = sites / runner.block_size(),
+        window_size = runner.window_size(),
     );
 
-    let stopping_rule = match (args.max_epochs, args.tolerance) {
-        (Some(n), Some(v)) => StoppingRule::either(n, v),
-        (Some(n), None) => StoppingRule::epochs(n),
-        (None, Some(v)) => StoppingRule::log_likelihood(v),
-        (None, None) => StoppingRule::log_likelihood(DEFAULT_TOLERANCE),
-    };
-
-    Ok(Window::new(
-        initial_sfs,
-        window_size,
-        block_size,
-        stopping_rule,
-    ))
+    Ok(runner)
 }
 
 pub fn read_saf<P>(path: P) -> clap::Result<JointSaf<1>>

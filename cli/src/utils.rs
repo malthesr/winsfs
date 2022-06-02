@@ -1,62 +1,10 @@
-use std::{num::NonZeroUsize, thread};
+use std::thread;
 
 use clap::CommandFactory;
 
 use rand::{rngs::StdRng, SeedableRng};
 
 use super::Cli;
-
-const DEFAULT_NUMBER_OF_BLOCKS: usize = 500;
-const DEFAULT_BLOCKS_TO_WINDOWS: usize = 5;
-
-pub fn get_block_size_and_blocks(
-    block_size_arg: Option<NonZeroUsize>,
-    blocks_arg: Option<NonZeroUsize>,
-    sites: usize,
-) -> (usize, usize) {
-    match (block_size_arg.map(|x| x.get()), blocks_arg.map(|x| x.get())) {
-        (Some(_), Some(_)) => {
-            unreachable!("clap checks '--blocks' and '--block-size' conflict")
-        }
-        (Some(size), None) => (size, get_blocks(size, sites)),
-        (None, Some(blocks)) => (get_block_size(blocks, sites), blocks),
-        (None, None) => {
-            let block_size = default_block_size(sites);
-            let blocks = get_blocks(block_size, sites);
-            (block_size, blocks)
-        }
-    }
-}
-
-fn div_ceil(lhs: usize, rhs: usize) -> usize {
-    if lhs % rhs == 0 {
-        lhs / rhs
-    } else {
-        lhs / rhs + 1
-    }
-}
-
-fn get_blocks(block_size: usize, sites: usize) -> usize {
-    div_ceil(sites, block_size)
-}
-
-fn get_block_size(blocks: usize, sites: usize) -> usize {
-    div_ceil(sites, blocks)
-}
-
-pub fn get_window_size(window_size_arg: Option<NonZeroUsize>, blocks: usize) -> usize {
-    match window_size_arg {
-        Some(v) => v.get(),
-        None => match blocks / DEFAULT_BLOCKS_TO_WINDOWS {
-            0 => 1,
-            v => v,
-        },
-    }
-}
-
-pub fn default_block_size(sites: usize) -> usize {
-    (sites.rem_euclid(DEFAULT_NUMBER_OF_BLOCKS) + sites) / DEFAULT_NUMBER_OF_BLOCKS
-}
 
 pub fn get_rng(seed_arg: Option<u64>) -> StdRng {
     match seed_arg {
