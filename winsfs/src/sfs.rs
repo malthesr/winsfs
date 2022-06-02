@@ -1,4 +1,4 @@
-//! N-dimensional site frequency spectra.
+//! N-dimensional site frequency spectra ("SFS").
 
 use std::{
     error::Error,
