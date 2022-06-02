@@ -16,6 +16,28 @@ pub struct Window<const N: usize> {
     stopping_rule: StoppingRule,
 }
 
+impl<const N: usize> Window<N> {
+    pub fn into_sfs(self) -> Sfs<N> {
+        self.sfs
+    }
+
+    pub fn new(
+        initial: Sfs<N>,
+        window_size: usize,
+        block_size: usize,
+        stopping_rule: StoppingRule,
+    ) -> Self {
+        let window = Blocks::zeros(initial.shape(), window_size);
+
+        Self {
+            sfs: initial,
+            window,
+            block_size,
+            stopping_rule,
+        }
+    }
+}
+
 impl<const N: usize> Window<N>
 where
     Sfs<N>: Em<N>,
@@ -97,26 +119,6 @@ where
             if reader.is_done()? {
                 break Ok(());
             }
-        }
-    }
-
-    pub fn into_sfs(self) -> Sfs<N> {
-        self.sfs
-    }
-
-    pub fn new(
-        initial: Sfs<N>,
-        window_size: usize,
-        block_size: usize,
-        stopping_rule: StoppingRule,
-    ) -> Self {
-        let window = Blocks::zeros(initial.shape(), window_size);
-
-        Self {
-            sfs: initial,
-            window,
-            block_size,
-            stopping_rule,
         }
     }
 
