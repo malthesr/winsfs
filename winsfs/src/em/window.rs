@@ -17,6 +17,10 @@ pub struct Window<const N: usize> {
 }
 
 impl<const N: usize> Window<N> {
+    pub fn block_size(&self) -> usize {
+        self.block_size
+    }
+
     pub fn into_sfs(self) -> Sfs<N> {
         self.sfs
     }
@@ -35,6 +39,18 @@ impl<const N: usize> Window<N> {
             block_size,
             stopping_rule,
         }
+    }
+
+    pub fn sfs(&self) -> &Sfs<N> {
+        &self.sfs
+    }
+
+    pub fn stopping_rule(&self) -> &StoppingRule {
+        &self.stopping_rule
+    }
+
+    pub fn window_size(&self) -> usize {
+        self.window.len()
     }
 }
 
@@ -166,6 +182,10 @@ where
 struct Blocks<const N: usize>(VecDeque<Sfs<N>>);
 
 impl<const N: usize> Blocks<N> {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn update(&mut self, item: Sfs<N>) {
         let _old = self.0.pop_front();
         self.0.push_back(item);
