@@ -61,22 +61,6 @@ impl<const N: usize> Window<N> {
         self.sfs
     }
 
-    pub fn new(
-        initial: Sfs<N>,
-        window_size: usize,
-        block_size: usize,
-        stopping_rule: StoppingRule,
-    ) -> Self {
-        let window = Blocks::zeros(initial.shape(), window_size);
-
-        Self {
-            sfs: initial,
-            window,
-            block_size,
-            stopping_rule,
-        }
-    }
-
     /// Returns the current SFS estimate.
     pub fn sfs(&self) -> &Sfs<N> {
         &self.sfs
@@ -90,6 +74,22 @@ impl<const N: usize> Window<N> {
     /// Returns the runner window size.
     pub fn window_size(&self) -> usize {
         self.window.len()
+    }
+
+    pub(self) fn new(
+        initial: Sfs<N>,
+        window_size: usize,
+        block_size: usize,
+        stopping_rule: StoppingRule,
+    ) -> Self {
+        let window = Blocks::zeros(initial.shape(), window_size);
+
+        Self {
+            sfs: initial,
+            window,
+            block_size,
+            stopping_rule,
+        }
     }
 }
 
