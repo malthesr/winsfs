@@ -42,6 +42,9 @@ pub struct Cli {
     ///
     /// If both this and `--block-size` are unset,
     /// the block size will be chosen so that approximately 500 blocks are created.
+    /// Note that due to the way blocks are handled, the specified number of blocks
+    /// cannot always be created exactly, and the true number of blocks may be very slightly
+    /// different.
     #[clap(
         short = 'B',
         long,
