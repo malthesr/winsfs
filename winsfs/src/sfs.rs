@@ -15,6 +15,9 @@ pub type Sfs2d = Sfs<2>;
 mod angsd;
 pub use angsd::ParseAngsdError;
 
+mod em;
+pub use em::Em;
+
 /// Creates a 1D SFS containing the arguments.
 ///
 /// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
@@ -79,6 +82,21 @@ macro_rules! sfs2d {
         <[()]>::len(&[$(sfs2d!(replace: $x)),*])
     }
 }
+
+macro_rules! log_sfs {
+    (target: $target:expr, $level:expr, $fmt_str:literal, $sfs:expr, $sites:expr) => {
+        if log::log_enabled!(target: $target, $level) {
+            let fmt_sfs = $sfs
+                .iter()
+                .map(|v| format!("{:.6}", v * $sites as f64))
+                .collect::<Vec<_>>()
+                .join(" ");
+
+            log::log!(target: $target, $level, $fmt_str, fmt_sfs);
+        }
+    };
+}
+pub(crate) use log_sfs;
 
 /// An N-dimensional site frequency spectrum ("SFS").
 ///

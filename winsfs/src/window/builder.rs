@@ -1,8 +1,8 @@
 use std::{error::Error, fmt};
 
-use crate::{em::StoppingRule, saf::JointSafView, sfs::Sfs};
+use crate::{saf::JointSafView, sfs::Sfs};
 
-use super::{defaults::*, Window};
+use super::{defaults::*, StoppingRule, Window};
 
 /// Builder type for a window EM runner.
 ///
@@ -40,7 +40,7 @@ impl<const N: usize> WindowBuilder<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{em::window::defaults::*, StoppingRule, Window};
+    /// use winsfs::{window::defaults::*, StoppingRule, Window};
     ///
     /// let sites = 10_000;
     /// let shape = [5, 7];

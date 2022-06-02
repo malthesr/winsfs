@@ -2,14 +2,16 @@ use std::{collections::VecDeque, io};
 
 use crate::{
     saf::{BlockIterator, JointSafView},
+    sfs::log_sfs,
     stream::{Header, Reader},
-    Sfs,
+    Em, Sfs,
 };
-
-use super::{Em, StoppingRule};
 
 mod builder;
 pub use builder::WindowBuilder;
+
+mod stop;
+pub use stop::StoppingRule;
 
 pub mod defaults {
     pub const DEFAULT_WINDOW_SIZE: usize = 100;
