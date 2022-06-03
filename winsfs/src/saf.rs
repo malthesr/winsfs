@@ -236,6 +236,28 @@ impl<'a> SafView<'a> {
         self.values.chunks(self.shape)
     }
 
+    /// Creates a new SAF view from a slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::SafView;
+    /// let values: Vec<f32> = (0..12).map(|x| x as f32).collect();
+    /// let saf = SafView::new(&values[..], 3)
+    ///     .expect("shape does not evenly divide number of values");
+    /// assert_eq!(saf.shape(), 3);
+    /// assert_eq!(saf.sites(), 4);
+    /// ```
+    pub fn new(values: &'a [f32], shape: usize) -> Result<Self, ShapeError> {
+        let len = values.len();
+
+        if len % shape == 0 {
+            Ok(Self::new_unchecked(values, shape))
+        } else {
+            Err(ShapeError { len, shape })
+        }
+    }
+
     fn new_unchecked(values: &'a [f32], shape: usize) -> Self {
         Self { values, shape }
     }
