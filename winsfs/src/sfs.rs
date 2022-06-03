@@ -71,16 +71,10 @@ macro_rules! sfs1d {
 #[macro_export]
 macro_rules! sfs2d {
     ($([$($x:literal),+ $(,)?]),+ $(,)?) => {{
-        let cols = vec![$(sfs2d!(count: $($x),+)),+];
-        assert!(cols.windows(2).all(|w| w[0] == w[1]));
+        let (cols, vec) = $crate::matrix!($([$($x),+]),+);
         let shape = [cols.len(), cols[0]];
-        let vec = vec![$($($x),+),+];
-        ::winsfs::sfs::Sfs2d::from_vec_shape(vec, shape).unwrap()
+        $crate::sfs::Sfs2d::from_vec_shape(vec, shape).unwrap()
     }};
-    (replace: $x:expr) => {()};
-    (count: $($x:expr),+) => {
-        <[()]>::len(&[$(sfs2d!(replace: $x)),*])
-    }
 }
 
 macro_rules! log_sfs {
