@@ -144,6 +144,17 @@ impl<'a, const N: usize> JointSafView<'a, N> {
         &self.inner
     }
 
+    pub fn new(safs: [SafView<'a>; N]) -> Result<Self, JointShapeError<N>> {
+        let sites = safs.each_ref().map(|saf| saf.sites());
+        let all_sites_equal = sites.windows(2).map(|x| x[0] == x[1]).all(|x| x);
+
+        if all_sites_equal && N > 0 {
+            Ok(Self::new_unchecked(safs))
+        } else {
+            Err(JointShapeError { sites })
+        }
+    }
+
     fn new_unchecked(safs: [SafView<'a>; N]) -> Self {
         Self { inner: safs }
     }
