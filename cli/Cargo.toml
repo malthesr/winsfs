@@ -15,6 +15,5 @@ angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "62a4695" }
 clap = { version = "3.1", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
-rayon = "1.5"
 simple_logger = { version = "2.1", default-features = false, features = ["stderr"] }
 winsfs = { path = "../winsfs" }
