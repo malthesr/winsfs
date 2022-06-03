@@ -45,9 +45,7 @@ pub fn set_threads(thread_arg: i32) -> clap::Result<()> {
         }
     };
 
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build_global()
+    winsfs::set_threads(threads)
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise threadpool"))
 }
 
