@@ -13,6 +13,8 @@ pub trait ParSiteIterator<'a, const N: usize> {
     type SiteIter: IndexedParallelIterator<Item = Self::Site>;
 
     fn par_iter_sites(&self) -> Self::SiteIter;
+
+    fn sites(&self) -> usize;
 }
 
 impl<'a, const N: usize, T> ParSiteIterator<'a, N> for [T; 2]
@@ -26,6 +28,11 @@ where
         let [hd, tl] = self;
         hd.par_iter_sites().chain(tl.par_iter_sites())
     }
+
+    fn sites(&self) -> usize {
+        let [hd, tl] = self;
+        hd.sites() + tl.sites()
+    }
 }
 
 impl<'a> ParSiteIterator<'a, 1> for JointSafView<'a, 1> {
@@ -34,6 +41,10 @@ impl<'a> ParSiteIterator<'a, 1> for JointSafView<'a, 1> {
 
     fn par_iter_sites(&self) -> Self::SiteIter {
         self.safs()[0].par_iter_sites()
+    }
+
+    fn sites(&self) -> usize {
+        JointSafView::sites(self)
     }
 }
 
@@ -45,6 +56,10 @@ impl<'a> ParSiteIterator<'a, 2> for JointSafView<'a, 2> {
         let [fst, snd] = self.safs();
 
         fst.par_iter_sites().zip(snd.par_iter_sites())
+    }
+
+    fn sites(&self) -> usize {
+        JointSafView::sites(self)
     }
 }
 
@@ -66,6 +81,10 @@ impl<'a> ParSiteIterator<'a, 3> for JointSafView<'a, 3> {
         )
             .into_par_iter()
     }
+
+    fn sites(&self) -> usize {
+        JointSafView::sites(self)
+    }
 }
 
 impl<'a, const N: usize> ParSiteIterator<'a, N> for &'a JointSaf<N>
@@ -77,6 +96,10 @@ where
 
     fn par_iter_sites(&self) -> Self::SiteIter {
         self.view().par_iter_sites()
+    }
+
+    fn sites(&self) -> usize {
+        JointSaf::sites(self)
     }
 }
 
