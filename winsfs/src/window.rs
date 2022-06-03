@@ -3,7 +3,7 @@
 use std::{collections::VecDeque, io};
 
 use crate::{
-    saf::{BlockIterator, JointSafView},
+    saf::{BlockIterator, ParSiteIterator},
     sfs::log_sfs,
     stream::{Header, Reader},
     Em, Sfs,
@@ -97,9 +97,9 @@ impl<const N: usize> Window<N>
 where
     Sfs<N>: Em<N>,
 {
-    pub fn em<'a>(&mut self, input: &JointSafView<'a, N>)
+    pub fn em<'a, I: 'a>(&mut self, input: &I)
     where
-        JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
+        I: BlockIterator<'a, N>,
     {
         let sites: usize = input.sites();
 
@@ -135,9 +135,9 @@ where
         Ok(())
     }
 
-    fn em_step<'a>(&mut self, input: &JointSafView<'a, N>)
+    fn em_step<'a, I: 'a>(&mut self, input: &I)
     where
-        JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
+        I: BlockIterator<'a, N>,
     {
         for (i, block) in input.iter_blocks(self.block_size).enumerate() {
             let (log_likelihood, posterior) = self.sfs.e_step(&block);
