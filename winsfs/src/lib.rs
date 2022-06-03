@@ -9,6 +9,17 @@ pub mod stream;
 pub mod window;
 pub use window::{StoppingRule, Window};
 
+/// Sets the number of threads to use for parallelization.
+///
+/// This is a thin wrapper around [`rayon::ThreadPoolBuilder`] to save users from having to
+/// import `rayon` to control parallelism. The meaning of the `threads` parameter here derives
+/// from [`rayon::ThreadPoolBuilder::num_threads`], see it's documentation for details.
+pub fn set_threads(threads: usize) -> Result<(), rayon::ThreadPoolBuildError> {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build_global()
+}
+
 /// This is an internal implementation detail.
 #[doc(hidden)]
 #[macro_export]
