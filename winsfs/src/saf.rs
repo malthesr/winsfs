@@ -1,6 +1,7 @@
+//! Site allelele frequency ("SAF") likelihoods.
 #![allow(unstable_name_collisions)]
 
-use std::{error::Error, fmt, io, path::Path};
+use std::{cmp::Ordering, error::Error, fmt, io, path::Path};
 
 use angsd_io::saf;
 
@@ -17,22 +18,61 @@ pub use blocks::Blocks;
 mod traits;
 pub use traits::{ArrayExt, BlockIterator, IntoArray, ParSiteIterator};
 
+/// Creates a SAF containing the arguments.
+///
+/// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
+///
+/// # Examples
+///
+/// ```
+/// use winsfs::saf;
+/// let saf = saf![
+///     [0.1,  0.2,  0.3],
+///     [0.4,  0.5,  0.6],
+///     [0.7,  0.8,  0.9],
+///     [0.10, 0.11, 0.12],
+///     [0.13, 0.14, 0.15],
+/// ];
+/// assert_eq!(saf.sites(), 5);
+/// assert_eq!(saf.shape(), 3);
+/// ```
+#[macro_export]
+macro_rules! saf {
+    ($([$($x:literal),+ $(,)?]),+ $(,)?) => {{
+        let (cols, vec) = $crate::matrix!($([$($x),+]),+);
+        $crate::saf::Saf::new(vec, cols[0]).unwrap()
+    }};
+}
+
 macro_rules! impl_shared_saf_methods {
     () => {
+        /// Returns the values of the SAF as a flat, row-major slice.
         pub fn as_slice(&self) -> &[f32] {
             &self.values
         }
 
+        /// Returns the values for a single site in the SAF.
+        pub fn site(&self, index: usize) -> &[f32] {
+            &self.values[index * self.shape..][..self.shape]
+        }
+
+        /// Returns the number of sites in the SAF.
+        ///
+        /// This corresponds to the number of rows in the matrix.
         pub fn sites(&self) -> usize {
             self.values.len() / self.shape
         }
 
+        /// Returns the shape of the SAF.
+        ///
+        /// This corresponds to the number of columns in the matrix.
         pub fn shape(&self) -> usize {
             self.shape
         }
     };
 }
 
+/// A matrix of site allele frequency ("SAF") likelihoods.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Saf {
     values: Vec<f32>,
@@ -40,6 +80,7 @@ pub struct Saf {
 }
 
 impl Saf {
+    /// Returns a mutable reference to the values of the SAF as a flat, row-major slice.
     pub fn as_mut_slice(&mut self) -> &mut [f32] {
         &mut self.values
     }
@@ -50,6 +91,22 @@ impl Saf {
         Self::new(values, shape)
     }
 
+    /// Returns an iterator over the sites in the the SAF.
+    pub fn iter_sites(&self) -> std::slice::Chunks<f32> {
+        self.values.chunks(self.shape)
+    }
+
+    /// Creates a new SAF.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Saf;
+    /// let values: Vec<f32> = (0..12).map(|x| x as f32).collect();
+    /// let saf = Saf::new(values, 3).expect("shape does not evenly divide number of values");
+    /// assert_eq!(saf.shape(), 3);
+    /// assert_eq!(saf.sites(), 4);
+    /// ```
     pub fn new(values: Vec<f32>, shape: usize) -> Result<Self, ShapeError> {
         let len = values.len();
 
@@ -64,6 +121,15 @@ impl Saf {
         Self { values, shape }
     }
 
+    /// Returns a parallel iterator over the sites in the SAF.
+    pub fn par_iter_sites(&self) -> rayon::slice::Chunks<f32> {
+        self.values.par_chunks(self.shape)
+    }
+
+    /// Creates a SAF by reading from a reader.
+    ///
+    /// It is assumed that the values in the reader are in log-space,
+    /// so all values will be exponentiated.
     pub fn read<R>(mut reader: saf::BgzfReader<R>) -> io::Result<Self>
     where
         R: io::BufRead,
@@ -81,6 +147,11 @@ impl Saf {
         Self::from_log(values, shape).map_err(io::Error::from)
     }
 
+    /// Creates a SAF by reading from a path.
+    ///
+    /// The path can be any SAF file member path. This is simply a convenience wrapper for
+    /// opening a [`angsd_io::saf::BgzfReader`] and using the [`Saf::read`] constructor.
+    /// See its documentation for details.
     pub fn read_from_path<P>(path: P) -> io::Result<Self>
     where
         P: AsRef<Path>,
@@ -90,6 +161,12 @@ impl Saf {
         Self::read(reader)
     }
 
+    /// Returns a mutable reference to the values for a single site in the SAF.
+    pub fn site_mut(&mut self, index: usize) -> &mut [f32] {
+        &mut self.values[index * self.shape..][..self.shape]
+    }
+
+    /// Shuffles the SAF sitewise according to a random permutation.
     pub fn shuffle<R>(&mut self, rng: &mut R)
     where
         R: Rng,
@@ -102,10 +179,41 @@ impl Saf {
         }
     }
 
-    pub(super) fn swap_sites(&mut self, i: usize, j: usize) {
-        swap_chunks(self.values.as_mut_slice(), i, j, self.shape);
+    /// Swap two sites in SAF.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::saf;
+    /// let mut saf = saf![
+    ///    [0., 0., 0.],
+    ///    [1., 1., 1.],
+    ///    [2., 2., 2.],
+    ///    [3., 3., 3.],
+    /// ];
+    /// assert_eq!(saf.site(0), &[0., 0., 0.]);
+    /// assert_eq!(saf.site(2), &[2., 2., 2.]);
+    /// saf.swap_sites(0, 2);
+    /// assert_eq!(saf.site(0), &[2., 2., 2.]);
+    /// assert_eq!(saf.site(2), &[0., 0., 0.]);
+    /// ```
+    pub fn swap_sites(&mut self, mut i: usize, mut j: usize) {
+        match i.cmp(&j) {
+            Ordering::Less => (i, j) = (j, i),
+            Ordering::Equal => return,
+            Ordering::Greater => (),
+        }
+
+        let shape = self.shape;
+        let (hd, tl) = self.as_mut_slice().split_at_mut(i * shape);
+
+        let left = &mut hd[j * shape..][..shape];
+        let right = &mut tl[..shape];
+
+        left.swap_with_slice(right)
     }
 
+    /// Returns a SAF view of the entire matrix.
     pub fn view(&self) -> SafView<'_> {
         SafView::new_unchecked(&self.values, self.shape)
     }
@@ -113,6 +221,9 @@ impl Saf {
     impl_shared_saf_methods!();
 }
 
+/// A view of a matrix of site allele frequency ("SAF") likelihoods.
+///
+/// The view may correspond to some or all of the sites in the original matrix.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SafView<'a> {
     values: &'a [f32],
@@ -120,14 +231,40 @@ pub struct SafView<'a> {
 }
 
 impl<'a> SafView<'a> {
+    /// Returns an iterator over the sites in the the SAF view.
+    pub fn iter_sites(&self) -> std::slice::Chunks<'a, f32> {
+        self.values.chunks(self.shape)
+    }
+
     fn new_unchecked(values: &'a [f32], shape: usize) -> Self {
         Self { values, shape }
     }
 
+    /// Returns a parallel iterator over the sites in the SAF.
     pub fn par_iter_sites(&self) -> rayon::slice::Chunks<'a, f32> {
         self.values.par_chunks(self.shape)
     }
 
+    /// Returns two SAF views containing sites before and after a specified site.
+    ///
+    /// The first view will include the site corresponding to the specified index.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::saf;
+    /// let saf = saf![
+    ///     [0., 0., 0.],
+    ///     [1., 1., 1.],
+    ///     [2., 2., 2.],
+    ///     [3., 3., 3.],
+    ///     [4., 4., 4.],
+    ///     [5., 5., 5.],
+    /// ];
+    /// let (hd, tl) = saf.view().split_at_site(4);
+    /// assert_eq!(hd.as_slice(), &[0., 0., 0., 1., 1., 1., 2., 2., 2., 3., 3., 3.]);
+    /// assert_eq!(tl.as_slice(), &[4., 4., 4., 5., 5., 5.]);
+    /// ```
     pub fn split_at_site(&self, site: usize) -> (Self, Self) {
         let (hd, tl) = self.values.split_at(site * self.shape);
 
@@ -140,6 +277,7 @@ impl<'a> SafView<'a> {
     impl_shared_saf_methods!();
 }
 
+/// An error associated with SAF construction using invalid shape.
 #[derive(Clone, Debug)]
 pub struct ShapeError {
     shape: usize,
@@ -164,50 +302,28 @@ impl From<ShapeError> for io::Error {
     }
 }
 
-/// Split `s` into chunks of `chunk_size` and swap chunks `i` and `j`, where `i` > `j`
-fn swap_chunks<T>(s: &mut [T], i: usize, j: usize, chunk_size: usize)
-where
-    T: std::fmt::Debug,
-{
-    if i == j {
-        return;
-    }
-
-    let (hd, tl) = s.split_at_mut(i * chunk_size);
-
-    let left = &mut hd[j * chunk_size..][..chunk_size];
-    let right = &mut tl[..chunk_size];
-
-    left.swap_with_slice(right)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_split_at_site() {
-        let values = vec![1., 1., 1., 2., 2., 2., 3., 3., 3.];
-        let saf = Saf::new_unchecked(values, 3);
-
-        let (hd, tl) = saf.view().split_at_site(1);
-        assert_eq!(hd.values, &[1., 1., 1.]);
-        assert_eq!(tl.values, &[2., 2., 2., 3., 3., 3.]);
-    }
-
     #[test]
     fn test_swap_chunks() {
-        let mut v = vec![0, 0, 1, 1, 2, 2, 3, 3];
+        let mut saf = saf![
+            [0., 0., 0.],
+            [1., 1., 1.],
+            [2., 2., 2.],
+            [3., 3., 3.],
+            [4., 4., 4.],
+            [5., 5., 5.],
+        ];
 
-        swap_chunks(v.as_mut_slice(), 1, 1, 2);
-        assert_eq!(v, v);
+        saf.swap_sites(3, 3);
+        assert_eq!(saf.site(3), &[3., 3., 3.]);
 
-        swap_chunks(v.as_mut_slice(), 2, 0, 2);
-        let expected = vec![2, 2, 1, 1, 0, 0, 3, 3];
-        assert_eq!(v, expected);
+        saf.swap_sites(0, 1);
+        assert_eq!(saf.site(0), &[1., 1., 1.]);
+        assert_eq!(saf.site(1), &[0., 0., 0.]);
 
-        swap_chunks(v.as_mut_slice(), 1, 0, 4);
-        let expected = vec![0, 0, 3, 3, 2, 2, 1, 1];
-        assert_eq!(v, expected);
+        saf.swap_sites(5, 0);
+        assert_eq!(saf.site(0), &[5., 5., 5.]);
+        assert_eq!(saf.site(5), &[1., 1., 1.]);
     }
 }
