@@ -103,6 +103,81 @@ pub struct Sfs<const N: usize> {
 }
 
 impl<const N: usize> Sfs<N> {
+    /// Returns the a mutable reference values of the SFS as a flat, row-major slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let mut sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
+    /// sfs.as_mut_slice()[0] = 100.;
+    /// assert_eq!(sfs.as_slice(), [100., 1., 2., 3., 4., 5.]);
+    /// ```
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [f64] {
+        &mut self.values
+    }
+
+    /// Returns the values of the SFS as a flat, row-major slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
+    /// ```
+    #[inline]
+    pub fn as_slice(&self) -> &[f64] {
+        &self.values
+    }
+
+    /// Returns a string containing the SFS formatted in ANGSD format.
+    ///
+    /// The resulting string contains a header giving the shape of the SFS,
+    /// and a flat representation of the SFS.
+    pub fn format_angsd(&self, precision: Option<usize>) -> String {
+        angsd::format(self, precision)
+    }
+
+    /// Returns a string containing a flat, row-major represention of the SFS.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let sfs = sfs1d![0.0, 0.1, 0.2];
+    /// assert_eq!(sfs.format_flat(" ", 1), "0.0 0.1 0.2");
+    /// ```
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let  sfs = sfs2d![[0.01, 0.12], [0.23, 0.34]];
+    /// assert_eq!(sfs.format_flat(",", 2), "0.01,0.12,0.23,0.34");
+    /// ```
+    pub fn format_flat(&self, sep: &str, precision: usize) -> String {
+        if let Some(first) = self.values.first() {
+            let cap = self.values.len() * (precision + 3);
+            let mut init = String::with_capacity(cap);
+            init.push_str(&format!("{:.precision$}", first));
+
+            self.iter().skip(1).fold(init, |mut s, x| {
+                s.push_str(sep);
+                s.push_str(&format!("{x:.precision$}"));
+                s
+            })
+        } else {
+            String::new()
+        }
+    }
+
     /// Creates a new SFS by repeating a single value.
     ///
     /// # Examples
@@ -212,96 +287,6 @@ impl<const N: usize> Sfs<N> {
         self.values.get_mut(compute_flat(index, self.shape)?)
     }
 
-    /// Returns a string containing the SFS formatted in ANGSD format.
-    ///
-    /// The resulting string contains a header giving the shape of the SFS,
-    /// and a flat representation of the SFS.
-    pub fn format_angsd(&self, precision: Option<usize>) -> String {
-        angsd::format(self, precision)
-    }
-
-    /// Returns a string containing a flat, row-major represention of the SFS.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs1d;
-    /// let sfs = sfs1d![0.0, 0.1, 0.2];
-    /// assert_eq!(sfs.format_flat(" ", 1), "0.0 0.1 0.2");
-    /// ```
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let  sfs = sfs2d![[0.01, 0.12], [0.23, 0.34]];
-    /// assert_eq!(sfs.format_flat(",", 2), "0.01,0.12,0.23,0.34");
-    /// ```
-    pub fn format_flat(&self, sep: &str, precision: usize) -> String {
-        if let Some(first) = self.values.first() {
-            let cap = self.values.len() * (precision + 3);
-            let mut init = String::with_capacity(cap);
-            init.push_str(&format!("{:.precision$}", first));
-
-            self.iter().skip(1).fold(init, |mut s, x| {
-                s.push_str(sep);
-                s.push_str(&format!("{x:.precision$}"));
-                s
-            })
-        } else {
-            String::new()
-        }
-    }
-
-    /// Creates a new SFS.
-    fn new_unchecked(values: Vec<f64>, shape: [usize; N]) -> Self {
-        Self { values, shape }
-    }
-
-    /// Creates a new SFS from a string containing an SFS formatted in ANGSD format.
-    pub fn parse_from_angsd(s: &str) -> Result<Self, ParseAngsdError<N>> {
-        angsd::parse(s)
-    }
-
-    /// Creates a new SFS from a path containing an SFS formatted in ANGSD format.
-    pub fn read_from_angsd<P>(path: P) -> io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let mut file = fs::File::open(path)?;
-        let mut buf = String::new();
-        file.read_to_string(&mut buf)?;
-        Self::parse_from_angsd(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-    }
-
-    /// Creates a uniform SFS in probability space.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::Sfs;
-    /// let sfs = Sfs::uniform([2, 5]);
-    /// assert!(sfs.iter().all(|&x| x == 0.1));
-    /// ```
-    pub fn uniform(shape: [usize; N]) -> Self {
-        let n: usize = shape.iter().product();
-
-        let elem = 1.0 / n as f64;
-
-        Self::from_elem(elem, shape)
-    }
-
-    /// Creates an SFS with all entries set to zero.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::Sfs;
-    /// let sfs = Sfs::zeros([2, 5]);
-    /// assert!(sfs.iter().all(|&x| x == 0.0));
-    /// ```
-    pub fn zeros(shape: [usize; N]) -> Self {
-        Self::from_elem(0.0, shape)
-    }
-
     /// Returns an iterator over the indices in the SFS in row-major order.
     ///
     /// # Examples
@@ -369,6 +354,22 @@ impl<const N: usize> Sfs<N> {
         self.iter_mut().for_each(|x| *x /= sum);
     }
 
+    /// Creates a new SFS from a string containing an SFS formatted in ANGSD format.
+    pub fn parse_from_angsd(s: &str) -> Result<Self, ParseAngsdError<N>> {
+        angsd::parse(s)
+    }
+
+    /// Creates a new SFS from a path containing an SFS formatted in ANGSD format.
+    pub fn read_from_angsd<P>(path: P) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let mut file = fs::File::open(path)?;
+        let mut buf = String::new();
+        file.read_to_string(&mut buf)?;
+        Self::parse_from_angsd(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    }
+
     /// Re-scales the SFS by some constant.
     ///
     /// # Examples
@@ -400,46 +401,45 @@ impl<const N: usize> Sfs<N> {
         self.shape
     }
 
+    /// Creates a uniform SFS in probability space.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::uniform([2, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.1));
+    /// ```
+    pub fn uniform(shape: [usize; N]) -> Self {
+        let n: usize = shape.iter().product();
+
+        let elem = 1.0 / n as f64;
+
+        Self::from_elem(elem, shape)
+    }
+
+    /// Creates an SFS with all entries set to zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::zeros([2, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.0));
+    /// ```
+    pub fn zeros(shape: [usize; N]) -> Self {
+        Self::from_elem(0.0, shape)
+    }
+
+    /// Creates a new SFS.
+    fn new_unchecked(values: Vec<f64>, shape: [usize; N]) -> Self {
+        Self { values, shape }
+    }
+
     /// Returns the sum of values in the SFS.
     #[inline]
     fn sum(&self) -> f64 {
         self.iter().sum()
-    }
-
-    /// Returns the values of the SFS as a flat, row-major slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let sfs = sfs2d![
-    ///     [0., 1., 2.],
-    ///     [3., 4., 5.],
-    /// ];
-    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
-    /// ```
-    #[inline]
-    pub fn as_slice(&self) -> &[f64] {
-        &self.values
-    }
-
-    /// Returns the a mutable reference values of the SFS as a flat, row-major slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let mut sfs = sfs2d![
-    ///     [0., 1., 2.],
-    ///     [3., 4., 5.],
-    /// ];
-    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
-    /// sfs.as_mut_slice()[0] = 100.;
-    /// assert_eq!(sfs.as_slice(), [100., 1., 2., 3., 4., 5.]);
-    /// ```
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [f64] {
-        &mut self.values
     }
 }
 
