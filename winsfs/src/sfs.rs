@@ -9,9 +9,6 @@ use std::{
     slice,
 };
 
-pub type Sfs1d = Sfs<1>;
-pub type Sfs2d = Sfs<2>;
-
 mod angsd;
 pub use angsd::ParseAngsdError;
 
@@ -73,7 +70,7 @@ macro_rules! sfs2d {
     ($([$($x:literal),+ $(,)?]),+ $(,)?) => {{
         let (cols, vec) = $crate::matrix!($([$($x),+]),+);
         let shape = [cols.len(), cols[0]];
-        $crate::sfs::Sfs2d::from_vec_shape(vec, shape).unwrap()
+        $crate::sfs::Sfs::from_vec_shape(vec, shape).unwrap()
     }};
 }
 
@@ -497,7 +494,7 @@ impl<const N: usize> IndexMut<[usize; N]> for Sfs<N> {
     }
 }
 
-impl Sfs1d {
+impl Sfs<1> {
     /// Creates a new SFS from a vector.
     ///
     /// # Examples
