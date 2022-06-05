@@ -1,4 +1,4 @@
-//! Window expectation-maximization ("EM") algorithm.
+//! Window expectation-maximisation ("EM") algorithm.
 
 use std::{collections::VecDeque, io};
 
@@ -33,7 +33,7 @@ pub mod defaults {
     pub const DEFAULT_TOLERANCE: f64 = 1e-4;
 }
 
-/// A runner for the window expectation-maximization ("EM") algorithm.
+/// A runner for the window expectation-maximisation ("EM") algorithm.
 ///
 /// The runner is created using the builder pattern via the [`WindowBuilder`].
 /// See [`Window::builder`].
