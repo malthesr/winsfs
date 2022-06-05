@@ -286,6 +286,31 @@ impl<const N: usize> Sfs<N> {
         Self::from_elem(0.0, shape)
     }
 
+    /// Returns an iterator over the indices in the SFS in row-major order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0.1, 0.2, 0.3],
+    ///     [0.4, 0.5, 0.6],
+    /// ];
+    /// let mut iter = sfs.indices();
+    /// assert_eq!(iter.next(), Some([0, 0]));
+    /// assert_eq!(iter.next(), Some([0, 1]));
+    /// assert_eq!(iter.next(), Some([0, 2]));
+    /// assert_eq!(iter.next(), Some([1, 0]));
+    /// assert_eq!(iter.next(), Some([1, 1]));
+    /// assert_eq!(iter.next(), Some([1, 2]));
+    /// assert!(iter.next().is_none());
+    /// ```
+    pub fn indices(&self) -> impl Iterator<Item = [usize; N]> {
+        let n = self.as_slice().len();
+        let shape = self.shape;
+        (0..n).map(move |flat| compute_index(flat, n, shape))
+    }
+
     /// Returns an iterator over the elements in the SFS in row-major order.
     #[inline]
     pub fn iter(&self) -> slice::Iter<'_, f64> {
@@ -427,13 +452,21 @@ impl<const N: usize> Error for ShapeError<N> {}
 
 fn compute_flat<const N: usize>(index: [usize; N], shape: [usize; N]) -> usize {
     let mut flat = index[0];
-
     for i in 1..N {
         flat *= shape[i];
         flat += index[i];
     }
-
     flat
+}
+
+fn compute_index<const N: usize>(mut flat: usize, mut n: usize, shape: [usize; N]) -> [usize; N] {
+    let mut index = [0; N];
+    for i in 0..N {
+        n /= shape[i];
+        index[i] = flat / n;
+        flat = flat % n;
+    }
+    index
 }
 
 #[cfg(test)]
@@ -459,5 +492,12 @@ mod tests {
         assert_eq!(sfs[[0, 0]], 0.0);
         assert_eq!(sfs[[1, 1]], 1.1);
         assert_eq!(sfs[[1, 2]], 1.2);
+    }
+
+    #[test]
+    fn test_compute_index() {
+        assert_eq!(compute_index(3, 4, [4]), [3]);
+        assert_eq!(compute_index(16, 28, [4, 7]), [2, 2]);
+        assert_eq!(compute_index(3, 6, [1, 3, 2]), [0, 1, 1]);
     }
 }
