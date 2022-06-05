@@ -179,7 +179,7 @@ impl<const N: usize> Sfs<N> {
     /// ```
     #[inline]
     pub fn get(&self, index: [usize; N]) -> Option<&f64> {
-        self.values.get(compute_flat(index, self.shape))
+        self.values.get(compute_flat(index, self.shape)?)
     }
 
     /// Returns a mutable reference to a value at an index in the SFS.
@@ -209,7 +209,7 @@ impl<const N: usize> Sfs<N> {
     /// ```
     #[inline]
     pub fn get_mut(&mut self, index: [usize; N]) -> Option<&mut f64> {
-        self.values.get_mut(compute_flat(index, self.shape))
+        self.values.get_mut(compute_flat(index, self.shape)?)
     }
 
     /// Returns a string containing the SFS formatted in ANGSD format.
@@ -308,7 +308,7 @@ impl<const N: usize> Sfs<N> {
     pub fn indices(&self) -> impl Iterator<Item = [usize; N]> {
         let n = self.as_slice().len();
         let shape = self.shape;
-        (0..n).map(move |flat| compute_index(flat, n, shape))
+        (0..n).map(move |flat| compute_index_unchecked(flat, n, shape))
     }
 
     /// Returns an iterator over the elements in the SFS in row-major order.
@@ -450,7 +450,16 @@ impl<const N: usize> fmt::Display for ShapeError<N> {
 
 impl<const N: usize> Error for ShapeError<N> {}
 
-fn compute_flat<const N: usize>(index: [usize; N], shape: [usize; N]) -> usize {
+fn compute_flat<const N: usize>(index: [usize; N], shape: [usize; N]) -> Option<usize> {
+    for i in 1..N {
+        if index[i] >= shape[i] {
+            return None;
+        }
+    }
+    Some(compute_flat_unchecked(index, shape))
+}
+
+fn compute_flat_unchecked<const N: usize>(index: [usize; N], shape: [usize; N]) -> usize {
     let mut flat = index[0];
     for i in 1..N {
         flat *= shape[i];
@@ -459,12 +468,16 @@ fn compute_flat<const N: usize>(index: [usize; N], shape: [usize; N]) -> usize {
     flat
 }
 
-fn compute_index<const N: usize>(mut flat: usize, mut n: usize, shape: [usize; N]) -> [usize; N] {
+fn compute_index_unchecked<const N: usize>(
+    mut flat: usize,
+    mut n: usize,
+    shape: [usize; N],
+) -> [usize; N] {
     let mut index = [0; N];
     for i in 0..N {
         n /= shape[i];
         index[i] = flat / n;
-        flat = flat % n;
+        flat %= n;
     }
     index
 }
@@ -475,29 +488,28 @@ mod tests {
 
     #[test]
     fn test_index_1d() {
-        let sfs = Sfs1d::from_vec(vec![0., 1., 2., 3., 4., 5.]);
-        let n = sfs.shape;
-
-        for i in 0..n[0] {
-            assert_eq!(sfs[[i]], i as f64);
-        }
-
-        assert_eq!(sfs.get(n), None);
+        let sfs = sfs1d![0., 1., 2., 3., 4., 5.];
+        assert_eq!(sfs.get([0]), Some(&0.));
+        assert_eq!(sfs.get([2]), Some(&2.));
+        assert_eq!(sfs.get([5]), Some(&5.));
+        assert_eq!(sfs.get([6]), None);
     }
 
     #[test]
     fn test_index_2d() {
-        let sfs = Sfs2d::from_vec_shape(vec![0.0, 0.1, 0.2, 1.0, 1.1, 1.2], [2, 3]).unwrap();
-
-        assert_eq!(sfs[[0, 0]], 0.0);
-        assert_eq!(sfs[[1, 1]], 1.1);
-        assert_eq!(sfs[[1, 2]], 1.2);
+        let sfs = sfs2d![[0., 1., 2.], [3., 4., 5.]];
+        assert_eq!(sfs.get([0, 0]), Some(&0.));
+        assert_eq!(sfs.get([1, 0]), Some(&3.));
+        assert_eq!(sfs.get([1, 1]), Some(&4.));
+        assert_eq!(sfs.get([1, 2]), Some(&5.));
+        assert_eq!(sfs.get([2, 0]), None);
+        assert_eq!(sfs.get([0, 3]), None);
     }
 
     #[test]
     fn test_compute_index() {
-        assert_eq!(compute_index(3, 4, [4]), [3]);
-        assert_eq!(compute_index(16, 28, [4, 7]), [2, 2]);
-        assert_eq!(compute_index(3, 6, [1, 3, 2]), [0, 1, 1]);
+        assert_eq!(compute_index_unchecked(3, 4, [4]), [3]);
+        assert_eq!(compute_index_unchecked(16, 28, [4, 7]), [2, 2]);
+        assert_eq!(compute_index_unchecked(3, 6, [1, 3, 2]), [0, 1, 1]);
     }
 }
