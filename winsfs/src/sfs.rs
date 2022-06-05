@@ -273,6 +273,14 @@ impl<const N: usize> Sfs<N> {
     }
 
     /// Creates a uniform SFS in probability space.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::uniform([2, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.1));
+    /// ```
     pub fn uniform(shape: [usize; N]) -> Self {
         let n: usize = shape.iter().product();
 
@@ -282,6 +290,14 @@ impl<const N: usize> Sfs<N> {
     }
 
     /// Creates an SFS with all entries set to zero.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::zeros([2, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.0));
+    /// ```
     pub fn zeros(shape: [usize; N]) -> Self {
         Self::from_elem(0.0, shape)
     }
@@ -312,6 +328,19 @@ impl<const N: usize> Sfs<N> {
     }
 
     /// Returns an iterator over the elements in the SFS in row-major order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    ///     [6., 7., 8.],
+    /// ];
+    /// let expected = (0..9).map(|x| x as f64);
+    /// assert!(sfs.iter().zip(expected).all(|(&x, y)| x == y));
+    /// ```
     #[inline]
     pub fn iter(&self) -> slice::Iter<'_, f64> {
         self.values.iter()
@@ -324,6 +353,15 @@ impl<const N: usize> Sfs<N> {
     }
 
     /// Normalises the SFS to probability scale.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let mut sfs = sfs1d![0., 1., 2., 3., 4.];
+    /// sfs.normalise();
+    /// assert_eq!(sfs, sfs1d![0., 0.1, 0.2, 0.3, 0.4]);
+    /// ```
     #[inline]
     pub fn normalise(&mut self) {
         let sum = self.sum();
@@ -332,12 +370,32 @@ impl<const N: usize> Sfs<N> {
     }
 
     /// Re-scales the SFS by some constant.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let mut sfs = sfs1d![0., 1., 2., 3., 4.];
+    /// sfs.scale(10.);
+    /// assert_eq!(sfs, sfs1d![0., 10., 20., 30., 40.]);
+    /// ```
     #[inline]
     pub fn scale(&mut self, scale: f64) {
         self.iter_mut().for_each(|x| *x *= scale)
     }
 
     /// Returns the SFS shape.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.shape(), [2, 3]);
+    /// ```
     pub fn shape(&self) -> [usize; N] {
         self.shape
     }
@@ -349,12 +407,36 @@ impl<const N: usize> Sfs<N> {
     }
 
     /// Returns the values of the SFS as a flat, row-major slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
+    /// ```
     #[inline]
     pub fn as_slice(&self) -> &[f64] {
         &self.values
     }
 
     /// Returns the a mutable reference values of the SFS as a flat, row-major slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let mut sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
+    /// sfs.as_mut_slice()[0] = 100.;
+    /// assert_eq!(sfs.as_slice(), [100., 1., 2., 3., 4., 5.]);
+    /// ```
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [f64] {
         &mut self.values
@@ -417,6 +499,15 @@ impl<const N: usize> IndexMut<[usize; N]> for Sfs<N> {
 
 impl Sfs1d {
     /// Creates a new SFS from a vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::from_vec(vec![0., 1., 2.]);
+    /// assert_eq!(sfs.shape(), [3]);
+    /// assert_eq!(sfs[[1]], 1.);
+    /// ```
     pub fn from_vec(values: Vec<f64>) -> Self {
         let shape = [values.len()];
 
@@ -424,6 +515,7 @@ impl Sfs1d {
     }
 }
 
+/// An error associated with SFS construction using invalid shape.
 #[derive(Clone, Copy, Debug)]
 pub struct ShapeError<const N: usize> {
     n: usize,
