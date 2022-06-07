@@ -15,6 +15,8 @@ pub use angsd::ParseAngsdError;
 mod em;
 pub use em::Em;
 
+use crate::ArrayExt;
+
 const NORMALISATION_TOLERANCE: f64 = 10. * f64::EPSILON;
 
 /// Creates an unnormalised 1D SFS containing the arguments.
@@ -164,6 +166,31 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
         }
     }
 
+    /// Returns an iterator over the sample frequencies of the SFS in row-major order.
+    ///
+    /// Note that this is *not* the contents of SFS, but the frequencies corresponding
+    /// to the indices. See [`Sfs::iter`] for an iterator over the SFS values themselves.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::uniform([2, 3]);
+    /// let mut iter = sfs.frequencies();
+    /// assert_eq!(iter.next(), Some([0., 0.]));
+    /// assert_eq!(iter.next(), Some([0., 0.5]));
+    /// assert_eq!(iter.next(), Some([0., 1.]));
+    /// assert_eq!(iter.next(), Some([1., 0.]));
+    /// assert_eq!(iter.next(), Some([1., 0.5]));
+    /// assert_eq!(iter.next(), Some([1., 1.]));
+    /// assert!(iter.next().is_none());
+    /// ```
+    pub fn frequencies(&self) -> impl Iterator<Item = [f64; N]> {
+        let n_arr = self.shape.map(|n| n - 1);
+        self.indices()
+            .map(move |idx_arr| idx_arr.zip(n_arr).map(|(i, n)| i as f64 / n as f64))
+    }
+
     /// Returns a value at an index in the SFS.
     ///
     /// If the index is out of bounds, `None` is returned.
@@ -196,11 +223,8 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs2d;
-    /// let sfs = sfs2d![
-    ///     [0.1, 0.2, 0.3],
-    ///     [0.4, 0.5, 0.6],
-    /// ];
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::uniform([2, 3]);
     /// let mut iter = sfs.indices();
     /// assert_eq!(iter.next(), Some([0, 0]));
     /// assert_eq!(iter.next(), Some([0, 1]));
