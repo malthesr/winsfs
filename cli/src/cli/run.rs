@@ -5,7 +5,7 @@ use std::{io, path::Path};
 use clap::CommandFactory;
 
 use winsfs::{
-    saf::{ArrayExt, BlockIterator, JointSaf, JointSafView, Saf},
+    saf::{BlockIterator, JointSaf, JointSafView, Saf},
     stream::{Header, Reader},
     Em, Sfs, StoppingRule, Window,
 };
@@ -89,10 +89,14 @@ pub fn read_safs<const N: usize, P>(paths: [P; N]) -> clap::Result<JointSaf<N>>
 where
     P: AsRef<Path>,
 {
+    let fmt_paths: Vec<String> = paths
+        .iter()
+        .map(|p| p.as_ref().display().to_string())
+        .collect();
     log::info!(
         target: "init",
         "Reading and intersecting SAF files into memory:\n\t{}",
-        paths.each_ref().map(|p| p.as_ref().display().to_string()).join("\n\t")
+        fmt_paths.join("\n\t")
     );
 
     JointSaf::read_from_paths(paths).map_err(clap::Error::from)
@@ -108,10 +112,11 @@ where
     let shape = safs.shape();
     let sites = safs.sites();
 
+    let fmt_shape: Vec<String> = shape.iter().map(|p| p.to_string()).collect();
     log::info!(
         target: "init",
         "Read {sites} sites with shape {}.",
-        shape.each_ref().map(|p| p.to_string()).join("/")
+        fmt_shape.join("/")
     );
 
     let mut rng = get_rng(args.seed);
