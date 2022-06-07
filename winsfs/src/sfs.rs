@@ -15,6 +15,8 @@ pub use angsd::ParseAngsdError;
 mod em;
 pub use em::Em;
 
+const NORMALISATION_TOLERANCE: f64 = 10. * f64::EPSILON;
+
 /// Creates an unnormalised 1D SFS containing the arguments.
 ///
 /// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
@@ -212,6 +214,44 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
         let n = self.as_slice().len();
         let shape = self.shape;
         (0..n).map(move |flat| compute_index_unchecked(flat, n, shape))
+    }
+
+    /// Returns a normalised SFS, consuming `self`.
+    ///
+    /// This works purely on the type level, and does not modify the actual values in the SFS.
+    /// If the SFS is not already normalised, an error is returned. To modify the SFS to become
+    /// normalised, see [`Sfs::normalise`].
+    ///
+    /// # Examples
+    ///
+    /// An unnormalised SFS with values summing to one can be turned into a normalised SFS:
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let sfs = sfs1d![0.2; 5];
+    /// assert!(!sfs.is_normalised());
+    /// let sfs = sfs.into_normalised().unwrap();
+    /// assert!(sfs.is_normalised());
+    /// ```
+    ///
+    /// Otherwise, an unnormalised SFS cannot be normalised SFS using this method:
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// let sfs = sfs1d![2.; 5];
+    /// assert!(sfs.into_normalised().is_err());
+    /// ```
+    ///
+    /// Use [`Sfs::normalise`] instead.
+    #[inline]
+    pub fn into_normalised(self) -> Result<Sfs<N>, NormalisationError> {
+        let sum = self.sum();
+
+        if (sum - 1.).abs() <= NORMALISATION_TOLERANCE {
+            Ok(Sfs::new_unchecked(self.values, self.shape))
+        } else {
+            Err(NormalisationError { sum })
+        }
     }
 
     /// Returns an unnormalised SFS, consuming `self`.
@@ -598,6 +638,24 @@ impl<const N: usize> fmt::Display for ShapeError<N> {
 }
 
 impl<const N: usize> Error for ShapeError<N> {}
+
+/// An error associated with normalised SFS construction using unnormalised input.
+#[derive(Clone, Copy, Debug)]
+pub struct NormalisationError {
+    sum: f64,
+}
+
+impl fmt::Display for NormalisationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "cannot create normalised SFS using values summing to {}",
+            self.sum
+        )
+    }
+}
+
+impl Error for NormalisationError {}
 
 fn compute_flat<const N: usize>(index: [usize; N], shape: [usize; N]) -> Option<usize> {
     for i in 1..N {
