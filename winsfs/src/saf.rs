@@ -1,5 +1,4 @@
 //! Site allelele frequency ("SAF") likelihoods.
-#![allow(unstable_name_collisions)]
 
 use std::{cmp::Ordering, error::Error, fmt, io, path::Path};
 
@@ -16,7 +15,7 @@ mod blocks;
 pub use blocks::Blocks;
 
 mod traits;
-pub use traits::{ArrayExt, BlockIterator, IntoArray, ParSiteIterator};
+pub use traits::{BlockIterator, IntoArray, ParSiteIterator};
 
 /// Creates a SAF containing the arguments.
 ///

@@ -1,5 +1,3 @@
-use std::mem::MaybeUninit;
-
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 
 use super::{Blocks, JointSaf, JointSafView};
@@ -176,45 +174,5 @@ impl<T> IntoArray<3, T> for (T, T, T) {
 impl<const N: usize, T> IntoArray<N, T> for [T; N] {
     fn into_array(self) -> [T; N] {
         self
-    }
-}
-
-pub trait ArrayExt<const N: usize, T> {
-    fn each_ref(&self) -> [&T; N];
-
-    fn each_mut(&mut self) -> [&mut T; N];
-}
-
-impl<const N: usize, T> ArrayExt<N, T> for [T; N] {
-    // TODO: Use each_ref when stable,
-    // see github.com/rust-lang/rust/issues/76118
-    fn each_ref(&self) -> [&T; N] {
-        // Adapted from code in tracking issue, see above.
-        let mut out: MaybeUninit<[&T; N]> = MaybeUninit::uninit();
-
-        let buf = out.as_mut_ptr() as *mut &T;
-        let mut refs = self.iter();
-
-        for i in 0..N {
-            unsafe { buf.add(i).write(refs.next().unwrap()) }
-        }
-
-        unsafe { out.assume_init() }
-    }
-
-    // TODO: Use each_mut when stable,
-    // see github.com/rust-lang/rust/issues/76118
-    fn each_mut(&mut self) -> [&mut T; N] {
-        // Adapted from code in tracking issue, see above.
-        let mut out: MaybeUninit<[&mut T; N]> = MaybeUninit::uninit();
-
-        let buf = out.as_mut_ptr() as *mut &mut T;
-        let mut refs = self.iter_mut();
-
-        for i in 0..N {
-            unsafe { buf.add(i).write(refs.next().unwrap()) }
-        }
-
-        unsafe { out.assume_init() }
     }
 }

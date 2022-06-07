@@ -4,7 +4,9 @@ use angsd_io::saf;
 
 use rand::Rng;
 
-use super::{ArrayExt, Saf, SafView};
+use crate::ArrayExt;
+
+use super::{Saf, SafView};
 
 macro_rules! impl_shared_joint_saf_methods {
     () => {

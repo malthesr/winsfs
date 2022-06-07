@@ -1,3 +1,6 @@
+#![allow(unstable_name_collisions)]
+use std::mem::MaybeUninit;
+
 pub mod saf;
 pub use saf::{JointSaf, JointSafView, Saf, SafView};
 
@@ -34,4 +37,84 @@ macro_rules! matrix {
         <[()]>::len(&[$($crate::matrix!(replace: $x)),*])
     };
     (replace: $x:expr) => {()};
+}
+
+pub(crate) trait ArrayExt<const N: usize, T> {
+    // TODO: Use each_ref when stable,
+    // see github.com/rust-lang/rust/issues/76118
+    fn each_ref(&self) -> [&T; N];
+
+    // TODO: Use each_mut when stable,
+    // see github.com/rust-lang/rust/issues/76118
+    fn each_mut(&mut self) -> [&mut T; N];
+
+    // TODO: Use zip when stable,
+    // see github.com/rust-lang/rust/issues/80094
+    fn zip<U>(self, rhs: [U; N]) -> [(T, U); N];
+}
+
+impl<const N: usize, T> ArrayExt<N, T> for [T; N] {
+    fn each_ref(&self) -> [&T; N] {
+        // Adapted from code in tracking issue, see above.
+        let mut out: MaybeUninit<[&T; N]> = MaybeUninit::uninit();
+
+        let buf = out.as_mut_ptr() as *mut &T;
+        let mut refs = self.iter();
+
+        for i in 0..N {
+            unsafe { buf.add(i).write(refs.next().unwrap()) }
+        }
+
+        unsafe { out.assume_init() }
+    }
+
+    fn each_mut(&mut self) -> [&mut T; N] {
+        // Adapted from code in tracking issue, see above.
+        let mut out: MaybeUninit<[&mut T; N]> = MaybeUninit::uninit();
+
+        let buf = out.as_mut_ptr() as *mut &mut T;
+        let mut refs = self.iter_mut();
+
+        for i in 0..N {
+            unsafe { buf.add(i).write(refs.next().unwrap()) }
+        }
+
+        unsafe { out.assume_init() }
+    }
+
+    fn zip<U>(self, rhs: [U; N]) -> [(T, U); N] {
+        // Adapted from code in implementation PR, see github.com/rust-lang/rust/pull/79451
+        let mut dst = MaybeUninit::<[(T, U); N]>::uninit();
+
+        let ptr = dst.as_mut_ptr() as *mut (T, U);
+
+        for (idx, (lhs, rhs)) in self.into_iter().zip(rhs.into_iter()).enumerate() {
+            unsafe { ptr.add(idx).write((lhs, rhs)) }
+        }
+
+        unsafe { dst.assume_init() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_each_ref() {
+        assert_eq!([1, 2, 3].each_ref(), [&1, &2, &3]);
+    }
+
+    #[test]
+    fn test_each_mut() {
+        assert_eq!([1, 2, 3].each_ref(), [&mut 1, &mut 2, &mut 3]);
+    }
+
+    #[test]
+    fn test_zip() {
+        assert_eq!(
+            [1, 2, 3].zip([0.1, 0.2, 0.3]),
+            [(1, 0.1), (2, 0.2), (3, 0.3)],
+        )
+    }
 }
