@@ -636,6 +636,28 @@ impl UnnormalisedSfs<1> {
     }
 }
 
+impl Sfs<2> {
+    /// Returns the f2-statistic.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [1., 0., 0.],
+    ///     [0., 1., 0.],
+    ///     [0., 0., 1.],
+    /// ].normalise();
+    /// assert_eq!(sfs.f2(), 0.);
+    /// ```
+    pub fn f2(&self) -> f64 {
+        self.iter()
+            .zip(self.frequencies())
+            .map(|(v, [f_i, f_j])| v * (f_i - f_j).powi(2))
+            .sum()
+    }
+}
+
 /// An error associated with SFS construction using invalid shape.
 #[derive(Clone, Copy, Debug)]
 pub struct ShapeError<const N: usize> {
@@ -742,5 +764,15 @@ mod tests {
         assert_eq!(compute_index_unchecked(3, 4, [4]), [3]);
         assert_eq!(compute_index_unchecked(16, 28, [4, 7]), [2, 2]);
         assert_eq!(compute_index_unchecked(3, 6, [1, 3, 2]), [0, 1, 1]);
+    }
+
+    #[test]
+    fn test_f2() {
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [0., 1., 2.],
+            [3., 4., 5.]
+        ].normalise();
+        approx::assert_abs_diff_eq!(sfs.f2(), 0.4166667, epsilon = 1e-6);
     }
 }
