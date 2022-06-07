@@ -15,7 +15,7 @@ pub use angsd::ParseAngsdError;
 mod em;
 pub use em::Em;
 
-/// Creates a 1D SFS containing the arguments.
+/// Creates an unnormalised 1D SFS containing the arguments.
 ///
 /// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
 ///
@@ -48,7 +48,7 @@ macro_rules! sfs1d {
     };
 }
 
-/// Creates a 2D SFS containing the arguments.
+/// Creates an unnormalised 2D SFS containing the arguments.
 ///
 /// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
 ///
@@ -89,36 +89,23 @@ macro_rules! log_sfs {
 }
 pub(crate) use log_sfs;
 
+/// An unnormalised, N-dimensional site frequency spectrum ("SFS").
+pub type UnnormalisedSfs<const N: usize> = Sfs<N, false>;
+
 /// An N-dimensional site frequency spectrum ("SFS").
 ///
 /// Elements are stored in row-major order: the last index varies the fastest.
-/// The SFS may or may not be normalised.
+/// The SFS may or may not be normalised to probability scale, and this is controlled
+/// at the type-level by the `NORM` parameter, which by default is `true`.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Sfs<const N: usize> {
+// TODO: Replace bool with enum once these are permitted in const generics,
+// see github.com/rust-lang/rust/issues/95174
+pub struct Sfs<const N: usize, const NORM: bool = true> {
     values: Vec<f64>,
     shape: [usize; N],
 }
 
-impl<const N: usize> Sfs<N> {
-    /// Returns the a mutable reference values of the SFS as a flat, row-major slice.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let mut sfs = sfs2d![
-    ///     [0., 1., 2.],
-    ///     [3., 4., 5.],
-    /// ];
-    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
-    /// sfs.as_mut_slice()[0] = 100.;
-    /// assert_eq!(sfs.as_slice(), [100., 1., 2., 3., 4., 5.]);
-    /// ```
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [f64] {
-        &mut self.values
-    }
-
+impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// Returns the values of the SFS as a flat, row-major slice.
     ///
     /// # Examples
@@ -175,58 +162,6 @@ impl<const N: usize> Sfs<N> {
         }
     }
 
-    /// Creates a new SFS by repeating a single value.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::Sfs;
-    /// let sfs = Sfs::from_elem(0.1, [7, 5]);
-    /// assert_eq!(sfs.shape(), [7, 5]);
-    /// assert!(sfs.iter().all(|&x| x == 0.1));
-    /// ```
-    pub fn from_elem(elem: f64, shape: [usize; N]) -> Self {
-        let n = shape.iter().product();
-
-        Self::new_unchecked(vec![elem; n], shape)
-    }
-
-    /// Creates a new SFS from an iterator.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::Sfs;
-    /// let iter = (0..9).map(|x| x as f64);
-    /// let sfs = Sfs::from_iter_shape(iter, [3, 3]).expect("shape didn't fit iterator!");
-    /// assert_eq!(sfs[[1, 2]], 5.0);
-    /// ```
-    pub fn from_iter_shape<I>(iter: I, shape: [usize; N]) -> Result<Self, ShapeError<N>>
-    where
-        I: IntoIterator<Item = f64>,
-    {
-        Self::from_vec_shape(iter.into_iter().collect(), shape)
-    }
-
-    /// Creates a new SFS from a vector.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::Sfs;
-    /// let vec: Vec<f64> = (0..9).map(|x| x as f64).collect();
-    /// let sfs = Sfs::from_vec_shape(vec, [3, 3]).expect("shape didn't fit vector!");
-    /// assert_eq!(sfs[[2, 0]], 6.0);
-    /// ```
-    pub fn from_vec_shape(vec: Vec<f64>, shape: [usize; N]) -> Result<Self, ShapeError<N>> {
-        let n: usize = shape.iter().product();
-
-        match vec.len() == n {
-            true => Ok(Self::new_unchecked(vec, shape)),
-            false => Err(ShapeError::new(n, shape)),
-        }
-    }
-
     /// Returns a value at an index in the SFS.
     ///
     /// If the index is out of bounds, `None` is returned.
@@ -252,6 +187,222 @@ impl<const N: usize> Sfs<N> {
     #[inline]
     pub fn get(&self, index: [usize; N]) -> Option<&f64> {
         self.values.get(compute_flat(index, self.shape)?)
+    }
+
+    /// Returns an iterator over the indices in the SFS in row-major order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0.1, 0.2, 0.3],
+    ///     [0.4, 0.5, 0.6],
+    /// ];
+    /// let mut iter = sfs.indices();
+    /// assert_eq!(iter.next(), Some([0, 0]));
+    /// assert_eq!(iter.next(), Some([0, 1]));
+    /// assert_eq!(iter.next(), Some([0, 2]));
+    /// assert_eq!(iter.next(), Some([1, 0]));
+    /// assert_eq!(iter.next(), Some([1, 1]));
+    /// assert_eq!(iter.next(), Some([1, 2]));
+    /// assert!(iter.next().is_none());
+    /// ```
+    pub fn indices(&self) -> impl Iterator<Item = [usize; N]> {
+        let n = self.as_slice().len();
+        let shape = self.shape;
+        (0..n).map(move |flat| compute_index_unchecked(flat, n, shape))
+    }
+
+    /// Returns an unnormalised SFS, consuming `self`.
+    ///
+    /// This works purely on the type level, and does not modify the actual values in the SFS.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::uniform([7]);
+    /// assert!(sfs.is_normalised());
+    /// let sfs = sfs.into_unnormalised();
+    /// assert!(!sfs.is_normalised());
+    /// ```
+    #[inline]
+    pub fn into_unnormalised(self) -> UnnormalisedSfs<N> {
+        Sfs::new_unchecked(self.values, self.shape)
+    }
+
+    /// Returns `true` if the SFS is normalised, `false` otherwise.
+    ///
+    /// This works purely on the type level.
+    pub const fn is_normalised(&self) -> bool {
+        NORM
+    }
+
+    /// Returns an iterator over the elements in the SFS in row-major order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    ///     [6., 7., 8.],
+    /// ];
+    /// let expected = (0..9).map(|x| x as f64);
+    /// assert!(sfs.iter().zip(expected).all(|(&x, y)| x == y));
+    /// ```
+    #[inline]
+    pub fn iter(&self) -> slice::Iter<'_, f64> {
+        self.values.iter()
+    }
+
+    /// Creates a new SFS.
+    #[inline]
+    fn new_unchecked(values: Vec<f64>, shape: [usize; N]) -> Self {
+        Self { values, shape }
+    }
+
+    /// Returns an unnormalised SFS scaled by some constant, consuming `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs1d;
+    /// assert_eq!(
+    ///     sfs1d![0., 1.,  2.,  3.,  4.].scale(10.),
+    ///     sfs1d![0., 10., 20., 30., 40.],
+    /// );
+    /// ```
+    #[inline]
+    #[must_use = "returns scaled SFS, doesn't modify in-place"]
+    pub fn scale(mut self, scale: f64) -> UnnormalisedSfs<N> {
+        self.values.iter_mut().for_each(|x| *x *= scale);
+
+        Sfs {
+            values: self.values,
+            shape: self.shape,
+        }
+    }
+
+    /// Returns the SFS shape.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.shape(), [2, 3]);
+    /// ```
+    pub fn shape(&self) -> [usize; N] {
+        self.shape
+    }
+
+    /// Returns the sum of values in the SFS.
+    #[inline]
+    fn sum(&self) -> f64 {
+        self.iter().sum()
+    }
+}
+
+impl<const N: usize> Sfs<N> {
+    /// Creates a new, normalised, and uniform SFS.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::uniform([2, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.1));
+    /// ```
+    pub fn uniform(shape: [usize; N]) -> Self {
+        let n: usize = shape.iter().product();
+
+        let elem = 1.0 / n as f64;
+
+        Sfs {
+            values: vec![elem; n],
+            shape,
+        }
+    }
+}
+
+impl<const N: usize> UnnormalisedSfs<N> {
+    /// Returns the a mutable reference values of the SFS as a flat, row-major slice.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::sfs2d;
+    /// let mut sfs = sfs2d![
+    ///     [0., 1., 2.],
+    ///     [3., 4., 5.],
+    /// ];
+    /// assert_eq!(sfs.as_slice(), [0., 1., 2., 3., 4., 5.]);
+    /// sfs.as_mut_slice()[0] = 100.;
+    /// assert_eq!(sfs.as_slice(), [100., 1., 2., 3., 4., 5.]);
+    /// ```
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [f64] {
+        &mut self.values
+    }
+
+    /// Creates a new, unnormalised SFS by repeating a single value.
+    ///
+    /// See also [`Sfs::uniform`] to create a normalised SFS with uniform values.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let sfs = Sfs::from_elem(0.1, [7, 5]);
+    /// assert_eq!(sfs.shape(), [7, 5]);
+    /// assert!(sfs.iter().all(|&x| x == 0.1));
+    /// ```
+    pub fn from_elem(elem: f64, shape: [usize; N]) -> Self {
+        let n = shape.iter().product();
+
+        Self::new_unchecked(vec![elem; n], shape)
+    }
+
+    /// Creates a new, unnormalised SFS from an iterator.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let iter = (0..9).map(|x| x as f64);
+    /// let sfs = Sfs::from_iter_shape(iter, [3, 3]).expect("shape didn't fit iterator!");
+    /// assert_eq!(sfs[[1, 2]], 5.0);
+    /// ```
+    pub fn from_iter_shape<I>(iter: I, shape: [usize; N]) -> Result<Self, ShapeError<N>>
+    where
+        I: IntoIterator<Item = f64>,
+    {
+        Self::from_vec_shape(iter.into_iter().collect(), shape)
+    }
+
+    /// Creates a new, unnormalised SFS from a vector.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::Sfs;
+    /// let vec: Vec<f64> = (0..9).map(|x| x as f64).collect();
+    /// let sfs = Sfs::from_vec_shape(vec, [3, 3]).expect("shape didn't fit vector!");
+    /// assert_eq!(sfs[[2, 0]], 6.0);
+    /// ```
+    pub fn from_vec_shape(vec: Vec<f64>, shape: [usize; N]) -> Result<Self, ShapeError<N>> {
+        let n: usize = shape.iter().product();
+
+        match vec.len() == n {
+            true => Ok(Self::new_unchecked(vec, shape)),
+            false => Err(ShapeError::new(n, shape)),
+        }
     }
 
     /// Returns a mutable reference to a value at an index in the SFS.
@@ -284,79 +435,45 @@ impl<const N: usize> Sfs<N> {
         self.values.get_mut(compute_flat(index, self.shape)?)
     }
 
-    /// Returns an iterator over the indices in the SFS in row-major order.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let sfs = sfs2d![
-    ///     [0.1, 0.2, 0.3],
-    ///     [0.4, 0.5, 0.6],
-    /// ];
-    /// let mut iter = sfs.indices();
-    /// assert_eq!(iter.next(), Some([0, 0]));
-    /// assert_eq!(iter.next(), Some([0, 1]));
-    /// assert_eq!(iter.next(), Some([0, 2]));
-    /// assert_eq!(iter.next(), Some([1, 0]));
-    /// assert_eq!(iter.next(), Some([1, 1]));
-    /// assert_eq!(iter.next(), Some([1, 2]));
-    /// assert!(iter.next().is_none());
-    /// ```
-    pub fn indices(&self) -> impl Iterator<Item = [usize; N]> {
-        let n = self.as_slice().len();
-        let shape = self.shape;
-        (0..n).map(move |flat| compute_index_unchecked(flat, n, shape))
-    }
-
-    /// Returns an iterator over the elements in the SFS in row-major order.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let sfs = sfs2d![
-    ///     [0., 1., 2.],
-    ///     [3., 4., 5.],
-    ///     [6., 7., 8.],
-    /// ];
-    /// let expected = (0..9).map(|x| x as f64);
-    /// assert!(sfs.iter().zip(expected).all(|(&x, y)| x == y));
-    /// ```
-    #[inline]
-    pub fn iter(&self) -> slice::Iter<'_, f64> {
-        self.values.iter()
-    }
-
     /// Returns an iterator over mutable references to the elements in the SFS in row-major order.
     #[inline]
     pub fn iter_mut(&mut self) -> slice::IterMut<'_, f64> {
         self.values.iter_mut()
     }
 
-    /// Normalises the SFS to probability scale.
+    /// Returns a normalised SFS, consuming `self`.
+    ///
+    /// The values in the SFS are modified to sum to one.
     ///
     /// # Examples
     ///
     /// ```
     /// use winsfs::sfs1d;
-    /// let mut sfs = sfs1d![0., 1., 2., 3., 4.];
-    /// sfs.normalise();
-    /// assert_eq!(sfs, sfs1d![0., 0.1, 0.2, 0.3, 0.4]);
+    /// let sfs = sfs1d![0., 1., 2., 3., 4.];
+    /// assert!(!sfs.is_normalised());
+    /// let sfs = sfs.normalise();
+    /// assert!(sfs.is_normalised());
+    /// assert_eq!(sfs[[1]], 0.1);
     /// ```
     #[inline]
-    pub fn normalise(&mut self) {
+    #[must_use = "returns normalised SFS, doesn't modify in-place"]
+    pub fn normalise(mut self) -> Sfs<N> {
         let sum = self.sum();
 
         self.iter_mut().for_each(|x| *x /= sum);
+
+        Sfs {
+            values: self.values,
+            shape: self.shape,
+        }
     }
 
-    /// Creates a new SFS from a string containing an SFS formatted in ANGSD format.
+    /// Creates a new, unnormalised SFS from a string containing an SFS formatted in ANGSD format.
     pub fn parse_from_angsd(s: &str) -> Result<Self, ParseAngsdError<N>> {
         angsd::parse(s)
     }
 
-    /// Creates a new SFS from a path containing an SFS formatted in ANGSD format.
+    /// Creates a new, unnormalised SFS from a path containing an SFS formatted in ANGSD format.
     pub fn read_from_angsd<P>(path: P) -> io::Result<Self>
     where
         P: AsRef<Path>,
@@ -367,55 +484,7 @@ impl<const N: usize> Sfs<N> {
         Self::parse_from_angsd(&buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
-    /// Re-scales the SFS by some constant.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs1d;
-    /// let mut sfs = sfs1d![0., 1., 2., 3., 4.];
-    /// sfs.scale(10.);
-    /// assert_eq!(sfs, sfs1d![0., 10., 20., 30., 40.]);
-    /// ```
-    #[inline]
-    pub fn scale(&mut self, scale: f64) {
-        self.iter_mut().for_each(|x| *x *= scale)
-    }
-
-    /// Returns the SFS shape.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::sfs2d;
-    /// let sfs = sfs2d![
-    ///     [0., 1., 2.],
-    ///     [3., 4., 5.],
-    /// ];
-    /// assert_eq!(sfs.shape(), [2, 3]);
-    /// ```
-    pub fn shape(&self) -> [usize; N] {
-        self.shape
-    }
-
-    /// Creates a uniform SFS in probability space.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs::Sfs;
-    /// let sfs = Sfs::uniform([2, 5]);
-    /// assert!(sfs.iter().all(|&x| x == 0.1));
-    /// ```
-    pub fn uniform(shape: [usize; N]) -> Self {
-        let n: usize = shape.iter().product();
-
-        let elem = 1.0 / n as f64;
-
-        Self::from_elem(elem, shape)
-    }
-
-    /// Creates an SFS with all entries set to zero.
+    /// Creates a new, unnnormalised SFS with all entries set to zero.
     ///
     /// # Examples
     ///
@@ -427,49 +496,40 @@ impl<const N: usize> Sfs<N> {
     pub fn zeros(shape: [usize; N]) -> Self {
         Self::from_elem(0.0, shape)
     }
+}
 
-    /// Creates a new SFS.
-    fn new_unchecked(values: Vec<f64>, shape: [usize; N]) -> Self {
-        Self { values, shape }
-    }
+impl<const N: usize, const NORM: bool> Add<Sfs<N, NORM>> for Sfs<N, NORM> {
+    type Output = UnnormalisedSfs<N>;
 
-    /// Returns the sum of values in the SFS.
     #[inline]
-    fn sum(&self) -> f64 {
-        self.iter().sum()
+    fn add(self, rhs: Sfs<N, NORM>) -> Self::Output {
+        let mut sfs = self.into_unnormalised();
+        sfs += &rhs;
+        sfs
     }
 }
 
-impl<const N: usize> Add for Sfs<N> {
-    type Output = Self;
+impl<const N: usize, const NORM: bool> Add<&Sfs<N, NORM>> for Sfs<N, NORM> {
+    type Output = UnnormalisedSfs<N>;
 
     #[inline]
-    fn add(mut self, rhs: Self) -> Self::Output {
-        self += &rhs;
-        self
+    fn add(self, rhs: &Sfs<N, NORM>) -> Self::Output {
+        let mut sfs = self.into_unnormalised();
+        sfs += rhs;
+        sfs
     }
 }
 
-impl<const N: usize> Add<&Sfs<N>> for Sfs<N> {
-    type Output = Self;
-
+impl<const N: usize, const NORM: bool> AddAssign<Sfs<N, NORM>> for UnnormalisedSfs<N> {
     #[inline]
-    fn add(mut self, rhs: &Self) -> Self::Output {
-        self += rhs;
-        self
-    }
-}
-
-impl<const N: usize> AddAssign for Sfs<N> {
-    #[inline]
-    fn add_assign(&mut self, rhs: Self) {
+    fn add_assign(&mut self, rhs: Sfs<N, NORM>) {
         *self += &rhs;
     }
 }
 
-impl<const N: usize> AddAssign<&Sfs<N>> for Sfs<N> {
+impl<const N: usize, const NORM: bool> AddAssign<&Sfs<N, NORM>> for UnnormalisedSfs<N> {
     #[inline]
-    fn add_assign(&mut self, rhs: &Self) {
+    fn add_assign(&mut self, rhs: &Sfs<N, NORM>) {
         assert_eq!(self.shape, rhs.shape);
 
         self.iter_mut()
@@ -478,7 +538,7 @@ impl<const N: usize> AddAssign<&Sfs<N>> for Sfs<N> {
     }
 }
 
-impl<const N: usize> Index<[usize; N]> for Sfs<N> {
+impl<const N: usize, const NORM: bool> Index<[usize; N]> for Sfs<N, NORM> {
     type Output = f64;
 
     #[inline]
@@ -487,14 +547,14 @@ impl<const N: usize> Index<[usize; N]> for Sfs<N> {
     }
 }
 
-impl<const N: usize> IndexMut<[usize; N]> for Sfs<N> {
+impl<const N: usize> IndexMut<[usize; N]> for UnnormalisedSfs<N> {
     #[inline]
     fn index_mut(&mut self, index: [usize; N]) -> &mut Self::Output {
         self.get_mut(index).unwrap()
     }
 }
 
-impl Sfs<1> {
+impl UnnormalisedSfs<1> {
     /// Creates a new SFS from a vector.
     ///
     /// # Examples

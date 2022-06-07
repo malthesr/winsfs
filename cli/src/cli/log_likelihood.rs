@@ -173,12 +173,7 @@ fn read_sfs<const N: usize>(args: &LogLikelihood) -> clap::Result<Vec<Sfs<N>>> {
 
     paths
         .iter()
-        .map(|p| {
-            Sfs::read_from_angsd(p).map(|mut sfs| {
-                sfs.normalise();
-                sfs
-            })
-        })
+        .map(|p| Sfs::read_from_angsd(p).map(Sfs::normalise))
         .collect::<io::Result<Vec<_>>>()
         .map_err(|e| e.into())
 }

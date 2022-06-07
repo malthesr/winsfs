@@ -31,8 +31,7 @@ where
             path.display()
         );
 
-        let mut initial_sfs = Sfs::read_from_angsd(path)?;
-        initial_sfs.normalise();
+        let initial_sfs = Sfs::read_from_angsd(path)?.normalise();
         builder = builder.initial_sfs(initial_sfs);
     }
 
@@ -125,9 +124,8 @@ where
 
     let mut window = create_runner(shape, sites, args)?;
     window.em(&safs.view());
-    let mut estimate = window.into_sfs();
 
-    estimate.scale(sites as f64);
+    let estimate = window.into_sfs().scale(sites as f64);
 
     println!("{}", estimate.format_angsd(None));
 
@@ -188,9 +186,7 @@ where
 
     let mut window = create_runner(shape, sites, args)?;
     window.streaming_em(&mut reader, &header)?;
-    let mut estimate = window.into_sfs();
-
-    estimate.scale(sites as f64);
+    let estimate = window.into_sfs().scale(sites as f64);
 
     println!("{}", estimate.format_angsd(None));
 

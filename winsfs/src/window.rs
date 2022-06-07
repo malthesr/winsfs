@@ -6,7 +6,7 @@ use crate::{
     saf::{BlockIterator, ParSiteIterator},
     sfs::log_sfs,
     stream::{Header, Reader},
-    Em, Sfs,
+    Em, Sfs, UnnormalisedSfs,
 };
 
 mod builder;
@@ -192,14 +192,13 @@ where
         &mut self,
         i: usize,
         log_likelihood: f64,
-        posterior: Sfs<N>,
+        posterior: UnnormalisedSfs<N>,
         total_sites: usize,
         block_sites: usize,
     ) {
         self.window.update(posterior);
 
-        self.sfs = self.window.sum();
-        self.sfs.normalise();
+        self.sfs = self.window.sum().normalise();
 
         log_sfs!(
             target: "windowem",
@@ -218,19 +217,19 @@ where
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Blocks<const N: usize>(VecDeque<Sfs<N>>);
+struct Blocks<const N: usize>(VecDeque<UnnormalisedSfs<N>>);
 
 impl<const N: usize> Blocks<N> {
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    pub fn update(&mut self, item: Sfs<N>) {
+    pub fn update(&mut self, item: UnnormalisedSfs<N>) {
         let _old = self.0.pop_front();
         self.0.push_back(item);
     }
 
-    pub fn sum(&self) -> Sfs<N> {
+    pub fn sum(&self) -> UnnormalisedSfs<N> {
         self.0
             .iter()
             .fold(Sfs::zeros(self.0[0].shape()), |sum, item| sum + item)

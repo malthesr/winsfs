@@ -97,12 +97,17 @@ impl<const N: usize> WindowBuilder<N> {
 
     /// Sets the initial SFS for window EM.
     ///
+    /// The initial SFS must be normalised.
+    ///
     /// # Examples
     ///
     /// ```
     /// use winsfs::{sfs1d, Window};
-    /// let runner = Window::builder().initial_sfs(sfs1d![0.0, 0.1, 0.2]).build(10_000, [3]).unwrap();
-    /// assert_eq!(runner.sfs()[[1]], 0.1);
+    /// let runner = Window::builder()
+    ///     .initial_sfs(sfs1d![5., 3., 2.].normalise())
+    ///     .build(10_000, [3])
+    ///     .unwrap();
+    /// assert_eq!(runner.sfs()[[0]], 0.5);
     /// ```
     pub fn initial_sfs(mut self, sfs: Sfs<N>) -> Self {
         self.sfs = Some(sfs);
@@ -249,8 +254,6 @@ impl BlockSpecification {
 mod tests {
     use super::*;
 
-    use crate::sfs1d;
-
     #[test]
     fn test_blocks_to_block_size() {
         assert_eq!(BlockSpecification::Blocks(10).block_size::<1>(100), Ok(10));
@@ -261,7 +264,9 @@ mod tests {
 
     #[test]
     fn test_builder_error_on_shape_mismatch() {
-        let result = Window::builder().initial_sfs(sfs1d![0.1; 3]).build(10, [4]);
+        let result = Window::builder()
+            .initial_sfs(Sfs::uniform([3]))
+            .build(10, [4]);
         assert!(matches!(
             result,
             Err(WindowBuilderError::ShapeMismatch { .. })

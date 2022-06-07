@@ -1,12 +1,15 @@
 use std::{error::Error, fmt, str::FromStr};
 
-use super::{Sfs, ShapeError};
+use super::{Sfs, ShapeError, UnnormalisedSfs};
 
 const ANGSD_SHAPE_SEP: &str = "/";
 const ANGSD_DEFAULT_PRECISION: usize = 6;
 const ANGSD_SEP: &str = " ";
 
-pub fn format<const N: usize>(sfs: &Sfs<N>, precision: Option<usize>) -> String {
+pub fn format<const N: usize, const NORM: bool>(
+    sfs: &Sfs<N, NORM>,
+    precision: Option<usize>,
+) -> String {
     format!(
         "{}\n{}",
         format_header(sfs.shape()),
@@ -20,7 +23,7 @@ fn format_header<const N: usize>(shape: [usize; N]) -> String {
     format!("#SHAPE=<{shape_fmt}>")
 }
 
-pub fn parse<const N: usize>(s: &str) -> Result<Sfs<N>, ParseAngsdError<N>> {
+pub fn parse<const N: usize>(s: &str) -> Result<UnnormalisedSfs<N>, ParseAngsdError<N>> {
     if let Some((header, flat)) = s.split_once('\n') {
         let shape = parse_header(header)?;
 

@@ -5,21 +5,21 @@ use rayon::iter::ParallelIterator;
 use crate::{
     saf::{IntoArray, ParSiteIterator},
     stream::ReadSite,
-    Sfs,
+    Sfs, UnnormalisedSfs,
 };
 
 impl<const N: usize> Sfs<N>
 where
     Self: Em<N>,
 {
-    pub fn e_step<'a, I: 'a>(&self, input: &I) -> (f64, Self)
+    pub fn e_step<'a, I: 'a>(&self, input: &I) -> (f64, UnnormalisedSfs<N>)
     where
         I: ParSiteIterator<'a, N>,
     {
         input
             .par_iter_sites()
             .fold(
-                || (0.0, Self::zeros(self.shape()), Self::zeros(self.shape())),
+                || (0.0, Sfs::zeros(self.shape()), Sfs::zeros(self.shape())),
                 |(mut ll, mut post, mut buf), site| {
                     ll += self
                         .posterior_into(&site.into_array(), &mut post, &mut buf)
@@ -30,7 +30,7 @@ where
             )
             .map(|(ll, post, _buf)| (ll, post))
             .reduce(
-                || (0.0, Self::zeros(self.shape())),
+                || (0.0, Sfs::zeros(self.shape())),
                 |a, b| (a.0 + b.0, a.1 + b.1),
             )
     }
@@ -52,18 +52,17 @@ where
     where
         I: ParSiteIterator<'a, N>,
     {
-        let (log_likelihood, mut posterior) = self.e_step(input);
-        posterior.normalise();
+        let (log_likelihood, posterior) = self.e_step(input);
 
-        (log_likelihood, posterior)
+        (log_likelihood, posterior.normalise())
     }
 
-    pub fn streaming_e_step<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
+    pub fn streaming_e_step<R>(&self, reader: &mut R) -> io::Result<(f64, UnnormalisedSfs<N>)>
     where
         R: ReadSite,
     {
-        let mut post = Self::zeros(self.shape());
-        let mut buf = Self::zeros(self.shape());
+        let mut post = Sfs::zeros(self.shape());
+        let mut buf = Sfs::zeros(self.shape());
 
         let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
         let mut ll = 0.0;
@@ -78,15 +77,19 @@ where
     where
         R: ReadSite,
     {
-        let (log_likelihood, mut posterior) = self.streaming_e_step(reader)?;
-        posterior.normalise();
+        let (log_likelihood, posterior) = self.streaming_e_step(reader)?;
 
-        Ok((log_likelihood, posterior))
+        Ok((log_likelihood, posterior.normalise()))
     }
 }
 
 pub trait Em<const N: usize> {
-    fn posterior_into<T>(&self, site: &[T; N], posterior: &mut Self, buf: &mut Self) -> f64
+    fn posterior_into<T>(
+        &self,
+        site: &[T; N],
+        posterior: &mut UnnormalisedSfs<N>,
+        buf: &mut UnnormalisedSfs<N>,
+    ) -> f64
     where
         T: AsRef<[f32]>;
 
@@ -96,7 +99,12 @@ pub trait Em<const N: usize> {
 }
 
 impl Em<1> for Sfs<1> {
-    fn posterior_into<T>(&self, site: &[T; 1], posterior: &mut Self, buf: &mut Self) -> f64
+    fn posterior_into<T>(
+        &self,
+        site: &[T; 1],
+        posterior: &mut Sfs<1, false>,
+        buf: &mut Sfs<1, false>,
+    ) -> f64
     where
         T: AsRef<[f32]>,
     {
@@ -131,7 +139,12 @@ impl Em<1> for Sfs<1> {
 }
 
 impl Em<2> for Sfs<2> {
-    fn posterior_into<T>(&self, site: &[T; 2], posterior: &mut Self, buf: &mut Self) -> f64
+    fn posterior_into<T>(
+        &self,
+        site: &[T; 2],
+        posterior: &mut Sfs<2, false>,
+        buf: &mut Sfs<2, false>,
+    ) -> f64
     where
         T: AsRef<[f32]>,
     {
@@ -192,7 +205,12 @@ impl Em<2> for Sfs<2> {
 }
 
 impl Em<3> for Sfs<3> {
-    fn posterior_into<T>(&self, site: &[T; 3], posterior: &mut Self, buf: &mut Self) -> f64
+    fn posterior_into<T>(
+        &self,
+        site: &[T; 3],
+        posterior: &mut Sfs<3, false>,
+        buf: &mut Sfs<3, false>,
+    ) -> f64
     where
         T: AsRef<[f32]>,
     {
@@ -265,12 +283,14 @@ mod tests {
 
     use approx::assert_abs_diff_eq;
 
+    use crate::{sfs1d, sfs2d};
+
     #[test]
     fn test_sfs_1d_posterior() {
-        let sfs = Sfs::from_vec_shape(vec![1., 2., 3.], [3]).unwrap();
+        let sfs = sfs1d![1., 2., 3.].normalise();
 
         let site = &[2., 2., 2.];
-        let mut posterior = Sfs::from_vec_shape(vec![10., 20., 30.], sfs.shape()).unwrap();
+        let mut posterior = sfs1d![10., 20., 30.];
         let mut buf = Sfs::zeros(sfs.shape());
 
         sfs.posterior_into(&[site], &mut posterior, &mut buf);
@@ -281,7 +301,12 @@ mod tests {
 
     #[test]
     fn test_sfs_2d_posterior() {
-        let sfs = Sfs::from_vec_shape((1..16).map(|x| x as f64).collect(), [3, 5]).unwrap();
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [1.,  2.,  3.,  4.,  5.],
+            [6.,  7.,  8.,  9.,  10.],
+            [11., 12., 13., 14., 15.],
+        ].normalise();
 
         let row_site = &[2., 2., 2.][..];
         let col_site = &[2., 4., 6., 8., 10.][..];
@@ -301,7 +326,9 @@ mod tests {
 
     #[test]
     fn test_sfs_3d_posterior() {
-        let sfs = Sfs::from_vec_shape((1..28).map(|x| x as f64).collect(), [3, 3, 3]).unwrap();
+        let sfs = Sfs::from_vec_shape((1..28).map(|x| x as f64).collect(), [3, 3, 3])
+            .unwrap()
+            .normalise();
 
         let fst_site = &[1., 2., 3.][..];
         let snd_site = &[4., 5., 6.][..];
