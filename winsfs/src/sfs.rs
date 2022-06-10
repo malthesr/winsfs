@@ -562,45 +562,50 @@ impl<const N: usize> UnnormalisedSfs<N> {
     }
 }
 
-impl<const N: usize, const NORM: bool> Add<Sfs<N, NORM>> for Sfs<N, NORM> {
-    type Output = UnnormalisedSfs<N>;
+macro_rules! impl_op {
+    ($trait:ident, $method:ident, $assign_trait:ident, $assign_method:ident) => {
+        impl<const N: usize, const NORM: bool> $assign_trait<&Sfs<N, NORM>> for UnnormalisedSfs<N> {
+            #[inline]
+            fn $assign_method(&mut self, rhs: &Sfs<N, NORM>) {
+                assert_eq!(self.shape, rhs.shape);
 
-    #[inline]
-    fn add(self, rhs: Sfs<N, NORM>) -> Self::Output {
-        let mut sfs = self.into_unnormalised();
-        sfs += &rhs;
-        sfs
-    }
+                self.iter_mut()
+                    .zip(rhs.iter())
+                    .for_each(|(x, rhs)| x.$assign_method(rhs));
+            }
+        }
+
+        impl<const N: usize, const NORM: bool> $assign_trait<Sfs<N, NORM>> for UnnormalisedSfs<N> {
+            #[inline]
+            fn $assign_method(&mut self, rhs: Sfs<N, NORM>) {
+                self.$assign_method(&rhs);
+            }
+        }
+
+        impl<const N: usize, const NORM: bool> $trait<Sfs<N, NORM>> for Sfs<N, NORM> {
+            type Output = UnnormalisedSfs<N>;
+
+            #[inline]
+            fn $method(self, rhs: Sfs<N, NORM>) -> Self::Output {
+                let mut sfs = self.into_unnormalised();
+                sfs.$assign_method(&rhs);
+                sfs
+            }
+        }
+
+        impl<const N: usize, const NORM: bool> $trait<&Sfs<N, NORM>> for Sfs<N, NORM> {
+            type Output = UnnormalisedSfs<N>;
+
+            #[inline]
+            fn $method(self, rhs: &Sfs<N, NORM>) -> Self::Output {
+                let mut sfs = self.into_unnormalised();
+                sfs.$assign_method(rhs);
+                sfs
+            }
+        }
+    };
 }
-
-impl<const N: usize, const NORM: bool> Add<&Sfs<N, NORM>> for Sfs<N, NORM> {
-    type Output = UnnormalisedSfs<N>;
-
-    #[inline]
-    fn add(self, rhs: &Sfs<N, NORM>) -> Self::Output {
-        let mut sfs = self.into_unnormalised();
-        sfs += rhs;
-        sfs
-    }
-}
-
-impl<const N: usize, const NORM: bool> AddAssign<Sfs<N, NORM>> for UnnormalisedSfs<N> {
-    #[inline]
-    fn add_assign(&mut self, rhs: Sfs<N, NORM>) {
-        *self += &rhs;
-    }
-}
-
-impl<const N: usize, const NORM: bool> AddAssign<&Sfs<N, NORM>> for UnnormalisedSfs<N> {
-    #[inline]
-    fn add_assign(&mut self, rhs: &Sfs<N, NORM>) {
-        assert_eq!(self.shape, rhs.shape);
-
-        self.iter_mut()
-            .zip(rhs.iter())
-            .for_each(|(x, rhs)| *x += rhs);
-    }
-}
+impl_op!(Add, add, AddAssign, add_assign);
 
 impl<const N: usize, const NORM: bool> Index<[usize; N]> for Sfs<N, NORM> {
     type Output = f64;
@@ -774,5 +779,20 @@ mod tests {
             [3., 4., 5.]
         ].normalise();
         approx::assert_abs_diff_eq!(sfs.f2(), 0.4166667, epsilon = 1e-6);
+    }
+
+    #[test]
+    fn test_sfs_addition() {
+        let mut lhs = sfs1d![0., 1., 2.];
+        let rhs = sfs1d![5., 6., 7.];
+        let sum = sfs1d![5., 7., 9.];
+
+        assert_eq!(lhs.clone() + rhs.clone(), sum);
+        assert_eq!(lhs.clone() + &rhs, sum);
+
+        lhs += rhs.clone();
+        assert_eq!(lhs, sum);
+        lhs += &rhs;
+        assert_eq!(lhs, sum + rhs);
     }
 }
