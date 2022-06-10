@@ -582,22 +582,26 @@ macro_rules! impl_op {
             }
         }
 
-        impl<const N: usize, const NORM: bool> $trait<Sfs<N, NORM>> for Sfs<N, NORM> {
+        impl<const N: usize, const NORM: bool, const NORM_RHS: bool> $trait<Sfs<N, NORM_RHS>>
+            for Sfs<N, NORM>
+        {
             type Output = UnnormalisedSfs<N>;
 
             #[inline]
-            fn $method(self, rhs: Sfs<N, NORM>) -> Self::Output {
+            fn $method(self, rhs: Sfs<N, NORM_RHS>) -> Self::Output {
                 let mut sfs = self.into_unnormalised();
                 sfs.$assign_method(&rhs);
                 sfs
             }
         }
 
-        impl<const N: usize, const NORM: bool> $trait<&Sfs<N, NORM>> for Sfs<N, NORM> {
+        impl<const N: usize, const NORM: bool, const NORM_RHS: bool> $trait<&Sfs<N, NORM_RHS>>
+            for Sfs<N, NORM>
+        {
             type Output = UnnormalisedSfs<N>;
 
             #[inline]
-            fn $method(self, rhs: &Sfs<N, NORM>) -> Self::Output {
+            fn $method(self, rhs: &Sfs<N, NORM_RHS>) -> Self::Output {
                 let mut sfs = self.into_unnormalised();
                 sfs.$assign_method(rhs);
                 sfs
