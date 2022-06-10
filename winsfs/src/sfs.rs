@@ -4,7 +4,7 @@ use std::{
     error::Error,
     fmt, fs,
     io::{self, Read},
-    ops::{Add, AddAssign, Index, IndexMut},
+    ops::{Add, AddAssign, Index, IndexMut, Sub, SubAssign},
     path::Path,
     slice,
 };
@@ -606,6 +606,7 @@ macro_rules! impl_op {
     };
 }
 impl_op!(Add, add, AddAssign, add_assign);
+impl_op!(Sub, sub, SubAssign, sub_assign);
 
 impl<const N: usize, const NORM: bool> Index<[usize; N]> for Sfs<N, NORM> {
     type Output = f64;
@@ -794,5 +795,20 @@ mod tests {
         assert_eq!(lhs, sum);
         lhs += &rhs;
         assert_eq!(lhs, sum + rhs);
+    }
+
+    #[test]
+    fn test_sfs_subtraction() {
+        let mut lhs = sfs1d![5., 6., 7.];
+        let rhs = sfs1d![0., 1., 2.];
+        let sub = sfs1d![5., 5., 5.];
+
+        assert_eq!(lhs.clone() - rhs.clone(), sub);
+        assert_eq!(lhs.clone() - &rhs, sub);
+
+        lhs -= rhs.clone();
+        assert_eq!(lhs, sub);
+        lhs -= &rhs;
+        assert_eq!(lhs, sub - rhs);
     }
 }
