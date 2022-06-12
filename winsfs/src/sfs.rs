@@ -107,6 +107,7 @@ pub type UnnormalisedSfs<const N: usize> = Sfs<N, false>;
 pub struct Sfs<const N: usize, const NORM: bool = true> {
     values: Vec<f64>,
     shape: [usize; N],
+    strides: [usize; N],
 }
 
 impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
@@ -272,9 +273,18 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
         let sum = self.sum();
 
         if (sum - 1.).abs() <= NORMALISATION_TOLERANCE {
-            Ok(Sfs::new_unchecked(self.values, self.shape))
+            Ok(self.into_normalised_unchecked())
         } else {
             Err(NormalisationError { sum })
+        }
+    }
+
+    #[inline]
+    fn into_normalised_unchecked(self) -> Sfs<N> {
+        Sfs {
+            values: self.values,
+            shape: self.shape,
+            strides: self.strides,
         }
     }
 
@@ -293,7 +303,11 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// ```
     #[inline]
     pub fn into_unnormalised(self) -> UnnormalisedSfs<N> {
-        Sfs::new_unchecked(self.values, self.shape)
+        Sfs {
+            values: self.values,
+            shape: self.shape,
+            strides: self.strides,
+        }
     }
 
     /// Returns `true` if the SFS is normalised, `false` otherwise.
@@ -325,7 +339,13 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// Creates a new SFS.
     #[inline]
     fn new_unchecked(values: Vec<f64>, shape: [usize; N]) -> Self {
-        Self { values, shape }
+        let strides = compute_strides(shape);
+
+        Self {
+            values,
+            shape,
+            strides,
+        }
     }
 
     /// Returns an unnormalised SFS scaled by some constant, consuming `self`.
@@ -344,10 +364,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     pub fn scale(mut self, scale: f64) -> UnnormalisedSfs<N> {
         self.values.iter_mut().for_each(|x| *x *= scale);
 
-        Sfs {
-            values: self.values,
-            shape: self.shape,
-        }
+        self.into_unnormalised()
     }
 
     /// Returns the SFS shape.
@@ -388,10 +405,7 @@ impl<const N: usize> Sfs<N> {
 
         let elem = 1.0 / n as f64;
 
-        Sfs {
-            values: vec![elem; n],
-            shape,
-        }
+        Sfs::new_unchecked(vec![elem; n], shape)
     }
 }
 
@@ -526,10 +540,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
 
         self.iter_mut().for_each(|x| *x /= sum);
 
-        Sfs {
-            values: self.values,
-            shape: self.shape,
-        }
+        self.into_normalised_unchecked()
     }
 
     /// Creates a new, unnormalised SFS from a string containing an SFS formatted in ANGSD format.
@@ -745,9 +756,19 @@ fn compute_index_unchecked<const N: usize>(
     index
 }
 
+fn compute_strides<const N: usize>(shape: [usize; N]) -> [usize; N] {
+    let mut strides = [1; N];
+    for (i, v) in shape.iter().enumerate().skip(1).rev() {
+        strides.iter_mut().take(i).for_each(|stride| *stride *= v)
+    }
+    strides
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use approx::assert_abs_diff_eq;
 
     #[test]
     fn test_index_1d() {
@@ -777,13 +798,21 @@ mod tests {
     }
 
     #[test]
+    fn test_compute_strides() {
+        assert_eq!(compute_strides([7]), [1]);
+        assert_eq!(compute_strides([9, 3]), [3, 1]);
+        assert_eq!(compute_strides([3, 7, 5]), [35, 5, 1]);
+        assert_eq!(compute_strides([9, 3, 5, 7]), [105, 35, 7, 1]);
+    }
+
+    #[test]
     fn test_f2() {
         #[rustfmt::skip]
         let sfs = sfs2d![
             [0., 1., 2.],
             [3., 4., 5.]
         ].normalise();
-        approx::assert_abs_diff_eq!(sfs.f2(), 0.4166667, epsilon = 1e-6);
+        assert_abs_diff_eq!(sfs.f2(), 0.4166667, epsilon = 1e-6);
     }
 
     #[test]
