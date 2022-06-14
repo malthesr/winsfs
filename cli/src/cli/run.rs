@@ -7,7 +7,7 @@ use clap::CommandFactory;
 use winsfs::{
     saf::{BlockIterator, JointSaf, JointSafView, Saf},
     stream::{Header, Reader},
-    Em, Sfs, StoppingRule, Window,
+    Sfs, StoppingRule, Window,
 };
 
 use crate::utils::{get_rng, set_threads};
@@ -18,10 +18,7 @@ fn create_runner<const N: usize>(
     shape: [usize; N],
     sites: usize,
     args: &Cli,
-) -> clap::Result<Window<N>>
-where
-    Sfs<N>: Em<N>,
-{
+) -> clap::Result<Window<N>> {
     let mut builder = Window::builder();
 
     if let Some(path) = &args.initial {
@@ -104,7 +101,6 @@ where
 
 pub fn run<const N: usize>(mut safs: JointSaf<N>, args: &Cli) -> clap::Result<()>
 where
-    Sfs<N>: Em<N>,
     for<'a> JointSafView<'a, N>: BlockIterator<'a, N, Block = JointSafView<'a, N>>,
 {
     set_threads(args.threads)?;
@@ -171,7 +167,6 @@ fn streaming_run_inner<const N: usize, R>(
 ) -> clap::Result<()>
 where
     R: io::BufRead + io::Seek,
-    Sfs<N>: Em<N>,
 {
     let shape: [usize; N] = header
         .alleles()

@@ -5,7 +5,7 @@ pub mod saf;
 pub use saf::{JointSaf, JointSafView, Saf, SafView};
 
 pub mod sfs;
-pub use sfs::{Em, Sfs, UnnormalisedSfs};
+pub use sfs::{Sfs, UnnormalisedSfs};
 
 pub mod stream;
 

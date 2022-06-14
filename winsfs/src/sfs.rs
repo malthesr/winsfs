@@ -13,7 +13,6 @@ mod angsd;
 pub use angsd::ParseAngsdError;
 
 mod em;
-pub use em::Em;
 
 use crate::ArrayExt;
 

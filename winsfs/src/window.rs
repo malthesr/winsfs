@@ -6,7 +6,7 @@ use crate::{
     saf::{BlockIterator, ParSiteIterator},
     sfs::log_sfs,
     stream::{Header, Reader},
-    Em, Sfs, UnnormalisedSfs,
+    Sfs, UnnormalisedSfs,
 };
 
 mod builder;
@@ -93,10 +93,7 @@ impl<const N: usize> Window<N> {
     }
 }
 
-impl<const N: usize> Window<N>
-where
-    Sfs<N>: Em<N>,
-{
+impl<const N: usize> Window<N> {
     pub fn em<'a, I: 'a>(&mut self, input: &I)
     where
         I: BlockIterator<'a, N>,

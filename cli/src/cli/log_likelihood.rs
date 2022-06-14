@@ -8,7 +8,7 @@ use angsd_io::saf;
 
 use clap::{ArgGroup, Args};
 
-use winsfs::{Em, Sfs};
+use winsfs::Sfs;
 
 use crate::utils::validate_shape;
 
