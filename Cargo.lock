@@ -15,7 +15,17 @@ source = "git+https://github.com/malthesr/angsd-io.git?rev=62a4695#62a4695bb0114
 dependencies = [
  "byteorder",
  "indexmap",
- "noodles-bgzf",
+ "noodles-bgzf 0.10.0",
+]
+
+[[package]]
+name = "angsd-io"
+version = "0.1.0"
+source = "git+https://github.com/malthesr/angsd-io.git?rev=c9d36cd#c9d36cd600b20df690b306339dc687cc651e9230"
+dependencies = [
+ "byteorder",
+ "indexmap",
+ "noodles-bgzf 0.12.0",
 ]
 
 [[package]]
@@ -111,7 +121,7 @@ dependencies = [
 name = "cli"
 version = "0.5.0"
 dependencies = [
- "angsd-io",
+ "angsd-io 0.1.0 (git+https://github.com/malthesr/angsd-io.git?rev=62a4695)",
  "clap",
  "log",
  "rand",
@@ -245,18 +255,18 @@ checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
 
 [[package]]
 name = "libdeflate-sys"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cceaf6e335d658ec0602685bfe50d0f35248d6d8848b194058bfda37a9eb728"
+checksum = "216b62f1994d8186da0187ad3f925ba267ad44ae67761c7285577583b85b5c6d"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "libdeflater"
-version = "0.7.5"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15f0c115fd181333eb7a82cf42e2ce2d9fac0ad06babd3ab79a9ec5bd66352fe"
+checksum = "12f0d7ed8d8b1ce10f1613316c83ce236641c2860c0a2ad700b31e1685e76c4f"
 dependencies = [
  "libdeflate-sys",
 ]
@@ -293,6 +303,16 @@ name = "noodles-bgzf"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94745a1cf9ca1f711a8ad5bc3d8154244b34dbd85c9abc9796cc01c2c57c83f5"
+dependencies = [
+ "byteorder",
+ "flate2",
+]
+
+[[package]]
+name = "noodles-bgzf"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d2664f36dbeb2571ab1793d070bb6c1f4d06f899661f804e7c118aa9552d31e"
 dependencies = [
  "byteorder",
  "flate2",
@@ -528,7 +548,7 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 name = "winsfs"
 version = "0.1.0"
 dependencies = [
- "angsd-io",
+ "angsd-io 0.1.0 (git+https://github.com/malthesr/angsd-io.git?rev=c9d36cd)",
  "approx",
  "log",
  "rand",
