@@ -46,7 +46,7 @@ fn parse_header<const N: usize>(s: &str) -> Result<[usize; N], ParseAngsdError<N
 
     let dims = v.len();
     v.try_into()
-        .map_err(|_| ParseAngsdError::MismatchedDimensionality { dims })
+        .map_err(|_| ParseAngsdError::MismatchedDimensionality(dims))
 }
 
 fn parse_values<const N: usize>(s: &str) -> Result<Vec<f64>, ParseAngsdError<N>> {
@@ -56,6 +56,7 @@ fn parse_values<const N: usize>(s: &str) -> Result<Vec<f64>, ParseAngsdError<N>>
         .map_err(ParseAngsdError::InvalidValue)
 }
 
+/// An error type associated with parsing an invalid ANGSD format SFS.
 #[derive(Clone, Debug)]
 pub enum ParseAngsdError<const N: usize> {
     /// Failed to parse shape values in header.
@@ -63,7 +64,7 @@ pub enum ParseAngsdError<const N: usize> {
     /// Failed to parse values in SFS.
     InvalidValue(std::num::ParseFloatError),
     /// Header dimensionality did not match requested.
-    MismatchedDimensionality { dims: usize },
+    MismatchedDimensionality(usize),
     /// Header shape did not match values.
     MismatchedShape(ShapeError<N>),
     /// Other error.
@@ -75,7 +76,7 @@ impl<const N: usize> fmt::Display for ParseAngsdError<N> {
         match self {
             ParseAngsdError::InvalidShape(e) => write!(f, "{e}"),
             ParseAngsdError::InvalidValue(e) => write!(f, "{e}"),
-            ParseAngsdError::MismatchedDimensionality { dims } => {
+            ParseAngsdError::MismatchedDimensionality(dims) => {
                 write!(f, "found {dims}-dimensional SFS, expected {N}-dimensions")
             }
             ParseAngsdError::MismatchedShape(e) => write!(f, "{e}"),
