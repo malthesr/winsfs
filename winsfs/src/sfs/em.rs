@@ -3,24 +3,91 @@ use std::io;
 use rayon::iter::ParallelIterator;
 
 use crate::{
-    saf::{IntoArray, ParSiteIterator},
-    stream::ReadSite,
-    ArrayExt, Sfs, UnnormalisedSfs,
+    io::ReadSite,
+    saf::{
+        iter::{IntoParallelSiteIterator, IntoSiteIterator},
+        AsSiteView, Site,
+    },
+    Sfs, UnnormalisedSfs,
 };
 
 impl<const N: usize> Sfs<N> {
-    pub fn e_step<'a, I: 'a>(&self, input: &I) -> (f64, UnnormalisedSfs<N>)
+    /// Returns the log-likelihood of the SFS given the input, and the expected number of sites
+    /// in each frequency bin given the SFS and the input.
+    ///
+    /// This corresponds to an E-step for the EM algorithm. The returned SFS corresponds to the
+    /// expected number of sites in each bin given `self` and the `input`.
+    /// The sum of the returned SFS will be equal to the number of sites in the input.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the sites in the input does not fit the shape of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// let sfs = Sfs::uniform([5]);
+    /// let saf = saf1d![
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 1., 0., 0., 0.],
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 0., 0., 1., 0.],
+    /// ];
+    /// let (log_likelihood, posterior) = sfs.e_step(&saf);
+    /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
+    /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
+    /// ```
+    pub fn e_step<I>(&self, input: I) -> (f64, UnnormalisedSfs<N>)
     where
-        I: ParSiteIterator<'a, N>,
+        I: IntoSiteIterator<N>,
+    {
+        let (ll, post, _) = input.into_site_iter().fold(
+            (0.0, Sfs::zeros(self.shape()), Sfs::zeros(self.shape())),
+            |(mut ll, mut post, mut buf), site| {
+                ll += self.posterior_into(site, &mut post, &mut buf).ln();
+
+                (ll, post, buf)
+            },
+        );
+
+        (ll, post)
+    }
+
+    /// Returns the log-likelihood of the SFS given the input, and the expected number of sites
+    /// in each frequency bin given the SFS and the input.
+    ///
+    /// This is the parallel version of [`Sfs::e_step`], see also its documentation for more.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the sites in the input does not fit the shape of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// let sfs = Sfs::uniform([5]);
+    /// let saf = saf1d![
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 1., 0., 0., 0.],
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 0., 0., 1., 0.],
+    /// ];
+    /// let (log_likelihood, posterior) = sfs.par_e_step(&saf);
+    /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
+    /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
+    /// ```
+    pub fn par_e_step<I>(&self, input: I) -> (f64, UnnormalisedSfs<N>)
+    where
+        I: IntoParallelSiteIterator<N>,
     {
         input
-            .par_iter_sites()
+            .into_par_site_iter()
             .fold(
                 || (0.0, Sfs::zeros(self.shape()), Sfs::zeros(self.shape())),
                 |(mut ll, mut post, mut buf), site| {
-                    ll += self
-                        .posterior_into(&site.into_array(), &mut post, &mut buf)
-                        .ln();
+                    ll += self.posterior_into(site, &mut post, &mut buf).ln();
 
                     (ll, post, buf)
                 },
@@ -32,73 +99,98 @@ impl<const N: usize> Sfs<N> {
             )
     }
 
-    pub fn log_likelihood<'a, I: 'a>(&self, input: &I) -> f64
+    /// Returns the log-likelihood of the SFS given the input.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the sites in the input does not fit the shape of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// let sfs = Sfs::uniform([5]);
+    /// let saf = saf1d![
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 1., 0., 0., 0.],
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 0., 0., 1., 0.],
+    /// ];
+    /// assert_eq!(sfs.log_likelihood(&saf), 0.2f64.powi(4).ln());
+    /// ```
+    pub fn log_likelihood<I>(&self, input: I) -> f64
     where
-        I: ParSiteIterator<'a, N>,
+        I: IntoSiteIterator<N>,
     {
         input
-            .par_iter_sites()
-            .fold(
-                || 0.0,
-                |ll, site| ll + self.site_log_likelihood(&site.into_array()),
-            )
+            .into_site_iter()
+            .fold(0.0, |ll, site| ll + self.site_log_likelihood(site))
+    }
+
+    /// Returns the log-likelihood of the SFS given the input.
+    ///
+    /// This is the parallel version of [`Sfs::log_likelihood`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the sites in the input does not fit the shape of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// let sfs = Sfs::uniform([5]);
+    /// let saf = saf1d![
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 1., 0., 0., 0.],
+    ///     [1., 0., 0., 0., 0.],
+    ///     [0., 0., 0., 1., 0.],
+    /// ];
+    /// assert_eq!(sfs.par_log_likelihood(&saf), 0.2f64.powi(4).ln());
+    /// ```
+    pub fn par_log_likelihood<I>(&self, input: I) -> f64
+    where
+        I: IntoParallelSiteIterator<N>,
+    {
+        input
+            .into_par_site_iter()
+            .fold(|| 0.0, |ll, site| ll + self.site_log_likelihood(site))
             .sum()
     }
 
-    pub fn em_step<'a, I: 'a>(&self, input: &I) -> (f64, Self)
-    where
-        I: ParSiteIterator<'a, N>,
-    {
-        let (log_likelihood, posterior) = self.e_step(input);
-
-        (log_likelihood, posterior.normalise())
-    }
-
-    pub fn streaming_e_step<R>(&self, reader: &mut R) -> io::Result<(f64, UnnormalisedSfs<N>)>
-    where
-        R: ReadSite,
-    {
-        let mut post = Sfs::zeros(self.shape());
-        let mut buf = Sfs::zeros(self.shape());
-
-        let mut site: [Box<[f32]>; N] = self.shape().map(|d| vec![0.0; d].into_boxed_slice());
-        let mut ll = 0.0;
-        while reader.read_site(&mut site)?.is_not_done() {
-            ll += self.posterior_into(&site, &mut post, &mut buf).ln();
-        }
-
-        Ok((ll, post))
-    }
-
-    pub fn streaming_em_step<R>(&self, reader: &mut R) -> io::Result<(f64, Self)>
-    where
-        R: ReadSite,
-    {
-        let (log_likelihood, posterior) = self.streaming_e_step(reader)?;
-
-        Ok((log_likelihood, posterior.normalise()))
-    }
-
-    pub fn posterior_into<T>(
+    /// Adds the posterior counts for `site` into the provided `posterior buffer`, using the
+    /// extra `buf` to avoid extraneous allocations.
+    ///
+    /// The `buf` will be overwritten, and so it's state is unimportant. The shape of the `site`
+    /// will be matched against the shape of `self`, and a panic will be thrown if they do not
+    /// match. The shapes of `posterior` and `buf` are unchecked, but must match the shape of self.
+    ///
+    /// The likelihood of the site is returned.
+    fn posterior_into<T>(
         &self,
-        site: &[T; N],
+        site: T,
         posterior: &mut UnnormalisedSfs<N>,
         buf: &mut UnnormalisedSfs<N>,
     ) -> f64
     where
-        T: AsRef<[f32]>,
+        T: AsSiteView<N>,
     {
+        let site = site.as_site_view();
+        assert_eq!(self.shape, site.shape());
+
         let mut sum = 0.;
 
         posterior_inner(
             self.as_slice(),
             self.strides.as_slice(),
-            site.each_ref().map(|x| x.as_ref()).as_slice(),
+            site.split().as_slice(),
             buf.as_mut_slice(),
             &mut sum,
             1.,
         );
 
+        // Normalising and adding to the posterior in a single iterator has slightly better perf
+        // than normalising and then adding to posterior.
         buf.iter_mut()
             .zip(posterior.iter_mut())
             .for_each(|(buf, posterior)| {
@@ -109,31 +201,105 @@ impl<const N: usize> Sfs<N> {
         sum
     }
 
-    pub fn site_log_likelihood<T>(&self, site: &[T; N]) -> f64
+    /// Returns the log-likelihood of the SFS given a single site.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shape of the site does not fit the shape of `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs::{saf::Site, Sfs};
+    /// let sfs = Sfs::uniform([5]);
+    /// let site = Site::new(vec![1.0, 0.0, 0.0, 0.0, 0.0], [5]).unwrap();
+    /// assert_eq!(sfs.site_log_likelihood(site), 0.2f64.ln());
+    /// ```
+    pub fn site_log_likelihood<T>(&self, site: T) -> f64
     where
-        T: AsRef<[f32]>,
+        T: AsSiteView<N>,
     {
         self.site_likelihood(site).ln()
     }
 
-    fn site_likelihood<T>(&self, site: &[T; N]) -> f64
+    /// Returns the likelihood of the SFS given a single site.
+    fn site_likelihood<T>(&self, site: T) -> f64
     where
-        T: AsRef<[f32]>,
+        T: AsSiteView<N>,
     {
+        let site = site.as_site_view();
+        assert_eq!(self.shape, site.shape());
+
         let mut sum = 0.;
 
         site_likelihood_inner(
             self.as_slice(),
             self.strides.as_slice(),
-            site.each_ref().map(|x| x.as_ref()).as_slice(),
+            site.split().as_slice(),
             &mut sum,
             1.,
         );
 
         sum
     }
+
+    /// Returns the log-likelihood of the SFS given the input, and the expected number of sites
+    /// in each frequency bin given the SFS and the input.
+    ///
+    /// This is the streaming version of [`Sfs::e_step`], see also its documentation for more.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the sites in the input does not fit the shape of `self`.
+    pub fn stream_e_step<R>(&self, mut reader: R) -> io::Result<(f64, UnnormalisedSfs<N>)>
+    where
+        R: ReadSite,
+    {
+        let mut post = Sfs::zeros(self.shape());
+        let mut buf = Sfs::zeros(self.shape());
+
+        let vec = vec![0.0; self.shape().iter().sum()];
+        let mut site = Site::new(vec, self.shape()).unwrap();
+
+        let mut ll = 0.0;
+        while reader.read_site(site.as_mut_slice())?.is_not_done() {
+            ll += self.posterior_into(&site, &mut post, &mut buf).ln();
+        }
+
+        Ok((ll, post))
+    }
+
+    /// Returns the log-likelihood of the SFS given the input.
+    ///
+    /// This is the streaming version of [`Sfs::log_likelihood`].
+    ///
+    /// # Panics
+    ///
+    /// Panics if any of the sites in the input does not fit the shape of `self`.
+    pub fn stream_log_likelihood<R>(&self, mut reader: R) -> io::Result<f64>
+    where
+        R: ReadSite,
+    {
+        let vec = vec![0.0; self.shape().iter().sum()];
+        let mut site = Site::new(vec, self.shape()).unwrap();
+
+        let mut ll = 0.0;
+        while reader.read_site(site.as_mut_slice())?.is_not_done() {
+            ll += self.site_log_likelihood(&site);
+        }
+
+        Ok(ll)
+    }
 }
 
+/// Calculate the posterior for a site any dimension recursively.
+///
+/// The posterior is written into the `buf`, which is not normalised. The `sum` will contain
+/// the likelihood, which can be used to normalise. The passed-in `sum` should typically be zero,
+/// whereas the passed-in `acc` should typically be one.
+///
+/// It is  assumed that `sfs` and `buf` have the same length, which should correspond to the product
+/// of the length of the sites in `site`.
 fn posterior_inner(
     sfs: &[f64],
     strides: &[usize],
@@ -144,6 +310,8 @@ fn posterior_inner(
 ) {
     match site {
         &[hd] => {
+            // Base case: we have a single site, which signifies that the SFS slice
+            // now corresponds to a single slice along its last dimension, e.g. a row in 2D.
             debug_assert_eq!(sfs.len(), hd.len());
 
             buf.iter_mut()
@@ -156,6 +324,9 @@ fn posterior_inner(
                 })
         }
         [hd, cons @ ..] => {
+            // Recursive case: we have multiple sites. For each value in the first site,
+            // we add the value to the accumulant, "peel" the corresponding slice of the SFS,
+            // and recurse to a lower dimension.
             let (stride, strides) = strides.split_first().expect("invalid strides");
 
             for (i, &saf) in hd.iter().enumerate() {
@@ -175,6 +346,9 @@ fn posterior_inner(
     }
 }
 
+/// Calculate the likelihood for a site any dimension recursively.
+///
+/// The logic here is a simplified version of `posterior_inner`: see the comments there for more.
 fn site_likelihood_inner(sfs: &[f64], strides: &[usize], site: &[&[f32]], sum: &mut f64, acc: f64) {
     match site {
         &[hd] => sfs.iter().zip(hd).for_each(|(sfs, &saf)| {
@@ -199,17 +373,17 @@ mod tests {
 
     use approx::assert_abs_diff_eq;
 
-    use crate::{sfs1d, sfs2d};
+    use crate::{saf::Site, sfs1d, sfs2d};
 
     #[test]
     fn test_1d() {
         let sfs = sfs1d![1., 2., 3.].normalise();
 
-        let site = &[&[2., 2., 2.]];
+        let site = Site::new(vec![2., 2., 2.], [3]).unwrap();
         let mut posterior = sfs1d![10., 20., 30.];
         let mut buf = Sfs::zeros(sfs.shape());
 
-        let posterior_likelihood = sfs.posterior_into(site, &mut posterior, &mut buf);
+        let posterior_likelihood = sfs.posterior_into(&site, &mut posterior, &mut buf);
 
         let expected = vec![10. + 1. / 6., 20. + 1. / 3., 30. + 1. / 2.];
         assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice());
@@ -228,11 +402,11 @@ mod tests {
             [11., 12., 13., 14., 15.],
         ].normalise();
 
-        let site = &[&[2., 2., 2.][..], &[2., 4., 6., 8., 10.][..]];
+        let site = Site::new(vec![2., 2., 2., 2., 4., 6., 8., 10.], [3, 5]).unwrap();
         let mut posterior = Sfs::from_elem(1., sfs.shape());
         let mut buf = Sfs::zeros(sfs.shape());
 
-        let posterior_likelihood = sfs.posterior_into(site, &mut posterior, &mut buf);
+        let posterior_likelihood = sfs.posterior_into(&site, &mut posterior, &mut buf);
 
         #[rustfmt::skip]
         let expected = vec![
@@ -253,15 +427,11 @@ mod tests {
             .unwrap()
             .normalise();
 
-        let site = &[
-            &[1., 2., 3.][..],
-            &[4., 5., 6., 7.][..],
-            &[8., 9., 10., 11., 12.][..],
-        ];
+        let site = Site::new((1..=12).map(|x| x as f32).collect(), [3, 4, 5]).unwrap();
         let mut posterior = Sfs::from_elem(1., sfs.shape());
         let mut buf = Sfs::zeros(sfs.shape());
 
-        let posterior_likelihood = sfs.posterior_into(site, &mut posterior, &mut buf);
+        let posterior_likelihood = sfs.posterior_into(&site, &mut posterior, &mut buf);
 
         let expected = vec![
             1.00000, 1.00015, 1.00032, 1.00053, 1.00078, 1.00081, 1.00109, 1.00141, 1.00178,
