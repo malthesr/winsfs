@@ -12,6 +12,7 @@ default = ["angsd-io/libdeflate"]
 
 [dev-dependencies]
 approx = "0.5"
+tempfile = "3.3"
 
 [dependencies]
 angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "c9d36cd" }
