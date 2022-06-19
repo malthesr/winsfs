@@ -3,7 +3,7 @@ use rayon::iter::{
     IndexedParallelIterator, IntoParallelIterator, ParallelIterator,
 };
 
-use crate::saf::{AsSiteView, SafView, SiteView};
+use crate::saf::{AsSiteView, Saf, SafView, SiteView};
 
 /// A type that can be turned into an iterator over SAF sites.
 pub trait IntoSiteIterator<const N: usize> {
@@ -14,6 +14,15 @@ pub trait IntoSiteIterator<const N: usize> {
 
     /// Convert this type into a SAF site iterator.
     fn into_site_iter(self) -> Self::Iter;
+}
+
+impl<'a, const N: usize> IntoSiteIterator<N> for &'a Saf<N> {
+    type Item = SiteView<'a, N>;
+    type Iter = SiteIter<'a, N>;
+
+    fn into_site_iter(self) -> Self::Iter {
+        SiteIter::new(self.view())
+    }
 }
 
 impl<'a, const N: usize> IntoSiteIterator<N> for SafView<'a, N> {
@@ -56,6 +65,15 @@ pub trait IntoParallelSiteIterator<const N: usize> {
 
     /// Convert this type into a parallel SAF site iterator.
     fn into_par_site_iter(self) -> Self::Iter;
+}
+
+impl<'a, const N: usize> IntoParallelSiteIterator<N> for &'a Saf<N> {
+    type Item = SiteView<'a, N>;
+    type Iter = ParSiteIter<'a, N>;
+
+    fn into_par_site_iter(self) -> Self::Iter {
+        ParSiteIter::new(self.view())
+    }
 }
 
 impl<'a, const N: usize> IntoParallelSiteIterator<N> for SafView<'a, N> {
