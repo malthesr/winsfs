@@ -33,7 +33,7 @@ impl Default for StandardEm {
     }
 }
 
-impl<const N: usize> EmStep<N> for StandardEm {
+impl EmStep for StandardEm {
     type Status = SumOf<LogLikelihood>;
 }
 
@@ -82,7 +82,7 @@ impl Default for ParallelStandardEm {
     }
 }
 
-impl<const N: usize> EmStep<N> for ParallelStandardEm {
+impl EmStep for ParallelStandardEm {
     type Status = SumOf<LogLikelihood>;
 }
 

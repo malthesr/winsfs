@@ -11,7 +11,7 @@ mod standard_em;
 pub use standard_em::{ParallelStandardEm, StandardEm};
 
 pub mod stopping;
-use stopping::StoppingRule;
+use stopping::Stop;
 
 mod window_em;
 pub use window_em::{Window, WindowEm};
@@ -25,7 +25,7 @@ use crate::{
 ///
 /// This serves as a supertrait bound for both [`Em`] and [`StreamingEm`] and gathers
 /// behaviour shared around running consecutive EM-steps.
-pub trait EmStep<const N: usize>: Sized {
+pub trait EmStep: Sized {
     /// The status returned after each step.
     ///
     /// This may be used, for example, to determine convergence by the stopping rule,
@@ -34,7 +34,7 @@ pub trait EmStep<const N: usize>: Sized {
     type Status;
 
     /// Inspect the status after each E-step.
-    fn inspect<F>(self, f: F) -> Inspect<Self, F>
+    fn inspect<const N: usize, F>(self, f: F) -> Inspect<Self, F>
     where
         F: FnMut(&Self, &Self::Status, &UnnormalisedSfs<N>),
     {
@@ -43,7 +43,7 @@ pub trait EmStep<const N: usize>: Sized {
 }
 
 /// A type capable of running an EM-like algorithm for SFS inference using data in-memory.
-pub trait Em<const N: usize, I>: EmStep<N> {
+pub trait Em<const N: usize, I>: EmStep {
     /// The E-step of the algorithm.
     ///
     /// This should correspond to a full pass over the `input`.
@@ -76,7 +76,7 @@ pub trait Em<const N: usize, I>: EmStep<N> {
     /// Panics if the shapes of the SFS and the input do not match.
     fn em<S>(&mut self, sfs: &Sfs<N>, input: &I, mut stopping_rule: S) -> (Self::Status, Sfs<N>)
     where
-        S: StoppingRule<N, Self>,
+        S: Stop<Self, Status = Self::Status>,
     {
         let mut sfs = sfs.clone();
 
@@ -92,7 +92,7 @@ pub trait Em<const N: usize, I>: EmStep<N> {
 }
 
 /// A type capable of running an EM-like algorithm for SFS inference by streaming through data.
-pub trait StreamingEm<const N: usize, R>: EmStep<N> + Sized
+pub trait StreamingEm<const N: usize, R>: EmStep
 where
     R: ReadSite,
 {
@@ -141,7 +141,7 @@ where
         mut stopping_rule: S,
     ) -> io::Result<(Self::Status, Sfs<N>)>
     where
-        S: StoppingRule<N, Self>,
+        S: Stop<Self, Status = Self::Status>,
     {
         let mut sfs = sfs.clone();
 

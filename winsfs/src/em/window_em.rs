@@ -37,9 +37,9 @@ impl<const N: usize, T> WindowEm<N, T> {
     }
 }
 
-impl<const N: usize, T> EmStep<N> for WindowEm<N, T>
+impl<const N: usize, T> EmStep for WindowEm<N, T>
 where
-    T: EmStep<N>,
+    T: EmStep,
 {
     type Status = Vec<T::Status>;
 }

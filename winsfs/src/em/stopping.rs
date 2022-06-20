@@ -7,20 +7,16 @@ use super::{
     EmStep, Inspect,
 };
 
-/// A type capable of deciding whether an EM algorithm should stop.
-pub trait StoppingRule<const N: usize, T>
-where
-    T: EmStep<N>,
-{
-    /// Returns `true` if the algorithm should stop, `false` otherwise.
-    fn stop(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool;
-
+/// A type that can be combined in various ways to create a stopping rule for EM types.
+///
+/// This primary serves as a supertrait bound for [`Stop`]. [`Stop`] cannot provide these
+/// methods directly without breaking type inference when calling them.
+pub trait StoppingRule {
     /// Returns a new stopping rule that requires that *both* this *and* another stopping
     /// rule must indicicate convergence before stopping.
     fn and<S>(self, other: S) -> Both<Self, S>
     where
         Self: Sized,
-        S: StoppingRule<N, T>,
     {
         Both::new(self, other)
     }
@@ -42,10 +38,18 @@ where
     fn or<S>(self, other: S) -> Either<Self, S>
     where
         Self: Sized,
-        S: StoppingRule<N, T>,
     {
         Either::new(self, other)
     }
+}
+
+/// A type capable of deciding whether an EM algorithm should stop.
+pub trait Stop<T>: StoppingRule {
+    /// A status from the E-step that may be used for checking convergence.
+    type Status;
+
+    /// Returns `true` if the algorithm should stop, `false` otherwise.
+    fn stop<const N: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<N>) -> bool;
 }
 
 /// A stopping rule that lets the EM algorithm run for a specific number of EM-steps.
@@ -74,11 +78,15 @@ impl Steps {
     }
 }
 
-impl<const N: usize, T> StoppingRule<N, T> for Steps
+impl StoppingRule for Steps {}
+
+impl<T> Stop<T> for Steps
 where
-    T: EmStep<N>,
+    T: EmStep,
 {
-    fn stop(&mut self, _em: &T, _status: &T::Status, _sfs: &Sfs<N>) -> bool {
+    type Status = T::Status;
+
+    fn stop<const N: usize>(&mut self, _em: &T, _status: &Self::Status, _sfs: &Sfs<N>) -> bool {
         self.current_step += 1;
         self.current_step >= self.max_steps
     }
@@ -131,11 +139,15 @@ impl LogLikelihoodTolerance {
     }
 }
 
-impl<const N: usize, T> StoppingRule<N, T> for LogLikelihoodTolerance
+impl StoppingRule for LogLikelihoodTolerance {}
+
+impl<T> Stop<T> for LogLikelihoodTolerance
 where
-    T: EmStep<N, Status = SumOf<LogLikelihood>>,
+    T: EmStep<Status = SumOf<LogLikelihood>>,
 {
-    fn stop(&mut self, _em: &T, status: &T::Status, _sfs: &Sfs<N>) -> bool {
+    type Status = T::Status;
+
+    fn stop<const N: usize>(&mut self, _em: &T, status: &Self::Status, _sfs: &Sfs<N>) -> bool {
         let new_log_likelihood = status.normalise();
 
         self.stop_inner(new_log_likelihood)
@@ -176,11 +188,15 @@ impl WindowLogLikelihoodTolerance {
     }
 }
 
-impl<const N: usize, T> StoppingRule<N, T> for WindowLogLikelihoodTolerance
+impl StoppingRule for WindowLogLikelihoodTolerance {}
+
+impl<T> Stop<T> for WindowLogLikelihoodTolerance
 where
-    T: EmStep<N, Status = Vec<SumOf<LogLikelihood>>>,
+    T: EmStep<Status = Vec<SumOf<LogLikelihood>>>,
 {
-    fn stop(&mut self, _em: &T, status: &T::Status, _sfs: &Sfs<N>) -> bool {
+    type Status = T::Status;
+
+    fn stop<const N: usize>(&mut self, _em: &T, status: &Self::Status, _sfs: &Sfs<N>) -> bool {
         let new_log_likelihood = status
             .iter()
             .map(|block_log_likelihood| block_log_likelihood.normalise())
@@ -216,13 +232,22 @@ impl<A, B> Both<A, B> {
     }
 }
 
-impl<const N: usize, T, A, B> StoppingRule<N, T> for Both<A, B>
+impl<A, B> StoppingRule for Both<A, B>
 where
-    T: EmStep<N>,
-    A: StoppingRule<N, T>,
-    B: StoppingRule<N, T>,
+    A: StoppingRule,
+    B: StoppingRule,
 {
-    fn stop(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool {
+}
+
+impl<T, A, B> Stop<T> for Both<A, B>
+where
+    T: EmStep,
+    A: Stop<T, Status = T::Status>,
+    B: Stop<T, Status = T::Status>,
+{
+    type Status = T::Status;
+
+    fn stop<const N: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<N>) -> bool {
         self.left.stop(em, status, sfs) && self.right.stop(em, status, sfs)
     }
 }
@@ -253,13 +278,22 @@ impl<A, B> Either<A, B> {
     }
 }
 
-impl<const N: usize, T, A, B> StoppingRule<N, T> for Either<A, B>
+impl<A, B> StoppingRule for Either<A, B>
 where
-    T: EmStep<N>,
-    A: StoppingRule<N, T>,
-    B: StoppingRule<N, T>,
+    A: StoppingRule,
+    B: StoppingRule,
 {
-    fn stop(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool {
+}
+
+impl<T, A, B> Stop<T> for Either<A, B>
+where
+    T: EmStep,
+    A: Stop<T, Status = T::Status>,
+    B: Stop<T, Status = T::Status>,
+{
+    type Status = T::Status;
+
+    fn stop<const N: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<N>) -> bool {
         self.left.stop(em, status, sfs) || self.right.stop(em, status, sfs)
     }
 }

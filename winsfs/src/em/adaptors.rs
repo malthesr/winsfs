@@ -3,7 +3,10 @@ use crate::{
     sfs::{Sfs, UnnormalisedSfs},
 };
 
-use super::{Em, EmStep, StoppingRule, StreamingEm};
+use super::{
+    stopping::{Stop, StoppingRule},
+    Em, EmStep, StreamingEm,
+};
 
 /// A combinator for types that allows inspection after each E-step.
 ///
@@ -22,9 +25,9 @@ impl<T, F> Inspect<T, F> {
     }
 }
 
-impl<const N: usize, T, F> EmStep<N> for Inspect<T, F>
+impl<T, F> EmStep for Inspect<T, F>
 where
-    T: EmStep<N>,
+    T: EmStep,
 {
     type Status = T::Status;
 }
@@ -62,13 +65,17 @@ where
     }
 }
 
-impl<const N: usize, T, S, F> StoppingRule<N, T> for Inspect<S, F>
+impl<S, F> StoppingRule for Inspect<S, F> where S: StoppingRule {}
+
+impl<T, S, F> Stop<T> for Inspect<S, F>
 where
-    T: EmStep<N>,
-    S: StoppingRule<N, T>,
+    T: EmStep,
+    S: Stop<T, Status = T::Status>,
     F: FnMut(&S),
 {
-    fn stop(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool {
+    type Status = T::Status;
+
+    fn stop<const N: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<N>) -> bool {
         (self.f)(&self.inner);
 
         self.inner.stop(em, status, sfs)
