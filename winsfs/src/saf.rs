@@ -16,7 +16,7 @@
 //! # fn main() -> ::std::io::Result<()> {
 //! // Any of the SAF member files (with extensions ".saf.gz", ".saf.pos.gz", or ".saf.idx")
 //! // can be used, and the remaining will be found
-//! use winsfs::Saf;
+//! use winsfs::saf::Saf;
 //! let paths = ["/path/to/A.saf.gz", "path/to/B.saf.idx"];
 //!
 //! // Read joint SAF containing the intersecting sites in populations A and B.
@@ -266,7 +266,7 @@ impl<const N: usize> Saf<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{Saf, saf2d};
+    /// use winsfs::{saf::Saf, saf2d};
     /// let vec = vec![0.0, 0.1, 0.2, 1.0, 1.1, 0.3, 0.4, 0.5, 1.2, 1.3];
     /// let shape = [3, 2];
     /// assert_eq!(
@@ -280,7 +280,7 @@ impl<const N: usize> Saf<N> {
     /// A [`ShapeError`] is thrown if the shape does not fit the number of values:
     ///
     /// ```
-    /// use winsfs::Saf;
+    /// use winsfs::saf::Saf;
     /// let vec = vec![0.0, 0.1, 0.2, 1.0, 1.1, 0.3, 0.4, 0.5, 1.2, 1.3];
     /// let wrong_shape = [4, 2];
     /// assert!(Saf::new(vec, wrong_shape).is_err());
@@ -310,7 +310,7 @@ impl<const N: usize> Saf<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf1d, SafView};
+    /// use winsfs::{saf::SafView, saf1d};
     /// use rayon::iter::ParallelIterator;
     /// let saf = saf1d![
     ///     [0.0,  0.1,  0.2],
@@ -577,7 +577,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{SafView, saf2d};
+    /// use winsfs::{saf::SafView, saf2d};
     /// let slice = &[0.0, 0.1, 0.2, 1.0, 1.1, 0.3, 0.4, 0.5, 1.2, 1.3];
     /// let shape = [3, 2];
     /// assert_eq!(
@@ -591,7 +591,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// A [`ShapeError`] is thrown if the shape does not fit the number of values:
     ///
     /// ```
-    /// use winsfs::SafView;
+    /// use winsfs::saf::SafView;
     /// let slice = &[0.0, 0.1, 0.2, 1.0, 1.1, 0.3, 0.4, 0.5, 1.2, 1.3];
     /// let wrong_shape = [4, 2];
     /// assert!(SafView::new(slice, wrong_shape).is_err());
@@ -621,7 +621,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf1d, SafView};
+    /// use winsfs::{saf::SafView, saf1d};
     /// use rayon::iter::ParallelIterator;
     /// let saf = saf1d![
     ///     [0.0,  0.1,  0.2],
