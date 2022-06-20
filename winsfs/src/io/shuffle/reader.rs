@@ -13,6 +13,7 @@ use super::{to_u64, Header};
 /// A pseudo-shuffled SAF file reader.
 pub struct Reader<R> {
     inner: ValueReader<R>,
+    header: Header,
 }
 
 /// A pseudo-shuffled SAF file reader.
@@ -30,6 +31,11 @@ where
         &mut self.inner
     }
 
+    /// Returns the header of the reader.
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
     /// Returns the inner reader, consuming `self`.
     pub fn into_inner(self) -> ValueReader<R> {
         self.inner
@@ -45,11 +51,13 @@ where
         self.inner.get_mut().fill_buf().map(|b| b.is_empty())
     }
 
-    /// Returns a new reader.
-    pub fn new(reader: R) -> Self {
+    /// Creates a new reader.
+    ///
+    /// The stream is expected to be positioned after the header.
+    pub fn new(reader: R, header: Header) -> Self {
         let inner = ValueReader::new(reader);
 
-        Self { inner }
+        Self { inner, header }
     }
 
     /// Reads the header from the reader.
@@ -57,15 +65,6 @@ where
     /// The stream is assumed to be positioned at the beginning.
     pub fn read_header(&mut self) -> io::Result<Header> {
         Header::read(self.inner.get_mut())
-    }
-
-    /// Positions the reader immediately after the header.
-    pub(crate) fn rewind(&mut self, header: &Header) -> io::Result<()>
-    where
-        R: io::Seek,
-    {
-        self.seek(io::SeekFrom::Start(to_u64(header.header_size())))
-            .map(|_| ())
     }
 }
 
@@ -82,21 +81,28 @@ impl Reader<io::BufReader<File>> {
     /// Creates a new reader from a path, and read its header.
     ///
     /// The stream will be positioned after the header.
-    pub fn from_path<P>(path: P) -> io::Result<(Header, Self)>
+    pub fn from_path<P>(path: P) -> io::Result<Self>
     where
         P: AsRef<Path>,
     {
-        let mut new = File::open(path).map(io::BufReader::new).map(Reader::new)?;
+        let mut reader = File::open(path).map(io::BufReader::new)?;
 
-        Ok((new.read_header()?, new))
+        let header = Header::read(&mut reader)?;
+
+        Ok(Self::new(reader, header))
     }
 }
 
 impl<R> ReadSite for Reader<R>
 where
-    R: io::BufRead,
+    R: io::BufRead + io::Seek,
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         self.inner.read_values(buf)
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        self.seek(io::SeekFrom::Start(to_u64(self.header.header_size())))
+            .map(|_| ())
     }
 }

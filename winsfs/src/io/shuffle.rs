@@ -112,7 +112,7 @@ mod tests {
         // Drop the writer to flush
         writer.try_finish().unwrap();
 
-        let (_header, mut reader) = Reader::from_path(path)?;
+        let mut reader = Reader::from_path(path)?;
 
         let expected_order = &[0, 4, 8, 1, 5, 2, 6, 3, 7];
 

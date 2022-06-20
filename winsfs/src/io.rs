@@ -23,6 +23,12 @@ pub trait ReadSite: Sized {
     /// a site of correct shape for the underlying reader.
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus>;
 
+    /// Positions reader at the beginning of the data.
+    ///
+    /// The stream should be positioned so as to be ready to call [`ReadSite::read_site`].
+    /// In particular, the stream should be positioned past any magic number, headers, etc.
+    fn rewind(&mut self) -> io::Result<()>;
+
     /// Returns a reader adaptor which counts the number of sites read.
     fn enumerate(self) -> Enumerate<Self> {
         Enumerate::new(self)
@@ -40,6 +46,10 @@ where
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         <T as ReadSite>::read_site(*self, buf)
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        <T as ReadSite>::rewind(*self)
     }
 }
 
@@ -107,5 +117,14 @@ where
         buf.iter_mut().for_each(|x| *x = x.exp());
 
         Ok(status)
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        for reader in self.inner.get_readers_mut() {
+            // Seeks reader to start of first contig in index
+            reader.seek(0)?;
+        }
+
+        Ok(())
     }
 }

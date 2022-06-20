@@ -42,6 +42,10 @@ where
         self.sites_read += 1;
         self.inner.read_site(buf)
     }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        self.inner.rewind()
+    }
 }
 
 /// A type that limits the number of sites that can be read from the underlying source.
@@ -81,5 +85,9 @@ where
         } else {
             Ok(ReadStatus::Done)
         }
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        self.inner.rewind()
     }
 }
