@@ -1,0 +1,167 @@
+//! Expectation-maximisation ("EM") algorithms for SFS inference.
+
+use std::io;
+
+pub mod likelihood;
+
+mod adaptors;
+pub use adaptors::Inspect;
+
+mod standard_em;
+pub use standard_em::{ParallelStandardEm, StandardEm};
+
+pub mod stopping;
+use stopping::StoppingRule;
+
+mod window_em;
+pub use window_em::{Window, WindowEm};
+
+use crate::{
+    io::ReadSite,
+    sfs::{Sfs, UnnormalisedSfs},
+};
+
+/// An EM-like type that runs in steps.
+///
+/// This serves as a supertrait bound for both [`Em`] and [`StreamingEm`] and gathers
+/// behaviour shared around running consecutive EM-steps.
+pub trait EmStep<const N: usize>: Sized {
+    /// The status returned after each step.
+    ///
+    /// This may be used, for example, to determine convergence by the stopping rule,
+    /// or can be logged using [`EmStep::inspect`]. An example of a status might
+    /// be the log-likelihood of the data given the SFS after the E-step.
+    type Status;
+
+    /// Inspect the status after each E-step.
+    fn inspect<F>(self, f: F) -> Inspect<Self, F>
+    where
+        F: FnMut(&Self, &Self::Status, &UnnormalisedSfs<N>),
+    {
+        Inspect::new(self, f)
+    }
+}
+
+/// A type capable of running an EM-like algorithm for SFS inference using data in-memory.
+pub trait Em<const N: usize, I>: EmStep<N> {
+    /// The E-step of the algorithm.
+    ///
+    /// This should correspond to a full pass over the `input`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shapes of the SFS and the input do not match.
+    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, UnnormalisedSfs<N>);
+
+    /// A full EM-step of the algorithm.
+    ///
+    /// Like the [`Em::e_step`], this should correspond to a full pass over the `input`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shapes of the SFS and the input do not match.
+    fn em_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, Sfs<N>) {
+        let (status, posterior) = self.e_step(sfs, input);
+
+        (status, posterior.normalise())
+    }
+
+    /// Runs the EM algorithm until convergence.
+    ///
+    /// This consists of running EM-steps until convergence, which is decided by the provided
+    /// `stopping_rule`. The converged SFS, and the status of the last EM-step, are returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shapes of the SFS and the input do not match.
+    fn em<S>(&mut self, sfs: &Sfs<N>, input: &I, mut stopping_rule: S) -> (Self::Status, Sfs<N>)
+    where
+        S: StoppingRule<N, Self>,
+    {
+        let mut sfs = sfs.clone();
+
+        loop {
+            let (status, new_sfs) = self.em_step(&sfs, input);
+            sfs = new_sfs;
+
+            if stopping_rule.stop(self, &status, &sfs) {
+                break (status, sfs);
+            }
+        }
+    }
+}
+
+/// A type capable of running an EM-like algorithm for SFS inference by streaming through data.
+pub trait StreamingEm<const N: usize, R>: EmStep<N> + Sized
+where
+    R: ReadSite,
+{
+    /// The E-step of the algorithm.
+    ///
+    /// This should correspond to a full pass through the `reader`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shapes of the SFS and the input do not match.
+    fn stream_e_step(
+        &mut self,
+        sfs: &Sfs<N>,
+        reader: &mut R,
+    ) -> io::Result<(Self::Status, UnnormalisedSfs<N>)>;
+
+    /// A full EM-step of the algorithm.
+    ///
+    /// Like the [`Em::e_step`], this should correspond to a full pass through the `reader`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shapes of the SFS and the input do not match.
+    fn stream_em_step(
+        &mut self,
+        sfs: &Sfs<N>,
+        reader: &mut R,
+    ) -> io::Result<(Self::Status, Sfs<N>)> {
+        let (status, posterior) = self.stream_e_step(sfs, reader)?;
+
+        Ok((status, posterior.normalise()))
+    }
+
+    /// Runs the EM algorithm until convergence.
+    ///
+    /// This consists of running EM-steps until convergence, which is decided by the provided
+    /// `stopping_rule`. The converged SFS, and the status of the last EM-step, are returned.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the shapes of the SFS and the input do not match.
+    fn stream_em<S>(
+        &mut self,
+        sfs: &Sfs<N>,
+        reader: &mut R,
+        mut stopping_rule: S,
+    ) -> io::Result<(Self::Status, Sfs<N>)>
+    where
+        S: StoppingRule<N, Self>,
+    {
+        let mut sfs = sfs.clone();
+
+        loop {
+            let (status, new_sfs) = self.stream_em_step(&sfs, reader)?;
+            sfs = new_sfs;
+
+            if stopping_rule.stop(self, &status, &sfs) {
+                break Ok((status, sfs));
+            } else {
+                reader.rewind()?;
+            }
+        }
+    }
+}
+
+pub(self) fn to_f64(x: usize) -> f64 {
+    let result = x as f64;
+    if result as usize != x {
+        panic!("cannot convert {x} (usize) into f64");
+    }
+    result
+}
