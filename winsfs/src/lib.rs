@@ -1,16 +1,24 @@
+//! Methods for inferring the site frequency spectrum from low-quality data
+//! using various forms of the expectation-maximisation algorithm.
+
 #![allow(unstable_name_collisions)]
+#![warn(missing_docs)]
 use std::mem::MaybeUninit;
 
+pub mod em;
+pub mod io;
 pub mod saf;
-pub use saf::{JointSaf, JointSafView, Saf, SafView};
-
 pub mod sfs;
-pub use sfs::{Sfs, UnnormalisedSfs};
 
-pub mod stream;
-
-pub mod window;
-pub use window::{StoppingRule, Window};
+pub mod prelude {
+    //! The types required for common usage.
+    pub use crate::em::{
+        stopping::{LogLikelihoodTolerance, Steps},
+        Em, ParallelStandardEm, StandardEm, StreamingEm, WindowEm,
+    };
+    pub use crate::saf::Saf;
+    pub use crate::sfs::{Sfs, UnnormalisedSfs};
+}
 
 /// Sets the number of threads to use for parallelization.
 ///
