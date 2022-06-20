@@ -18,7 +18,7 @@ use crate::ArrayExt;
 
 const NORMALISATION_TOLERANCE: f64 = 10. * f64::EPSILON;
 
-/// Creates an unnormalised 1D SFS containing the arguments.
+/// Creates an unnormalised 1D SFS.
 ///
 /// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
 ///
@@ -51,7 +51,7 @@ macro_rules! sfs1d {
     };
 }
 
-/// Creates an unnormalised 2D SFS containing the arguments.
+/// Creates an unnormalised 2D SFS.
 ///
 /// This is mainly intended for readability in doc-tests, but may also be useful elsewhere.
 ///
@@ -76,21 +76,6 @@ macro_rules! sfs2d {
         $crate::sfs::Sfs::from_vec_shape(vec, shape).unwrap()
     }};
 }
-
-macro_rules! log_sfs {
-    (target: $target:expr, $level:expr, $fmt_str:literal, $sfs:expr, $sites:expr) => {
-        if log::log_enabled!(target: $target, $level) {
-            let fmt_sfs = $sfs
-                .iter()
-                .map(|v| format!("{:.6}", v * $sites as f64))
-                .collect::<Vec<_>>()
-                .join(" ");
-
-            log::log!(target: $target, $level, $fmt_str, fmt_sfs);
-        }
-    };
-}
-pub(crate) use log_sfs;
 
 /// An unnormalised, N-dimensional site frequency spectrum ("SFS").
 pub type UnnormalisedSfs<const N: usize> = Sfs<N, false>;
