@@ -28,7 +28,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// use winsfs::{sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -75,7 +75,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// use winsfs::{sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -127,7 +127,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// use winsfs::{em::likelihood::{Likelihood, SumOf}, sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -135,7 +135,8 @@ impl<const N: usize> Sfs<N> {
     ///     [1., 0., 0., 0., 0.],
     ///     [0., 0., 0., 1., 0.],
     /// ];
-    /// assert_eq!(sfs.log_likelihood(&saf), 0.2f64.powi(4).ln());
+    /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
+    /// assert_eq!(sfs.log_likelihood(&saf), expected);
     /// ```
     pub fn log_likelihood<I>(&self, input: I) -> SumOf<LogLikelihood>
     where
@@ -162,7 +163,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf1d, sfs1d, Sfs};
+    /// use winsfs::{em::likelihood::{Likelihood, SumOf}, sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -170,7 +171,8 @@ impl<const N: usize> Sfs<N> {
     ///     [1., 0., 0., 0., 0.],
     ///     [0., 0., 0., 1., 0.],
     /// ];
-    /// assert_eq!(sfs.par_log_likelihood(&saf), 0.2f64.powi(4).ln());
+    /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
+    /// assert_eq!(sfs.par_log_likelihood(&saf), expected);
     /// ```
     pub fn par_log_likelihood<I>(&self, input: I) -> SumOf<LogLikelihood>
     where
@@ -241,10 +243,10 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf::Site, Sfs};
+    /// use winsfs::{em::likelihood::LogLikelihood, saf::Site, sfs::Sfs};
     /// let sfs = Sfs::uniform([5]);
     /// let site = Site::new(vec![1.0, 0.0, 0.0, 0.0, 0.0], [5]).unwrap();
-    /// assert_eq!(sfs.site_log_likelihood(site), 0.2f64.ln());
+    /// assert_eq!(sfs.site_log_likelihood(site), LogLikelihood::from(0.2f64.ln()));
     /// ```
     pub fn site_log_likelihood<T>(&self, site: T) -> LogLikelihood
     where
@@ -262,10 +264,10 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{saf::Site, Sfs};
+    /// use winsfs::{em::likelihood::Likelihood, saf::Site, sfs::Sfs};
     /// let sfs = Sfs::uniform([5]);
     /// let site = Site::new(vec![1.0, 0.0, 0.0, 0.0, 0.0], [5]).unwrap();
-    /// assert_eq!(sfs.site_log_likelihood(site), 0.2);
+    /// assert_eq!(sfs.site_likelihood(site), Likelihood::from(0.2));
     /// ```
     pub fn site_likelihood<T>(&self, site: T) -> Likelihood
     where

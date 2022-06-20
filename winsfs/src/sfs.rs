@@ -159,7 +159,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::uniform([2, 3]);
     /// let mut iter = sfs.frequencies();
     /// assert_eq!(iter.next(), Some([0., 0.]));
@@ -208,7 +208,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::uniform([2, 3]);
     /// let mut iter = sfs.indices();
     /// assert_eq!(iter.next(), Some([0, 0]));
@@ -279,7 +279,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::uniform([7]);
     /// assert!(sfs.is_normalised());
     /// let sfs = sfs.into_unnormalised();
@@ -380,7 +380,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::uniform([2, 5]);
     /// assert!(sfs.iter().all(|&x| x == 0.1));
     /// ```
@@ -420,7 +420,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::from_elem(0.1, [7, 5]);
     /// assert_eq!(sfs.shape(), [7, 5]);
     /// assert!(sfs.iter().all(|&x| x == 0.1));
@@ -436,7 +436,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let iter = (0..9).map(|x| x as f64);
     /// let sfs = Sfs::from_iter_shape(iter, [3, 3]).expect("shape didn't fit iterator!");
     /// assert_eq!(sfs[[1, 2]], 5.0);
@@ -453,7 +453,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let vec: Vec<f64> = (0..9).map(|x| x as f64).collect();
     /// let sfs = Sfs::from_vec_shape(vec, [3, 3]).expect("shape didn't fit vector!");
     /// assert_eq!(sfs[[2, 0]], 6.0);
@@ -548,7 +548,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::zeros([2, 5]);
     /// assert!(sfs.iter().all(|&x| x == 0.0));
     /// ```
@@ -629,7 +629,7 @@ impl UnnormalisedSfs<1> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::Sfs;
+    /// use winsfs::sfs::Sfs;
     /// let sfs = Sfs::from_vec(vec![0., 1., 2.]);
     /// assert_eq!(sfs.shape(), [3]);
     /// assert_eq!(sfs[[1]], 1.);
