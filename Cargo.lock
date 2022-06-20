@@ -600,7 +600,6 @@ version = "0.1.0"
 dependencies = [
  "angsd-io 0.1.0 (git+https://github.com/malthesr/angsd-io.git?rev=c9d36cd)",
  "approx",
- "log",
  "rand",
  "rayon",
  "tempfile",

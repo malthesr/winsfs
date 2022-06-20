@@ -16,6 +16,5 @@ tempfile = "3.3"
 
 [dependencies]
 angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "c9d36cd" }
-log = "0.4"
 rand = "0.8"
 rayon = "1.5"
