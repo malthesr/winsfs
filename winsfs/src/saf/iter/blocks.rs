@@ -10,7 +10,7 @@ pub trait IntoBlockIterator<const N: usize> {
     /// The type of each individual block.
     type Item: AsSafView<N>;
     /// The type of iterator.
-    type Iter: Iterator<Item = Self::Item>;
+    type Iter: ExactSizeIterator<Item = Self::Item>;
 
     /// Convert this type into an iterator over SAF blocks containing
     /// `block_size` sites per block.

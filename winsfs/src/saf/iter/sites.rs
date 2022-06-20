@@ -10,7 +10,7 @@ pub trait IntoSiteIterator<const N: usize> {
     /// The type of each individual site.
     type Item: AsSiteView<N>;
     /// The type of iterator.
-    type Iter: Iterator<Item = Self::Item>;
+    type Iter: ExactSizeIterator<Item = Self::Item>;
 
     /// Convert this type into a SAF site iterator.
     fn into_site_iter(self) -> Self::Iter;
@@ -46,6 +46,7 @@ impl<'a, 'b, const N: usize> IntoSiteIterator<N> for &'b SafView<'a, N> {
 impl<const N: usize, T> IntoSiteIterator<N> for T
 where
     T: IntoIterator,
+    T::IntoIter: ExactSizeIterator,
     T::Item: AsSiteView<N>,
 {
     type Item = T::Item;
