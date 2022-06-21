@@ -2,16 +2,8 @@ use std::thread;
 
 use clap::CommandFactory;
 
-use rand::{rngs::StdRng, SeedableRng};
-
 use super::Cli;
 
-pub fn get_rng(seed_arg: Option<u64>) -> StdRng {
-    match seed_arg {
-        Some(v) => StdRng::seed_from_u64(v),
-        None => StdRng::from_entropy(),
-    }
-}
 pub fn init_logger(verbosity_arg: usize) -> clap::Result<()> {
     let level = match verbosity_arg {
         0 => return Ok(()),
@@ -49,20 +41,13 @@ pub fn set_threads(thread_arg: i32) -> clap::Result<()> {
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise threadpool"))
 }
 
-pub fn validate_shape<const N: usize>(shape: [usize; N], expected: [usize; N]) -> clap::Result<()> {
-    match shape == expected {
-        true => Ok(()),
-        false => {
-            let msg = format!(
-                "Shape of provided SFS ({}) does not match SAFs ({})",
-                format_shape(shape),
-                format_shape(expected)
-            );
-            Err(Cli::command().error(clap::ErrorKind::ValueValidation, msg))
-        }
-    }
-}
-
-fn format_shape<const N: usize>(shape: [usize; N]) -> String {
-    shape.map(|x| x.to_string()).join("/")
+pub fn join<I, T>(iter: I, sep: &str) -> String
+where
+    I: IntoIterator<Item = T>,
+    T: ToString,
+{
+    iter.into_iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>()
+        .join(sep)
 }

@@ -1,17 +1,8 @@
-use std::{fs, io, num::NonZeroUsize, path::PathBuf};
+use std::{num::NonZeroUsize, path::PathBuf};
 
-use clap::{ArgEnum, ArgGroup, CommandFactory, Parser, Subcommand};
+use clap::{ArgGroup, Parser, Subcommand};
 
-use crate::utils::init_logger;
-
-mod log_likelihood;
-use log_likelihood::LogLikelihood;
-
-mod shuffle;
-use shuffle::Shuffle;
-
-mod run;
-use run::{read_saf, read_safs, run, streaming_run};
+use crate::{estimate::Format, LogLikelihood, Shuffle};
 
 const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -28,7 +19,7 @@ pub struct Cli {
     ///
     /// For each set of SAF files (conventially named [prefix].{saf.idx,saf.pos.gz,saf.gz}),
     /// specify either the shared prefix or the full path to any one member file.
-    /// Up to two SAF files currently supported.
+    /// Up to three SAF files currently supported.
     #[clap(
         parse(from_os_str),
         max_values = 3,
@@ -80,7 +71,8 @@ pub struct Cli {
 
     /// Initial SFS.
     ///
-    /// If unset, a uniform SFS will be used to initialise optimisation.
+    /// If unset, a non-informative SFS will be used to initialise optimisation. This is fine
+    /// for most purposes.
     #[clap(short = 'i', long, help_heading = "INPUT", value_name = "PATH")]
     pub initial: Option<PathBuf>,
 
@@ -145,105 +137,6 @@ pub struct Cli {
     pub subcommand: Option<Command>,
 }
 
-#[derive(ArgEnum, Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Format {
-    Standard,
-    Shuffled,
-}
-
-impl Format {
-    pub fn infer<R>(reader: &mut R) -> io::Result<Option<Self>>
-    where
-        R: io::Read + io::Seek,
-    {
-        const MAGIC_NUMBER_LEN: usize = angsd_io::saf::MAGIC_NUMBER.len();
-
-        let mut buf = [0; MAGIC_NUMBER_LEN];
-        reader.read_exact(&mut buf)?;
-        reader.seek(io::SeekFrom::Current(-(MAGIC_NUMBER_LEN as i64)))?;
-
-        Ok(match &buf {
-            angsd_io::saf::MAGIC_NUMBER => Some(Self::Standard),
-            winsfs::stream::MAGIC_NUMBER => Some(Self::Shuffled),
-            _ => None,
-        })
-    }
-}
-
-impl TryFrom<&Cli> for Format {
-    type Error = clap::Error;
-
-    fn try_from(args: &Cli) -> Result<Self, Self::Error> {
-        match args.paths.as_slice() {
-            [] => unreachable!(), // Checked by clap
-            [path] => {
-                let mut reader = fs::File::open(path).map(io::BufReader::new)?;
-
-                match Self::infer(&mut reader)? {
-                    Some(inferred_format) => {
-                        if let Some(expected_format) = args.input_format {
-                            if inferred_format != expected_format {
-                                return Err(
-                                    Cli::command().error(
-                                        clap::ErrorKind::ValueValidation,
-                                        "expected input file format does not match the inferred file format"
-                                    ));
-                            }
-                        }
-
-                        Ok(inferred_format)
-                    }
-                    None => {
-                        Err(Cli::command()
-                            .error(clap::ErrorKind::Io, "unrecognised SAF file format"))
-                    }
-                }
-            }
-            [..] => {
-                if let Some(Format::Shuffled) = args.input_format {
-                    Err(Cli::command().error(
-                        clap::ErrorKind::ValueValidation,
-                        "only standard input file format valid for more than a single input path",
-                    ))
-                } else {
-                    Ok(Format::Standard)
-                }
-            }
-        }
-    }
-}
-
-impl Cli {
-    pub fn run(self) -> clap::Result<()> {
-        init_logger(self.verbose)?;
-
-        if let Some(subcommand) = self.subcommand {
-            subcommand.run()
-        } else {
-            let format = Format::try_from(&self)?;
-
-            match self.paths.as_slice() {
-                [p] => match format {
-                    Format::Standard => {
-                        let saf = read_saf(p)?;
-                        run(saf, &self)
-                    }
-                    Format::Shuffled => streaming_run(p, &self),
-                },
-                [p1, p2] => {
-                    let safs = read_safs([p1, p2])?;
-                    run(safs, &self)
-                }
-                [p1, p2, p3] => {
-                    let safs = read_safs([p1, p2, p3])?;
-                    run(safs, &self)
-                }
-                _ => unreachable!(), // Checked by clap
-            }
-        }
-    }
-}
-
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Shuffle(Shuffle),
@@ -251,7 +144,7 @@ pub enum Command {
 }
 
 impl Command {
-    fn run(self) -> Result<(), clap::Error> {
+    pub fn run(self) -> Result<(), clap::Error> {
         match self {
             Command::Shuffle(shuffle) => shuffle.run(),
             Command::LogLikelihood(log_likelihood) => log_likelihood.run(),
