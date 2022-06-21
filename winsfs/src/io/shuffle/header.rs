@@ -23,7 +23,7 @@ impl Header {
     }
 
     /// Returns the size (in bytes) of the data that the file is expected to contain.
-    pub(super) fn data_size(&self) -> usize {
+    pub fn data_size(&self) -> usize {
         to_usize(self.sites) * self.width() * size_of::<f32>()
     }
 
@@ -55,12 +55,12 @@ impl Header {
     /// Returns the size (in bytes) of the entire file.
     ///
     /// This is equal to the size of the header and the size of the data.
-    pub(super) fn file_size(&self) -> usize {
+    pub fn file_size(&self) -> usize {
         self.header_size() + self.data_size()
     }
 
     /// Returns the size (in bytes) of the header as it will be written to a file.
-    pub(super) fn header_size(&self) -> usize {
+    pub fn header_size(&self) -> usize {
         let shape_size = size_of::<u8>() + self.shape.len() * size_of::<u32>();
 
         size_of::<[u8; 8]>() + size_of::<u64>() + shape_size + size_of::<u16>()
