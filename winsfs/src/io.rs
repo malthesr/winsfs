@@ -128,16 +128,41 @@ where
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         let status = self.inner.read_records(&mut self.bufs)?;
 
-        let mut offset = 0;
-        for rec in self.bufs.iter() {
-            let src = rec.values();
-            let n = src.len();
-            buf[offset..n].copy_from_slice(src);
-            offset += n;
-        }
+        let src = self.bufs.iter().map(|rec| rec.values());
+        copy_from_slices(src, buf);
 
         buf.iter_mut().for_each(|x| *x = x.exp());
 
         Ok(status)
+    }
+}
+
+/// Copy multiple slices into successive subslices of a new slice.
+///
+/// `dest` is assumed to have length equal to the sum of the lengths of slice sin `src`.
+fn copy_from_slices<I, T>(src: I, dest: &mut [T])
+where
+    I: IntoIterator,
+    I::Item: AsRef<[T]>,
+    T: Copy,
+{
+    let mut offset = 0;
+    for s in src {
+        let n = s.as_ref().len();
+        dest[offset..][..n].copy_from_slice(s.as_ref());
+        offset += n;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_copy_from_slices() {
+        let src = vec![&[0, 1][..], &[2, 3, 4, 5]];
+        let mut dest = vec![0; 6];
+        copy_from_slices(src, dest.as_mut_slice());
+        assert_eq!(dest, (0..6).collect::<Vec<_>>());
     }
 }
