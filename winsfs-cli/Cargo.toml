@@ -1,6 +1,6 @@
 [package]
 name = "winsfs-cli"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Site frequency spectrum estimation based on window expectation-maximisation algorithm"
 homepage = "https://github.com/malthesr/winsfs"
