@@ -72,6 +72,8 @@ macro_rules! impl_convert_to_fn {
     };
 }
 
+impl_convert_to_fn!(u16, to_u16);
+impl_convert_to_fn!(u32, to_u32);
 impl_convert_to_fn!(u64, to_u64);
 impl_convert_to_fn!(usize, to_usize);
 

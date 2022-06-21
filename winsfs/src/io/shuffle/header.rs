@@ -1,6 +1,6 @@
 use std::{io, iter::once, mem::size_of};
 
-use super::to_usize;
+use super::{to_u16, to_u32, to_u64, to_usize};
 
 /// The magic number written as the first 8 bytes of a pseudo-shuffled SAF file.
 pub const MAGIC_NUMBER: [u8; 8] = *b"safvshuf";
@@ -11,14 +11,14 @@ pub const MAGIC_NUMBER: [u8; 8] = *b"safvshuf";
 /// of the file.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Header {
-    sites: u64,
-    shape: Vec<u32>,
-    blocks: u16,
+    sites: usize,
+    shape: Vec<usize>,
+    blocks: usize,
 }
 
 impl Header {
     /// Returns the number of blocks used for shuffling.
-    pub fn blocks(&self) -> u16 {
+    pub fn blocks(&self) -> usize {
         self.blocks
     }
 
@@ -30,7 +30,7 @@ impl Header {
     /// Returns an iterator over the byte offset of the start of each block.
     pub(super) fn block_offsets(&self) -> impl Iterator<Item = usize> {
         once(self.header_size())
-            .chain(self.block_sizes().take(usize::from(self.blocks - 1)))
+            .chain(self.block_sizes().take(self.blocks - 1))
             .scan(0, |acc, x| {
                 *acc += x;
                 Some(*acc)
@@ -39,13 +39,10 @@ impl Header {
 
     /// Returns an iterator over the number of sites per block.
     pub(super) fn block_sites(&self) -> impl Iterator<Item = usize> {
-        let sites = to_usize(self.sites);
-        let blocks = usize::from(self.blocks);
+        let div = self.sites / self.blocks;
+        let rem = self.sites % self.blocks;
 
-        let div = sites / blocks;
-        let rem = sites % blocks;
-
-        (0..blocks).map(move |i| if i < rem { div + 1 } else { div })
+        (0..self.blocks).map(move |i| if i < rem { div + 1 } else { div })
     }
 
     /// Returns an iterator over the number of bytes per block.
@@ -70,7 +67,7 @@ impl Header {
     }
 
     /// Creates a new header.
-    pub fn new(sites: u64, shape: Vec<u32>, blocks: u16) -> Self {
+    pub fn new(sites: usize, shape: Vec<usize>, blocks: usize) -> Self {
         Self {
             sites,
             shape,
@@ -98,7 +95,7 @@ impl Header {
 
         let mut sites_buf = [0u8; size_of::<u64>()];
         reader.read_exact(&mut sites_buf)?;
-        let sites = u64::from_le_bytes(sites_buf);
+        let sites = to_usize(u64::from_le_bytes(sites_buf));
 
         let mut shape_len_buf = [0u8; size_of::<u8>()];
         reader.read_exact(&mut shape_len_buf)?;
@@ -108,29 +105,29 @@ impl Header {
         let mut shape = Vec::with_capacity(shape_len.into());
         for _ in 0..shape_len {
             reader.read_exact(&mut shape_buf)?;
-            shape.push(u32::from_le_bytes(shape_buf));
+            shape.push(to_usize(u32::from_le_bytes(shape_buf)));
         }
 
         let mut blocks_buf = [0u8; size_of::<u16>()];
         reader.read_exact(&mut blocks_buf)?;
-        let blocks = u16::from_le_bytes(blocks_buf);
+        let blocks = usize::from(u16::from_le_bytes(blocks_buf));
 
         Ok(Self::new(sites, shape, blocks))
     }
 
     /// Returns the shape of each site in the file.
-    pub fn shape(&self) -> &[u32] {
+    pub fn shape(&self) -> &[usize] {
         &self.shape
     }
 
     /// Returns the number of sites in the file.
-    pub fn sites(&self) -> u64 {
+    pub fn sites(&self) -> usize {
         self.sites
     }
 
     /// Returns the width of each site, i.e. the total number of values.
     pub(super) fn width(&self) -> usize {
-        to_usize(self.shape.iter().sum::<u32>())
+        self.shape.iter().sum()
     }
 
     /// Writes the header, including the magic number, to a writer.
@@ -140,7 +137,8 @@ impl Header {
     {
         writer.write_all(&MAGIC_NUMBER)?;
 
-        writer.write_all(&self.sites.to_le_bytes())?;
+        let sites = to_u64(self.sites);
+        writer.write_all(&sites.to_le_bytes())?;
 
         let shape_len: u8 = self.shape.len().try_into().map_err(|_| {
             io::Error::new(
@@ -149,11 +147,11 @@ impl Header {
             )
         })?;
         writer.write_all(&shape_len.to_le_bytes())?;
-        for v in self.shape.iter() {
-            writer.write_all(&v.to_le_bytes())?;
+        for &v in self.shape.iter() {
+            writer.write_all(&to_u32(v).to_le_bytes())?;
         }
 
-        writer.write_all(&self.blocks.to_le_bytes())?;
+        writer.write_all(&to_u16(self.blocks).to_le_bytes())?;
 
         Ok(())
     }
