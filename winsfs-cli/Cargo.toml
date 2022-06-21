@@ -11,7 +11,7 @@ name = "winsfs"
 path = "src/main.rs"
 
 [dependencies]
-angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "62a4695" }
+angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "c9d36cd" }
 clap = { version = "3.1", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
