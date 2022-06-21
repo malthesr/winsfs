@@ -129,3 +129,9 @@ impl SumOf<LogLikelihood> {
         f64::from(self.sum) / to_f64(self.n)
     }
 }
+
+impl<T> From<SumOf<T>> for (T, usize) {
+    fn from(sum: SumOf<T>) -> Self {
+        (sum.sum, sum.n)
+    }
+}
