@@ -17,7 +17,7 @@ mod window_em;
 pub use window_em::{Window, WindowEm};
 
 use crate::{
-    io::ReadSite,
+    io::Rewind,
     sfs::{Sfs, UnnormalisedSfs},
 };
 
@@ -94,7 +94,7 @@ pub trait Em<const N: usize, I>: EmStep {
 /// A type capable of running an EM-like algorithm for SFS inference by streaming through data.
 pub trait StreamingEm<const N: usize, R>: EmStep
 where
-    R: ReadSite,
+    R: Rewind,
 {
     /// The E-step of the algorithm.
     ///

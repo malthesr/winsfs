@@ -1,5 +1,5 @@
 use crate::{
-    io::ReadSite,
+    io::Rewind,
     sfs::{Sfs, UnnormalisedSfs},
 };
 
@@ -48,7 +48,7 @@ where
 
 impl<const N: usize, T, F, R> StreamingEm<N, R> for Inspect<T, F>
 where
-    R: ReadSite,
+    R: Rewind,
     T: StreamingEm<N, R>,
     F: FnMut(&T, &T::Status, &UnnormalisedSfs<N>),
 {

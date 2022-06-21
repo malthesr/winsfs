@@ -6,7 +6,7 @@ use std::{
 
 use angsd_io::saf::reader::ValueReader;
 
-use crate::io::{ReadSite, ReadStatus};
+use crate::io::{ReadSite, ReadStatus, Rewind};
 
 use super::{to_u64, Header};
 
@@ -39,16 +39,6 @@ where
     /// Returns the inner reader, consuming `self`.
     pub fn into_inner(self) -> ValueReader<R> {
         self.inner
-    }
-
-    /// Returns `true` if the reader is done, `false` otherwise.
-    ///
-    /// Check is fallible since it may require filling the underlying buffer to check for more data.
-    #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn is_done(&mut self) -> io::Result<bool> {
-        // TODO: This can use io::BufRead::has_data_left once stable,
-        // see github.com/rust-lang/rust/issues/86423
-        self.inner.get_mut().fill_buf().map(|b| b.is_empty())
     }
 
     /// Creates a new reader.
@@ -93,16 +83,27 @@ impl Reader<io::BufReader<File>> {
     }
 }
 
+impl<R> Rewind for Reader<R>
+where
+    R: io::BufRead + io::Seek,
+{
+    fn is_done(&mut self) -> io::Result<bool> {
+        // TODO: This can use io::BufRead::has_data_left once stable,
+        // see github.com/rust-lang/rust/issues/86423
+        self.inner.get_mut().fill_buf().map(|b| b.is_empty())
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        self.seek(io::SeekFrom::Start(to_u64(self.header.header_size())))
+            .map(|_| ())
+    }
+}
+
 impl<R> ReadSite for Reader<R>
 where
     R: io::BufRead + io::Seek,
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         self.inner.read_values(buf)
-    }
-
-    fn rewind(&mut self) -> io::Result<()> {
-        self.seek(io::SeekFrom::Start(to_u64(self.header.header_size())))
-            .map(|_| ())
     }
 }

@@ -1,7 +1,7 @@
 use std::io;
 
 use crate::{
-    io::ReadSite,
+    io::Rewind,
     saf::iter::{IntoParallelSiteIterator, IntoSiteIterator},
     sfs::{Sfs, UnnormalisedSfs},
 };
@@ -48,7 +48,7 @@ where
 
 impl<const N: usize, R> StreamingEm<N, R> for StandardEm
 where
-    R: ReadSite,
+    R: Rewind,
 {
     fn stream_e_step(
         &mut self,

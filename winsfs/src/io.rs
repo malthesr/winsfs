@@ -14,7 +14,7 @@ pub use adaptors::{Enumerate, Take};
 pub mod shuffle;
 
 /// A type that can read SAF sites from a source.
-pub trait ReadSite: Sized {
+pub trait ReadSite {
     /// Reads a single site into the provided buffer.
     ///
     /// In the multi-dimensional case, values should be read from the first population into the
@@ -23,20 +23,46 @@ pub trait ReadSite: Sized {
     /// a site of correct shape for the underlying reader.
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus>;
 
+    /// Returns a reader adaptor which counts the number of sites read.
+    fn enumerate(self) -> Enumerate<Self>
+    where
+        Self: Sized,
+    {
+        Enumerate::new(self)
+    }
+
+    /// Returns a reader adaptor which limits the number of sites read.
+    fn take(self, max_sites: usize) -> Take<Enumerate<Self>>
+    where
+        Self: Sized,
+    {
+        Take::new(Enumerate::new(self), max_sites)
+    }
+}
+
+/// A reader type that can return to the beginning of the data.
+pub trait Rewind: ReadSite {
+    /// Returns `true` if reader has reached the end of the data, `false` otherwise.
+    #[allow(clippy::wrong_self_convention)]
+    fn is_done(&mut self) -> io::Result<bool>;
+
     /// Positions reader at the beginning of the data.
     ///
     /// The stream should be positioned so as to be ready to call [`ReadSite::read_site`].
     /// In particular, the stream should be positioned past any magic number, headers, etc.
     fn rewind(&mut self) -> io::Result<()>;
+}
 
-    /// Returns a reader adaptor which counts the number of sites read.
-    fn enumerate(self) -> Enumerate<Self> {
-        Enumerate::new(self)
+impl<'a, T> Rewind for &'a mut T
+where
+    T: Rewind,
+{
+    fn is_done(&mut self) -> io::Result<bool> {
+        <T as Rewind>::is_done(*self)
     }
 
-    /// Returns a reader adaptor which limits the number of sites read.
-    fn take(self, max_sites: usize) -> Take<Enumerate<Self>> {
-        Take::new(Enumerate::new(self), max_sites)
+    fn rewind(&mut self) -> io::Result<()> {
+        <T as Rewind>::rewind(*self)
     }
 }
 
@@ -46,10 +72,6 @@ where
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         <T as ReadSite>::read_site(*self, buf)
-    }
-
-    fn rewind(&mut self) -> io::Result<()> {
-        <T as ReadSite>::rewind(*self)
     }
 }
 
@@ -117,14 +139,5 @@ where
         buf.iter_mut().for_each(|x| *x = x.exp());
 
         Ok(status)
-    }
-
-    fn rewind(&mut self) -> io::Result<()> {
-        for reader in self.inner.get_readers_mut() {
-            // Seeks reader to start of first contig in index
-            reader.seek(0)?;
-        }
-
-        Ok(())
     }
 }

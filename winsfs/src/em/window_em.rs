@@ -1,12 +1,12 @@
 use std::{collections::VecDeque, io, iter::repeat};
 
 use crate::{
-    io::{shuffle::Reader, ReadSite},
+    io::{Enumerate, ReadSite, Rewind, Take},
     saf::{iter::IntoBlockIterator, AsSafView},
     sfs::{Sfs, UnnormalisedSfs},
 };
 
-use super::{to_f64, Em, EmStep, StandardEm, StreamingEm};
+use super::{to_f64, Em, EmStep, StreamingEm};
 
 /// A runner of the window EM algorithm.
 ///
@@ -70,14 +70,15 @@ where
     }
 }
 
-impl<const N: usize, R> StreamingEm<N, Reader<R>> for WindowEm<N, StandardEm>
+impl<const N: usize, R, T> StreamingEm<N, R> for WindowEm<N, T>
 where
-    R: io::BufRead + io::Seek,
+    R: Rewind,
+    for<'a> T: StreamingEm<N, Take<Enumerate<&'a mut R>>>,
 {
     fn stream_e_step(
         &mut self,
         sfs: &Sfs<N>,
-        mut reader: &mut Reader<R>,
+        reader: &mut R,
     ) -> io::Result<(Self::Status, UnnormalisedSfs<N>)> {
         let mut sfs = sfs.clone();
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
@@ -85,7 +86,7 @@ where
         let mut sites = 0;
 
         loop {
-            let mut block_reader = (&mut reader).take(self.block_size);
+            let mut block_reader = reader.take(self.block_size);
 
             let (log_likelihood, posterior) = self.em.stream_e_step(&sfs, &mut block_reader)?;
             self.window.update(posterior);

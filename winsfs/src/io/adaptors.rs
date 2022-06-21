@@ -1,6 +1,6 @@
 use std::io;
 
-use super::{ReadSite, ReadStatus};
+use super::{ReadSite, ReadStatus, Rewind};
 
 /// A type that keeps track of how many sites have been read from the underlying source.
 ///
@@ -34,6 +34,19 @@ where
     }
 }
 
+impl<R> Rewind for Enumerate<R>
+where
+    R: Rewind,
+{
+    fn is_done(&mut self) -> io::Result<bool> {
+        self.inner.is_done()
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        self.inner.rewind()
+    }
+}
+
 impl<R> ReadSite for Enumerate<R>
 where
     R: ReadSite,
@@ -41,10 +54,6 @@ where
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         self.sites_read += 1;
         self.inner.read_site(buf)
-    }
-
-    fn rewind(&mut self) -> io::Result<()> {
-        self.inner.rewind()
     }
 }
 
@@ -75,6 +84,19 @@ where
     }
 }
 
+impl<R> Rewind for Take<Enumerate<R>>
+where
+    R: Rewind,
+{
+    fn is_done(&mut self) -> io::Result<bool> {
+        self.inner.is_done()
+    }
+
+    fn rewind(&mut self) -> io::Result<()> {
+        self.inner.rewind()
+    }
+}
+
 impl<R> ReadSite for Take<Enumerate<R>>
 where
     R: ReadSite,
@@ -85,9 +107,5 @@ where
         } else {
             Ok(ReadStatus::Done)
         }
-    }
-
-    fn rewind(&mut self) -> io::Result<()> {
-        self.inner.rewind()
     }
 }
