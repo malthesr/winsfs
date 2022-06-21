@@ -11,33 +11,37 @@ use super::{
     Em, EmStep, StreamingEm,
 };
 
+/// A parallel runner of the standard EM algorithm.
+pub type ParallelStandardEm = StandardEm<true>;
+
 /// A runner of the standard EM algorithm.
 ///
-/// The standard EM algorithm makes a single update of the estimated SFS for each EM-step.
+/// Whether to parallelise over the input in the E-step is controlled by the `PAR` parameter.
 #[derive(Clone, Debug, PartialEq)]
-pub struct StandardEm {
+// TODO: Use an enum here when stable, see github.com/rust-lang/rust/issues/95174
+pub struct StandardEm<const PAR: bool = false> {
     // Ensure unit struct cannot be constructed without constructor
     _private: (),
 }
 
-impl StandardEm {
+impl<const PAR: bool> StandardEm<PAR> {
     /// Returns a new instance of the runner.
     pub fn new() -> Self {
         Self { _private: () }
     }
 }
 
-impl Default for StandardEm {
+impl<const PAR: bool> Default for StandardEm<PAR> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl EmStep for StandardEm {
+impl<const PAR: bool> EmStep for StandardEm<PAR> {
     type Status = SumOf<LogLikelihood>;
 }
 
-impl<const N: usize, I> Em<N, I> for StandardEm
+impl<const N: usize, I> Em<N, I> for StandardEm<false>
 where
     for<'a> &'a I: IntoSiteIterator<N>,
 {
@@ -46,7 +50,7 @@ where
     }
 }
 
-impl<const N: usize, R> StreamingEm<N, R> for StandardEm
+impl<const N: usize, R> StreamingEm<N, R> for StandardEm<false>
 where
     R: Rewind,
 {
@@ -59,34 +63,7 @@ where
     }
 }
 
-/// A parallel runner of the standard EM algorithm.
-///
-/// This behaves exactly like [`StandardEm`], except parallelising over the input data in each
-/// EM-step.
-#[derive(Clone, Debug, PartialEq)]
-pub struct ParallelStandardEm {
-    // Ensure unit struct cannot be constructed without constructor
-    _private: (),
-}
-
-impl ParallelStandardEm {
-    /// Returns a new instance of the runner.
-    pub fn new() -> Self {
-        Self { _private: () }
-    }
-}
-
-impl Default for ParallelStandardEm {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl EmStep for ParallelStandardEm {
-    type Status = SumOf<LogLikelihood>;
-}
-
-impl<const N: usize, I> Em<N, I> for ParallelStandardEm
+impl<const N: usize, I> Em<N, I> for StandardEm<true>
 where
     for<'a> &'a I: IntoParallelSiteIterator<N>,
 {
