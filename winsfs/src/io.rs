@@ -3,7 +3,7 @@
 //! To read and write standard SAF files, see the [`angsd_io`] crate. This module contains utilities
 //! based on that for doing SFS estimation from files kept on disk.
 
-use std::io;
+use std::{fs::File, io, path::Path};
 
 use angsd_io::saf;
 pub use angsd_io::ReadStatus;
@@ -105,10 +105,27 @@ where
     }
 
     /// Creates a new reader.
-    pub fn new(inner: saf::reader::Intersect<R>) -> Self {
+    pub fn new(readers: Vec<saf::BgzfReader<R>>) -> Self {
+        let inner = saf::reader::Intersect::new(readers);
         let bufs = inner.create_record_bufs();
 
         Self { inner, bufs }
+    }
+}
+
+impl Intersect<io::BufReader<File>> {
+    /// Creates a new reader from a collection of member file paths.
+    ///
+    /// The stream will be positioned immediately after the magic number.
+    pub fn from_paths<P>(paths: &[P]) -> io::Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        paths
+            .iter()
+            .map(saf::BgzfReader::from_bgzf_member_path)
+            .collect::<io::Result<Vec<_>>>()
+            .map(Self::new)
     }
 }
 
@@ -117,7 +134,9 @@ where
     R: io::BufRead + io::Seek,
 {
     fn from(inner: saf::reader::Intersect<R>) -> Self {
-        Self::new(inner)
+        let bufs = inner.create_record_bufs();
+
+        Self { inner, bufs }
     }
 }
 
