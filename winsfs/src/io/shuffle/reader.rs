@@ -104,6 +104,10 @@ where
     R: io::BufRead + io::Seek,
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
-        self.inner.read_values(buf)
+        let status = self.inner.read_values(buf);
+
+        buf.iter_mut().for_each(|x| *x = x.exp());
+
+        status
     }
 }

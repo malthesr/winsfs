@@ -122,7 +122,10 @@ mod tests {
         for &i in expected_order {
             reader.read_site(site.as_mut_slice())?;
             println!("{:?}", site.as_slice());
-            assert_eq!(site.as_slice(), sites[i]);
+
+            // Should be normalised, e.g. exp'd
+            let expected_site = sites[i].iter().map(|x| x.exp()).collect::<Vec<_>>();
+            assert_eq!(site.as_slice(), expected_site.as_slice());
         }
 
         assert!(reader.read_site(site.as_mut_slice())?.is_done());
