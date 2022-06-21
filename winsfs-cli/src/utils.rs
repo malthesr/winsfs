@@ -37,7 +37,7 @@ pub fn set_threads(thread_arg: i32) -> clap::Result<()> {
         }
     };
 
-    winsfs::set_threads(threads)
+    winsfs_core::set_threads(threads)
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise threadpool"))
 }
 

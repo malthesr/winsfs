@@ -4,7 +4,7 @@ use angsd_io::saf::MAGIC_NUMBER as STANDARD_MAGIC_NUMBER;
 
 use clap::{ArgEnum, CommandFactory};
 
-use winsfs::io::shuffle::MAGIC_NUMBER as SHUFFLED_MAGIC_NUMBER;
+use winsfs_core::io::shuffle::MAGIC_NUMBER as SHUFFLED_MAGIC_NUMBER;
 
 use super::Cli;
 

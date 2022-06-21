@@ -14,7 +14,7 @@
 //!
 //! ```no_run
 //! # fn main() -> ::std::io::Result<()> {
-//! use winsfs::io::shuffle::{Header, Writer};
+//! use winsfs_core::io::shuffle::{Header, Writer};
 //!
 //! // This must be known up front; for a single SAF, this can be gotten from the index.
 //! let sites = 100_000; // Number of sites in the input.

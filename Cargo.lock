@@ -118,18 +118,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli"
-version = "0.5.0"
-dependencies = [
- "angsd-io 0.1.0 (git+https://github.com/malthesr/angsd-io.git?rev=62a4695)",
- "clap",
- "log",
- "rand",
- "simple_logger",
- "winsfs",
-]
-
-[[package]]
 name = "crc32fast"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -595,7 +583,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
-name = "winsfs"
+name = "winsfs-cli"
+version = "0.5.0"
+dependencies = [
+ "angsd-io 0.1.0 (git+https://github.com/malthesr/angsd-io.git?rev=62a4695)",
+ "clap",
+ "log",
+ "rand",
+ "simple_logger",
+ "winsfs-core",
+]
+
+[[package]]
+name = "winsfs-core"
 version = "0.1.0"
 dependencies = [
  "angsd-io 0.1.0 (git+https://github.com/malthesr/angsd-io.git?rev=c9d36cd)",

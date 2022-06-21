@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "winsfs-cli"
 version = "0.5.0"
 edition = "2021"
 description = "Site frequency spectrum estimation based on window expectation-maximisation algorithm"
@@ -16,4 +16,4 @@ clap = { version = "3.1", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
 simple_logger = { version = "2.1", default-features = false, features = ["stderr"] }
-winsfs = { path = "../winsfs" }
+winsfs-core = { path = "../winsfs-core" }

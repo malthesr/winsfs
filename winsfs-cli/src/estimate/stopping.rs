@@ -1,4 +1,4 @@
-use winsfs::{
+use winsfs_core::{
     em::{
         likelihood::{LogLikelihood, SumOf},
         stopping::{Either, Steps, Stop, StoppingRule, WindowLogLikelihoodTolerance},

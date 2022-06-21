@@ -27,7 +27,7 @@ const NORMALISATION_TOLERANCE: f64 = 10. * f64::EPSILON;
 /// Create SFS by repeating an element:
 ///
 /// ```
-/// use winsfs::sfs1d;
+/// use winsfs_core::sfs1d;
 /// let sfs = sfs1d![0.1; 10];
 /// assert!(sfs.iter().all(|&x| x == 0.1));
 /// ```
@@ -35,7 +35,7 @@ const NORMALISATION_TOLERANCE: f64 = 10. * f64::EPSILON;
 /// Create SFS from a list of elements:
 ///
 /// ```
-/// use winsfs::sfs1d;
+/// use winsfs_core::sfs1d;
 /// let sfs = sfs1d![0.1, 0.2, 0.3];
 /// assert_eq!(sfs[[0]], 0.1);
 /// assert_eq!(sfs[[1]], 0.2);
@@ -58,7 +58,7 @@ macro_rules! sfs1d {
 /// # Examples
 ///
 /// ```
-/// use winsfs::sfs2d;
+/// use winsfs_core::sfs2d;
 /// let sfs = sfs2d![
 ///     [0.1, 0.2, 0.3],
 ///     [0.4, 0.5, 0.6],
@@ -100,7 +100,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let sfs = sfs2d![
     ///     [0., 1., 2.],
     ///     [3., 4., 5.],
@@ -125,13 +125,13 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// let sfs = sfs1d![0.0, 0.1, 0.2];
     /// assert_eq!(sfs.format_flat(" ", 1), "0.0 0.1 0.2");
     /// ```
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let  sfs = sfs2d![[0.01, 0.12], [0.23, 0.34]];
     /// assert_eq!(sfs.format_flat(",", 2), "0.01,0.12,0.23,0.34");
     /// ```
@@ -159,7 +159,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::uniform([2, 3]);
     /// let mut iter = sfs.frequencies();
     /// assert_eq!(iter.next(), Some([0., 0.]));
@@ -183,7 +183,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// let sfs = sfs1d![0.0, 0.1, 0.2];
     /// assert_eq!(sfs.get([0]), Some(&0.0));
     /// assert_eq!(sfs.get([1]), Some(&0.1));
@@ -192,7 +192,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// ```
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let sfs = sfs2d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5], [0.6, 0.7, 0.8]];
     /// assert_eq!(sfs.get([0, 0]), Some(&0.0));
     /// assert_eq!(sfs.get([1, 2]), Some(&0.5));
@@ -208,7 +208,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::uniform([2, 3]);
     /// let mut iter = sfs.indices();
     /// assert_eq!(iter.next(), Some([0, 0]));
@@ -236,7 +236,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// An unnormalised SFS with values summing to one can be turned into a normalised SFS:
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// let sfs = sfs1d![0.2; 5];
     /// assert!(!sfs.is_normalised());
     /// let sfs = sfs.into_normalised().unwrap();
@@ -246,7 +246,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// Otherwise, an unnormalised SFS cannot be normalised SFS using this method:
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// let sfs = sfs1d![2.; 5];
     /// assert!(sfs.into_normalised().is_err());
     /// ```
@@ -279,7 +279,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::uniform([7]);
     /// assert!(sfs.is_normalised());
     /// let sfs = sfs.into_unnormalised();
@@ -306,7 +306,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let sfs = sfs2d![
     ///     [0., 1., 2.],
     ///     [3., 4., 5.],
@@ -337,7 +337,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// assert_eq!(
     ///     sfs1d![0., 1.,  2.,  3.,  4.].scale(10.),
     ///     sfs1d![0., 10., 20., 30., 40.],
@@ -356,7 +356,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let sfs = sfs2d![
     ///     [0., 1., 2.],
     ///     [3., 4., 5.],
@@ -380,7 +380,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::uniform([2, 5]);
     /// assert!(sfs.iter().all(|&x| x == 0.1));
     /// ```
@@ -399,7 +399,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let mut sfs = sfs2d![
     ///     [0., 1., 2.],
     ///     [3., 4., 5.],
@@ -420,7 +420,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::from_elem(0.1, [7, 5]);
     /// assert_eq!(sfs.shape(), [7, 5]);
     /// assert!(sfs.iter().all(|&x| x == 0.1));
@@ -436,7 +436,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let iter = (0..9).map(|x| x as f64);
     /// let sfs = Sfs::from_iter_shape(iter, [3, 3]).expect("shape didn't fit iterator!");
     /// assert_eq!(sfs[[1, 2]], 5.0);
@@ -453,7 +453,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let vec: Vec<f64> = (0..9).map(|x| x as f64).collect();
     /// let sfs = Sfs::from_vec_shape(vec, [3, 3]).expect("shape didn't fit vector!");
     /// assert_eq!(sfs[[2, 0]], 6.0);
@@ -474,7 +474,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// let mut sfs = sfs1d![0.0, 0.1, 0.2];
     /// assert_eq!(sfs[[0]], 0.0);
     /// if let Some(v) = sfs.get_mut([0]) {
@@ -484,7 +484,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// ```
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let mut sfs = sfs2d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5], [0.6, 0.7, 0.8]];
     /// assert_eq!(sfs[[0, 0]], 0.0);
     /// if let Some(v) = sfs.get_mut([0, 0]) {
@@ -510,7 +510,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs1d;
+    /// use winsfs_core::sfs1d;
     /// let sfs = sfs1d![0., 1., 2., 3., 4.];
     /// assert!(!sfs.is_normalised());
     /// let sfs = sfs.normalise();
@@ -548,7 +548,7 @@ impl<const N: usize> UnnormalisedSfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::zeros([2, 5]);
     /// assert!(sfs.iter().all(|&x| x == 0.0));
     /// ```
@@ -629,7 +629,7 @@ impl UnnormalisedSfs<1> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs::Sfs;
+    /// use winsfs_core::sfs::Sfs;
     /// let sfs = Sfs::from_vec(vec![0., 1., 2.]);
     /// assert_eq!(sfs.shape(), [3]);
     /// assert_eq!(sfs[[1]], 1.);
@@ -647,7 +647,7 @@ impl Sfs<2> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::sfs2d;
+    /// use winsfs_core::sfs2d;
     /// let sfs = sfs2d![
     ///     [1., 0., 0.],
     ///     [0., 1., 0.],

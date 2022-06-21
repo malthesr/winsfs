@@ -28,7 +28,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{sfs::Sfs, saf1d, sfs1d};
+    /// use winsfs_core::{sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -75,7 +75,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{sfs::Sfs, saf1d, sfs1d};
+    /// use winsfs_core::{sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -127,7 +127,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{em::likelihood::{Likelihood, SumOf}, sfs::Sfs, saf1d, sfs1d};
+    /// use winsfs_core::{em::likelihood::{Likelihood, SumOf}, sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -163,7 +163,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{em::likelihood::{Likelihood, SumOf}, sfs::Sfs, saf1d, sfs1d};
+    /// use winsfs_core::{em::likelihood::{Likelihood, SumOf}, sfs::Sfs, saf1d, sfs1d};
     /// let sfs = Sfs::uniform([5]);
     /// let saf = saf1d![
     ///     [1., 0., 0., 0., 0.],
@@ -243,7 +243,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{em::likelihood::LogLikelihood, saf::Site, sfs::Sfs};
+    /// use winsfs_core::{em::likelihood::LogLikelihood, saf::Site, sfs::Sfs};
     /// let sfs = Sfs::uniform([5]);
     /// let site = Site::new(vec![1.0, 0.0, 0.0, 0.0, 0.0], [5]).unwrap();
     /// assert_eq!(sfs.site_log_likelihood(site), LogLikelihood::from(0.2f64.ln()));
@@ -264,7 +264,7 @@ impl<const N: usize> Sfs<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::{em::likelihood::Likelihood, saf::Site, sfs::Sfs};
+    /// use winsfs_core::{em::likelihood::Likelihood, saf::Site, sfs::Sfs};
     /// let sfs = Sfs::uniform([5]);
     /// let site = Site::new(vec![1.0, 0.0, 0.0, 0.0, 0.0], [5]).unwrap();
     /// assert_eq!(sfs.site_likelihood(site), Likelihood::from(0.2));

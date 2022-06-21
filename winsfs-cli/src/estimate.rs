@@ -4,7 +4,7 @@ use clap::CommandFactory;
 
 use rand::{rngs::StdRng, SeedableRng};
 
-use winsfs::{
+use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
     io::shuffle::Reader,
     saf::Saf,

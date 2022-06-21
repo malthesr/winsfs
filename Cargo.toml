@@ -1,7 +1,7 @@
 [workspace]
 members = [
-  "winsfs",
-  "cli",
+  "winsfs-cli",
+  "winsfs-core",
 ]
 
 [profile.release]

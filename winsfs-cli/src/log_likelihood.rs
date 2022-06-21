@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 
-use winsfs::{io::Intersect, sfs::UnnormalisedSfs};
+use winsfs_core::{io::Intersect, sfs::UnnormalisedSfs};
 
 use crate::utils::join;
 

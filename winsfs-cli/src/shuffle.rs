@@ -4,7 +4,7 @@ use angsd_io::saf;
 
 use clap::Args;
 
-use winsfs::io::{
+use winsfs_core::io::{
     shuffle::{Header, Writer},
     Intersect,
 };

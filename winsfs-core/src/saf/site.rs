@@ -78,7 +78,7 @@ impl<const N: usize> Site<N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::saf::Site;
+    /// use winsfs_core::saf::Site;
     /// let vec = vec![0.0, 0.1, 0.2, 1.0, 1.2];
     /// let shape = [3, 2];
     /// let site = Site::new(vec, shape).unwrap();
@@ -88,7 +88,7 @@ impl<const N: usize> Site<N> {
     /// A [`ShapeError`] is thrown if the shape does not fit the number of values:
     ///
     /// ```
-    /// use winsfs::saf::Site;
+    /// use winsfs_core::saf::Site;
     /// let vec = vec![0.0, 0.1, 0.2, 1.0, 1.2];
     /// let wrong_shape = [6, 2];
     /// assert!(Site::new(vec, wrong_shape).is_err());
@@ -156,7 +156,7 @@ impl<'a, const N: usize> SiteView<'a, N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs::saf::SiteView;
+    /// use winsfs_core::saf::SiteView;
     /// let slice = &[0.0, 0.1, 0.2, 1.0, 1.2];
     /// let shape = [3, 2];
     /// let site = SiteView::new(slice, shape).unwrap();
@@ -166,7 +166,7 @@ impl<'a, const N: usize> SiteView<'a, N> {
     /// A [`ShapeError`] is thrown if the shape does not fit the number of values:
     ///
     /// ```
-    /// use winsfs::saf::SiteView;
+    /// use winsfs_core::saf::SiteView;
     /// let slice = &[0.0, 0.1, 0.2, 1.0, 1.2];
     /// let wrong_shape = [6, 2];
     /// assert!(SiteView::new(slice, wrong_shape).is_err());
