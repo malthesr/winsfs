@@ -14,7 +14,7 @@ use crate::utils::join;
 pub struct LogLikelihood {
     /// Input SAF file paths.
     ///
-    /// For each set of SAF files (conventially named [prefix].{saf.idx,saf.pos.gz,saf.gz}),
+    /// For each set of SAF files (conventially named 'prefix'.{saf.idx,saf.pos.gz,saf.gz}),
     /// specify either the shared prefix or the full path to any one member file.
     /// Up to three SAF files currently supported.
     #[clap(
