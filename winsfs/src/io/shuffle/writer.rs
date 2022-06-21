@@ -117,6 +117,52 @@ impl Writer<io::BufWriter<File>> {
 
         Ok(())
     }
+
+    /// Writes a single site split across multiple slices to the writer.
+    ///
+    /// The different slices here may for instance correspond to different populations. As for
+    /// [`Writer::write_site`], no more sites can be than specified in the header specified to
+    /// [`Writer::create`]. The provided sites must match the shape provided in the header.
+    /// If either of those conditions are not met, an error will be returned.
+    pub fn write_disjoint_site<I>(&mut self, values_iter: I) -> io::Result<()>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<[f32]>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let values_iter = values_iter.into_iter();
+        let shape = self.header.shape();
+
+        if self.is_finished() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "attempted to write more sites to writer than allocated",
+            ));
+        } else if values_iter.len() != shape.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "more value slices provided for writing than shapes provided in header",
+            ));
+        }
+
+        let next_idx = self.current % self.writers.len();
+        let writer = &mut self.writers[next_idx];
+
+        for (values, &shape) in values_iter.zip(shape) {
+            if values.as_ref().len() != shape {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "provided values does not fit corresponding header shape",
+                ));
+            }
+
+            writer.write_values(values.as_ref())?;
+        }
+
+        self.current += 1;
+
+        Ok(())
+    }
 }
 
 impl<W> Drop for Writer<W> {
@@ -210,13 +256,47 @@ mod tests {
         file.close()
     }
 
-    #[test]
-    fn test_writer_shuffle() -> io::Result<()> {
+    // Helper for testing that writing the provided sites with the given header produced
+    // the expected data when read back in
+    fn test_shuffled<I, F>(
+        header: Header,
+        sites: I,
+        expected: &[f32],
+        mut write_fn: F,
+    ) -> io::Result<()>
+    where
+        I: IntoIterator,
+        F: FnMut(&mut Writer<io::BufWriter<File>>, I::Item) -> io::Result<()>,
+    {
         let mut file = NamedTempFile::new()?;
         let path = file.path();
 
-        let header = Header::new(10, vec![1, 2], 4);
         let mut writer = Writer::create(path, header.clone())?;
+
+        for site in sites {
+            write_fn(&mut writer, site)?;
+        }
+
+        // Drop the writer to flush
+        writer.try_finish().unwrap();
+
+        let mut data = Vec::new();
+        file.seek(SeekFrom::Start(header.header_size() as u64))?;
+        file.read_to_end(&mut data)?;
+
+        let written: Vec<f32> = data
+            .chunks(size_of::<f32>())
+            .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
+            .collect();
+
+        assert_eq!(written, expected);
+
+        file.close()
+    }
+
+    #[test]
+    fn test_writer_shuffle() -> io::Result<()> {
+        let header = Header::new(10, vec![1, 2], 4);
 
         let sites = vec![
             &[0., 0., 0.],
@@ -231,21 +311,6 @@ mod tests {
             &[9., 9., 9.],
         ];
 
-        for site in sites {
-            writer.write_site(site)?;
-        }
-
-        // Drop the writer to flush
-        writer.try_finish().unwrap();
-
-        let mut data = Vec::new();
-        file.seek(SeekFrom::Start(header.header_size() as u64))?;
-        file.read_to_end(&mut data)?;
-
-        let written: Vec<f32> = data
-            .chunks(size_of::<f32>())
-            .map(|bytes| f32::from_le_bytes(bytes.try_into().unwrap()))
-            .collect();
         #[rustfmt::skip]
         let expected = vec![
             0., 0., 0.,
@@ -259,8 +324,45 @@ mod tests {
             3., 3., 3.,
             7., 7., 7.,
         ];
-        assert_eq!(written, expected);
 
-        file.close()
+        test_shuffled(header, sites, expected.as_slice(), |writer, site| {
+            writer.write_site(site)
+        })
+    }
+
+    #[test]
+    fn test_writer_disjoint_shuffle() -> io::Result<()> {
+        let header = Header::new(10, vec![1, 2], 4);
+
+        let sites = vec![
+            vec![&[0.][..], &[0., 0.][..]],
+            vec![&[1.][..], &[1., 1.][..]],
+            vec![&[2.][..], &[2., 2.][..]],
+            vec![&[3.][..], &[3., 3.][..]],
+            vec![&[4.][..], &[4., 4.][..]],
+            vec![&[5.][..], &[5., 5.][..]],
+            vec![&[6.][..], &[6., 6.][..]],
+            vec![&[7.][..], &[7., 7.][..]],
+            vec![&[8.][..], &[8., 8.][..]],
+            vec![&[9.][..], &[9., 9.][..]],
+        ];
+
+        #[rustfmt::skip]
+        let expected = vec![
+            0., 0., 0.,
+            4., 4., 4.,
+            8., 8., 8.,
+            1., 1., 1.,
+            5., 5., 5.,
+            9., 9., 9.,
+            2., 2., 2.,
+            6., 6., 6.,
+            3., 3., 3.,
+            7., 7., 7.,
+        ];
+
+        test_shuffled(header, sites, expected.as_slice(), |writer, site| {
+            writer.write_disjoint_site(site)
+        })
     }
 }
