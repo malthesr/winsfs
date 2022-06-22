@@ -8,7 +8,7 @@ use winsfs_core::{
     sfs::Sfs,
 };
 
-use crate::utils::{read_saf, set_threads, shuffle_saf};
+use crate::utils::{read_saf, read_sfs, set_threads, shuffle_saf};
 
 use super::Cli;
 
@@ -153,7 +153,7 @@ fn get_window_size(window_size: Option<NonZeroUsize>) -> NonZeroUsize {
 }
 
 fn get_initial_sfs_and_window<const N: usize, P>(
-    initial_sfs: Option<P>,
+    initial_sfs_path: Option<P>,
     shape: [usize; N],
     block_size: usize,
     window_size: usize,
@@ -161,18 +161,11 @@ fn get_initial_sfs_and_window<const N: usize, P>(
 where
     P: AsRef<Path>,
 {
-    Ok(match initial_sfs {
+    Ok(match initial_sfs_path {
         Some(path) => {
-            log::debug!(
-                target: "init",
-                "Reading initial SFS from path:\n\t{path}",
-                path = path.as_ref().display()
-            );
+            let initial_sfs = read_sfs(path)?;
 
-            // The initial SFS should be normalised; the initial unnormalised block SFSs should
-            // be scaled by block size for weighting, however
-            let initial_sfs = Sfs::read_from_angsd(path)?.normalise();
-
+            // The initial block SFSs should be scaled by block size for weighting
             let initial_block_sfs = initial_sfs.clone().scale(block_size as f64);
             let window = Window::from_initial(initial_block_sfs, window_size);
 
