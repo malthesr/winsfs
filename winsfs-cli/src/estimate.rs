@@ -2,16 +2,13 @@ use std::{io, num::NonZeroUsize, path::Path};
 
 use clap::CommandFactory;
 
-use rand::{rngs::StdRng, SeedableRng};
-
 use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
     io::shuffle::Reader,
-    saf::Saf,
     sfs::Sfs,
 };
 
-use crate::utils::{join, set_threads};
+use crate::utils::{read_saf, set_threads, shuffle_saf};
 
 use super::Cli;
 
@@ -83,7 +80,8 @@ impl Cli {
     where
         P: AsRef<Path>,
     {
-        let saf = read_and_shuffle_saf(paths, self.seed)?;
+        let mut saf = read_saf(paths)?;
+        shuffle_saf(&mut saf, self.seed);
         let sites = saf.sites();
         let shape = saf.shape();
 
@@ -138,37 +136,6 @@ impl Cli {
 
         Ok(())
     }
-}
-
-fn read_and_shuffle_saf<const N: usize, P>(paths: [P; N], seed: Option<u64>) -> io::Result<Saf<N>>
-where
-    P: AsRef<Path>,
-{
-    log::info!(
-        target: "init",
-        "Reading (intersecting) sites in input SAF files:\n\t{}",
-        join(paths.iter().map(|p| p.as_ref().display()), "\n\t"),
-    );
-
-    let mut saf = Saf::read_from_paths(paths)?;
-
-    log::debug!(
-        target: "init",
-        "Found {sites} (intersecting) sites in SAF files with shape {shape}",
-        sites = saf.sites(),
-        shape = join(saf.shape(), "/"),
-    );
-
-    let mut rng = match seed {
-        Some(v) => StdRng::seed_from_u64(v),
-        None => StdRng::from_entropy(),
-    };
-
-    log::debug!(target: "init", "Shuffling SAF sites");
-
-    saf.shuffle(&mut rng);
-
-    Ok(saf)
 }
 
 fn get_window_size(window_size: Option<NonZeroUsize>) -> NonZeroUsize {

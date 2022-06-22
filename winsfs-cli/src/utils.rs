@@ -1,6 +1,10 @@
-use std::thread;
+use std::{io, path::Path, thread};
 
 use clap::CommandFactory;
+
+use rand::{rngs::StdRng, SeedableRng};
+
+use winsfs_core::saf::Saf;
 
 use super::Cli;
 
@@ -50,4 +54,37 @@ where
         .map(|x| x.to_string())
         .collect::<Vec<_>>()
         .join(sep)
+}
+
+pub fn read_saf<const N: usize, P>(paths: [P; N]) -> io::Result<Saf<N>>
+where
+    P: AsRef<Path>,
+{
+    log::info!(
+        target: "init",
+        "Reading (intersecting) sites in input SAF files:\n\t{}",
+        join(paths.iter().map(|p| p.as_ref().display()), "\n\t"),
+    );
+
+    let saf = Saf::read_from_paths(paths)?;
+
+    log::debug!(
+        target: "init",
+        "Found {sites} (intersecting) sites in SAF files with shape {shape}",
+        sites = saf.sites(),
+        shape = join(saf.shape(), "/"),
+    );
+
+    Ok(saf)
+}
+
+pub fn shuffle_saf<const N: usize>(saf: &mut Saf<N>, seed: Option<u64>) {
+    let mut rng = match seed {
+        Some(v) => StdRng::seed_from_u64(v),
+        None => StdRng::from_entropy(),
+    };
+
+    log::debug!(target: "init", "Shuffling SAF sites");
+
+    saf.shuffle(&mut rng);
 }
