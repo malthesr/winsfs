@@ -5,6 +5,9 @@ use clap::Parser;
 mod cli;
 use cli::Cli;
 
+mod blocks;
+pub use blocks::Blocks;
+
 mod estimate;
 
 mod log_likelihood;
