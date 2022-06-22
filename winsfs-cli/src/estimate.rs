@@ -1,7 +1,5 @@
 use std::{io, num::NonZeroUsize, path::Path};
 
-use clap::CommandFactory;
-
 use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
     io::shuffle::Reader,
@@ -30,10 +28,7 @@ pub const DEFAULT_WINDOW_SIZE: usize = 100;
 // EM and streaming EM, and this depend on the block EM type param - hence the macro
 macro_rules! setup {
     ($args:expr, $sites:expr, $shape:expr, $block_em:ty) => {{
-        let sites = NonZeroUsize::new($sites).ok_or_else(|| {
-            Cli::command().error(clap::ErrorKind::Io, "input contains 0 (intersecting) sites")
-        })?;
-        let block_size = BlockSpecification::from($args).block_size(sites).get();
+        let block_size = BlockSpecification::from($args).block_size($sites)?.get();
         let window_size = get_window_size($args.window_size).get();
 
         let (initial_sfs, window) =

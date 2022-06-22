@@ -1,5 +1,7 @@
 use std::num::NonZeroUsize;
 
+use clap::CommandFactory;
+
 use super::{Cli, DEFAULT_NUMBER_OF_BLOCKS};
 
 /// A type representing the various ways of specifying block sizes.
@@ -12,7 +14,11 @@ pub enum BlockSpecification {
 
 impl BlockSpecification {
     /// Convert into block size and log block size and number of blocks.
-    pub fn block_size(&self, sites: NonZeroUsize) -> NonZeroUsize {
+    pub fn block_size(&self, sites: usize) -> clap::Result<NonZeroUsize> {
+        let sites = NonZeroUsize::new(sites).ok_or_else(|| {
+            Cli::command().error(clap::ErrorKind::Io, "input contains 0 (intersecting) sites")
+        })?;
+
         let block_size = self.block_size_inner(sites);
 
         if log::log_enabled!(log::Level::Debug) {
@@ -26,12 +32,12 @@ impl BlockSpecification {
             if last_block_size != 0 {
                 log::debug!(
                     target: "init",
-                    "Last block has size {last_block_size} and will be weighted accordingly"
+                    "Last block has size {last_block_size}"
                 );
             }
         }
 
-        block_size
+        Ok(block_size)
     }
 
     /// Convert into block size.
