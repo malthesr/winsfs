@@ -570,6 +570,7 @@ dependencies = [
  "clap",
  "log",
  "rand",
+ "rayon",
  "simple_logger",
  "winsfs-core",
 ]
