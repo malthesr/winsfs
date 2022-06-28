@@ -1,4 +1,4 @@
-use std::{fs::File, io};
+use std::{fs::File, io, path::Path};
 
 use angsd_io::saf::MAGIC_NUMBER as STANDARD_MAGIC_NUMBER;
 
@@ -18,7 +18,24 @@ pub enum Format {
 }
 
 impl Format {
+    /// Infer format from path name.
+    fn infer_from_path<P>(path: P) -> Option<Self>
+    where
+        P: AsRef<Path>,
+    {
+        // Cannot use Path::extension, since it splits on last '.'
+        let (_stem, ext) = path.as_ref().to_str()?.split_once('.')?;
+
+        match ext {
+            "saf.idx" | "saf.gz" | "saf.pos.gz" => Some(Self::Standard),
+            "saf.shuf" => Some(Self::Shuffled),
+            _ => None,
+        }
+    }
+
     /// Infer format from magic number in reader, and rewind reader to start.
+    ///
+    /// Note that this is sensitive to whether the input is bgzipped or not.
     fn infer_from_magic<R>(reader: &mut R) -> io::Result<Option<Self>>
     where
         R: io::Read + io::Seek,
@@ -46,19 +63,22 @@ impl TryFrom<&Cli> for Format {
             [path] => {
                 // Single input file, could be either standard or shuffled;
                 // if user provided format, trust that and defer check to file reader,
-                // otherwise infer from magic number of first file
                 if let Some(expected_format) = args.input_format {
                     return Ok(expected_format);
                 }
 
-                match File::open(path)
-                    .and_then(|mut reader| Format::infer_from_magic(&mut reader))?
-                {
-                    Some(inferred_format) => Ok(inferred_format),
-                    None => Err(Cli::command().error(
+                // Otherwise, infer from path name; if that fails, try to infer from magic number.
+                // This procedure fails if user provides standard non-index file with unconventional
+                // name, since both path check and magic check will fail (the latter due to bgzip).
+                if let Some(format) = Self::infer_from_path(path) {
+                    Ok(format)
+                } else if let Some(format) = Format::infer_from_magic(&mut File::open(path)?)? {
+                    Ok(format)
+                } else {
+                    Err(Cli::command().error(
                         clap::ErrorKind::ValueValidation,
                         "unrecognised input file type",
-                    )),
+                    ))
                 }
             }
             [..] => {
