@@ -8,3 +8,6 @@ members = [
 codegen-units = 1
 lto = "fat"
 
+[profile.test]
+opt-level = 3
+debug-assertions = true
