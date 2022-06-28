@@ -1,0 +1,35 @@
+INFO  [init] Reading (intersecting) sites in input SAF files:
+	tests/data/A.saf.idx
+DEBUG [init] Found 220000 (intersecting) sites in SAF files with shape 11
+DEBUG [init] Shuffling SAF sites
+DEBUG [init] Using 500 full blocks of size 440
+DEBUG [init] Using window size of 100 blocks per window
+DEBUG [init] Creating uniform initial SFS
+DEBUG [stop] Stopping rule set to log-likelihood tolerance 0.0001 (default)
+INFO  [windowem] Finished epoch 1
+DEBUG [windowem] Current SFS: 219285.735211 306.539126 71.623403 53.514937 81.661782 42.283269 61.862786 11.965434 4.939576 36.024052 43.850424
+DEBUG [stop] Current log-likelihood -4.3367e1, Δ=inf > 1.0000e-4
+INFO  [windowem] Finished epoch 2
+DEBUG [windowem] Current SFS: 219334.622257 241.564692 88.549971 52.672129 93.311218 24.252948 65.506036 16.959453 2.210536 36.448040 43.902721
+DEBUG [stop] Current log-likelihood -3.9530e1, Δ=3.8364e0 > 1.0000e-4
+INFO  [windowem] Finished epoch 3
+DEBUG [windowem] Current SFS: 219337.797443 236.475479 91.959658 46.221761 103.838346 16.433574 66.976760 18.739300 0.905177 36.752086 43.900416
+DEBUG [stop] Current log-likelihood -3.9524e1, Δ=6.0763e-3 > 1.0000e-4
+INFO  [windowem] Finished epoch 4
+DEBUG [windowem] Current SFS: 219338.277912 235.621419 93.283335 41.400774 111.207309 11.707174 68.079123 19.266024 0.364733 36.895340 43.896858
+DEBUG [stop] Current log-likelihood -3.9523e1, Δ=1.3282e-3 > 1.0000e-4
+INFO  [windowem] Finished epoch 5
+DEBUG [windowem] Current SFS: 219338.454833 235.275182 94.101472 38.098714 116.148106 8.551439 69.080625 19.282644 0.146750 36.965684 43.894551
+DEBUG [stop] Current log-likelihood -3.9522e1, Δ=5.7108e-4 > 1.0000e-4
+INFO  [windowem] Finished epoch 6
+DEBUG [windowem] Current SFS: 219338.563175 235.058565 94.658288 35.832948 119.516639 6.344995 69.957313 19.109652 0.059315 37.006643 43.892468
+DEBUG [stop] Current log-likelihood -3.9522e1, Δ=3.1793e-4 > 1.0000e-4
+INFO  [windowem] Finished epoch 7
+DEBUG [windowem] Current SFS: 219338.637271 234.911117 95.044044 34.255624 121.866568 4.758323 70.687929 18.890182 0.024142 37.034326 43.890474
+DEBUG [stop] Current log-likelihood -3.9522e1, Δ=1.9875e-4 > 1.0000e-4
+INFO  [windowem] Finished epoch 8
+DEBUG [windowem] Current SFS: 219338.689037 234.809094 95.314060 33.140206 123.539703 3.595794 71.276720 18.682146 0.009897 37.054672 43.888671
+DEBUG [stop] Current log-likelihood -3.9522e1, Δ=1.3239e-4 > 1.0000e-4
+INFO  [windowem] Finished epoch 9
+DEBUG [windowem] Current SFS: 219338.725607 234.737776 95.505146 32.339889 124.751169 2.732751 71.741684 18.504599 0.004084 37.070165 43.887130
+DEBUG [stop] Current log-likelihood -3.9522e1, Δ=9.1810e-5 ≤ 1.0000e-4

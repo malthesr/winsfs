@@ -1,0 +1,6 @@
+DEBUG [init] Reading SFS from path:
+	A-B.sfs
+INFO  [init] Streaming (intersecting) sites in input SAF files:
+	tests/data/A.saf.idx
+	tests/data/B.saf.idx
+INFO  [log-likelihood] Processed 220000 sites
