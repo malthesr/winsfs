@@ -12,7 +12,7 @@ use std::{
 use super::to_f64;
 
 /// The likelihood of the data given an SFS.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct Likelihood(f64);
 
 impl Likelihood {
@@ -52,7 +52,7 @@ impl approx::AbsDiffEq for Likelihood {
 /// The log-likelihood of the data given an SFS.
 ///
 /// This is always the natural logarithm.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub struct LogLikelihood(f64);
 
 impl From<f64> for LogLikelihood {
