@@ -2,7 +2,8 @@
 
 use std::{
     error::Error,
-    fmt, fs,
+    fmt::{self, Write as _},
+    fs,
     io::{self, Read},
     ops::{Add, AddAssign, Index, IndexMut, Sub, SubAssign},
     path::Path,
@@ -139,11 +140,12 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
         if let Some(first) = self.values.first() {
             let cap = self.values.len() * (precision + 3);
             let mut init = String::with_capacity(cap);
-            init.push_str(&format!("{:.precision$}", first));
+            write!(init, "{first:.precision$}").unwrap();
+            // init.push_str(&format!("{:.precision$}", first));
 
             self.iter().skip(1).fold(init, |mut s, x| {
                 s.push_str(sep);
-                s.push_str(&format!("{x:.precision$}"));
+                write!(s, "{x:.precision$}").unwrap();
                 s
             })
         } else {
