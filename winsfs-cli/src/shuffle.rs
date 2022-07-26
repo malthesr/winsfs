@@ -40,7 +40,7 @@ pub struct Shuffle {
     pub output: PathBuf,
 
     /// Number of blocks to use.
-    #[clap(short = 'B', long, value_name = "INT", default_value_t = 20)]
+    #[clap(short = 'B', long, value_name = "INT", default_value_t = 100)]
     pub blocks: u16,
 }
 
