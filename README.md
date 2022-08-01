@@ -10,12 +10,13 @@ In overview, `winsfs` iteratively estimates the SFS on smaller blocks of data co
 
 1. [Quickstart](#quickstart)
     1. [Coming from realSFS](#coming-from-realsfs)
-2. [Usage](#usage)
+2. [Motivation](#motivation)
+3. [Usage](#usage)
     1. [Input](#input)
     2. [Estimation](#estimation)
     3. [Output](#output)
     4. [Streaming](#streaming)
-3. [Installation](#installation)
+4. [Installation](#installation)
 
 ## Quickstart
 
@@ -51,6 +52,22 @@ winsfs $saf1 $saf2 > $sfs
 The command-line options to `winsfs` differ from those available in `realSFS`, but should not be necessary in general. See more in the [Usage](#usage) section below. By default, `winsfs` is quiet, unlike `realSFS`. You can add a `-v` or `-vv` flag to print some information to stderr while running.
 
 Likewise, the output format should be familiar: `winsfs` outputs two lines, where the second is the same format as the `realSFS` output; the first is a small header line with some information about the shape of the SFS. See [Output](#output) for more details.
+
+## Motivation
+
+Estimating the SFS from called genotypes is typically fairly straight-forward. However, it has been [shown][han2014] that estimating the SFS from genotypes using low-depth sequencing data creates significant bias, which propagates to downstream inference. As a very rough rule of thumb, this is true up until around 10x coverage.
+
+`winsfs` is a method for addressing this issue by inferring the SFS from genotype likelihoods using an stochastic optimisation algorithm. Some of its benefits are highlighted here; for a full discussion of the method and the various ways it has been evaluated, please see the [associated article][article].
+
+![sim](figures/sim.png)
+
+The figure above shows the two-dimensional SFS estimated by `winsfs` (middle) with default parameters compared to the known truth (left) for simulated 2x data from two samples of 20 individuals. `winsfs` reports convergence after 8 passes through the data ("epochs") and accurately recovers the true spectrum. In comparison, `realSFS` (right), which is the most widely used current method, takes 101 epochs before converging and presents a "checkerboard" pattern in the interior of the SFS. By averaging over smaller block estimates of the spectrum, `winsfs` has an implicitly smoothing effect on the spectrum, which tends to improve inference when a large number of parameters must be estimated with little available information.
+
+In general, `winsfs` requires very few epochs to converge: almost always less than 10, and typically only 2-5. In addition, the implementation aims to be efficient. The figure below shows the computational requirements of `winsfs` (again compared to `realSFS`) used for estimating the two-dimensional SFS of approximately 0.6B sites of low-quality, real-world data.
+
+![bench](figures/bench.png)
+
+The figure shows `winsfs` in the main usage mode, but also the so-called "streaming mode". Since only a few passes over the input data are required, it is possible to run `winsfs` without reading data into RAM. This increases the run-time, but significantly decreases the memory requirements. More details are available in the [Streaming](#streaming) section.
 
 ## Usage
 
@@ -177,6 +194,7 @@ Will install to `$HOME/bin`.
 
 [bioarxiv]: https://www.biorxiv.org/content/10.1101/2022.05.24.493190
 [article]: https://www.biorxiv.org/content/10.1101/2022.05.24.493190
+[han2014]: https://academic.oup.com/mbe/article/31/3/723/1007998
 [nielsen2012]: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0037558
 [pecnerova2021]: https://www.sciencedirect.com/science/article/pii/S0960982221001299
 [leopard-git]: https://github.com/KHanghoj/leopardpaper
