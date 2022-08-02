@@ -13,6 +13,9 @@ use std::{
 mod angsd;
 pub use angsd::ParseAngsdError;
 
+pub mod iter;
+use iter::Indices;
+
 mod em;
 
 use crate::ArrayExt;
@@ -221,10 +224,8 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     /// assert_eq!(iter.next(), Some([1, 2]));
     /// assert!(iter.next().is_none());
     /// ```
-    pub fn indices(&self) -> impl Iterator<Item = [usize; N]> {
-        let n = self.as_slice().len();
-        let shape = self.shape;
-        (0..n).map(move |flat| compute_index_unchecked(flat, n, shape))
+    pub fn indices(&self) -> Indices<N> {
+        Indices::from_shape(self.shape())
     }
 
     /// Returns a normalised SFS, consuming `self`.
