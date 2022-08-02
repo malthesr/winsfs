@@ -175,7 +175,7 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     pub fn frequencies(&self) -> impl Iterator<Item = [f64; N]> {
         let n_arr = self.shape.map(|n| n - 1);
         self.indices()
-            .map(move |idx_arr| idx_arr.zip(n_arr).map(|(i, n)| i as f64 / n as f64))
+            .map(move |idx_arr| idx_arr.array_zip(n_arr).map(|(i, n)| i as f64 / n as f64))
     }
 
     /// Returns a value at an index in the SFS.

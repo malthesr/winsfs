@@ -1,7 +1,6 @@
 //! Methods for inferring the site frequency spectrum from low-quality data
 //! using various forms of the expectation-maximisation algorithm.
 
-#![allow(unstable_name_collisions)]
 #![warn(missing_docs)]
 use std::mem::MaybeUninit;
 
@@ -50,19 +49,19 @@ macro_rules! matrix {
 pub(crate) trait ArrayExt<const N: usize, T> {
     // TODO: Use each_ref when stable,
     // see github.com/rust-lang/rust/issues/76118
-    fn each_ref(&self) -> [&T; N];
+    fn by_ref(&self) -> [&T; N];
 
     // TODO: Use each_mut when stable,
     // see github.com/rust-lang/rust/issues/76118
-    fn each_mut(&mut self) -> [&mut T; N];
+    fn by_mut(&mut self) -> [&mut T; N];
 
     // TODO: Use zip when stable,
     // see github.com/rust-lang/rust/issues/80094
-    fn zip<U>(self, rhs: [U; N]) -> [(T, U); N];
+    fn array_zip<U>(self, rhs: [U; N]) -> [(T, U); N];
 }
 
 impl<const N: usize, T> ArrayExt<N, T> for [T; N] {
-    fn each_ref(&self) -> [&T; N] {
+    fn by_ref(&self) -> [&T; N] {
         // Adapted from code in tracking issue, see above.
         let mut out: MaybeUninit<[&T; N]> = MaybeUninit::uninit();
 
@@ -76,7 +75,7 @@ impl<const N: usize, T> ArrayExt<N, T> for [T; N] {
         unsafe { out.assume_init() }
     }
 
-    fn each_mut(&mut self) -> [&mut T; N] {
+    fn by_mut(&mut self) -> [&mut T; N] {
         // Adapted from code in tracking issue, see above.
         let mut out: MaybeUninit<[&mut T; N]> = MaybeUninit::uninit();
 
@@ -90,7 +89,7 @@ impl<const N: usize, T> ArrayExt<N, T> for [T; N] {
         unsafe { out.assume_init() }
     }
 
-    fn zip<U>(self, rhs: [U; N]) -> [(T, U); N] {
+    fn array_zip<U>(self, rhs: [U; N]) -> [(T, U); N] {
         // Adapted from code in implementation PR, see github.com/rust-lang/rust/pull/79451
         let mut dst = MaybeUninit::<[(T, U); N]>::uninit();
 
@@ -109,19 +108,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_each_ref() {
-        assert_eq!([1, 2, 3].each_ref(), [&1, &2, &3]);
+    fn test_by_ref() {
+        assert_eq!([1, 2, 3].by_ref(), [&1, &2, &3]);
     }
 
     #[test]
-    fn test_each_mut() {
-        assert_eq!([1, 2, 3].each_ref(), [&mut 1, &mut 2, &mut 3]);
+    fn test_by_mut() {
+        assert_eq!([1, 2, 3].by_mut(), [&mut 1, &mut 2, &mut 3]);
     }
 
     #[test]
     fn test_zip() {
         assert_eq!(
-            [1, 2, 3].zip([0.1, 0.2, 0.3]),
+            [1, 2, 3].array_zip([0.1, 0.2, 0.3]),
             [(1, 0.1), (2, 0.2), (3, 0.3)],
         )
     }

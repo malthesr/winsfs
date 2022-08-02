@@ -373,9 +373,7 @@ impl<const N: usize> Saf<N> {
             .min()
             .unwrap();
 
-        let shape = readers
-            .each_ref()
-            .map(|reader| reader.index().alleles() + 1);
+        let shape = readers.by_ref().map(|reader| reader.index().alleles() + 1);
 
         // The number of intersecting sites is as most the smallest number of sites,
         // so we preallocate this number and free excess capacity at the end.
