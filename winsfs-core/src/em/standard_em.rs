@@ -17,7 +17,7 @@ pub type ParallelStandardEm = StandardEm<true>;
 /// A runner of the standard EM algorithm.
 ///
 /// Whether to parallelise over the input in the E-step is controlled by the `PAR` parameter.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 // TODO: Use an enum here when stable, see github.com/rust-lang/rust/issues/95174
 pub struct StandardEm<const PAR: bool = false> {
     // Ensure unit struct cannot be constructed without constructor

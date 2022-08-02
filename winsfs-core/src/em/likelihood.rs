@@ -95,7 +95,7 @@ impl AddAssign for LogLikelihood {
 }
 
 /// A sum of items, and the number of items summed.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SumOf<T> {
     sum: T,
     n: usize,
