@@ -1,6 +1,7 @@
 //! N-dimensional site frequency spectra ("SFS").
 
 use std::{
+    cmp::Ordering,
     error::Error,
     fmt::{self, Write as _},
     fs,
@@ -114,6 +115,114 @@ impl<const N: usize, const NORM: bool> Sfs<N, NORM> {
     #[inline]
     pub fn as_slice(&self) -> &[f64] {
         &self.values
+    }
+
+    /// Returns a folded version of the SFS.
+    ///
+    /// Folding is useful when the spectrum has not been properly polarised, so that there is
+    /// no meaningful distinction between having 0 and 2N (in the diploid case) variants at a site.
+    /// The folding operation collapses these indistinguishable bins by adding the value from the
+    /// lower part of the spectrum onto the upper, and setting the lower value to zero.
+    ///
+    /// Note that we adopt the convention that on the "diagonal" of the SFS, where there is less of
+    /// a convention on what is the correct way of folding, the arithmetic mean of the candidates is
+    /// used. The examples below illustrate this.
+    ///
+    /// # Examples
+    ///
+    /// Folding in 1D:
+    ///
+    /// ```
+    /// use winsfs_core::sfs1d;
+    /// let sfs = sfs1d![5., 2., 3., 10., 1.];
+    /// assert_eq!(sfs.fold(), sfs1d![6., 12., 3., 0., 0.]);
+    /// ```
+    ///
+    /// Folding in 2D (square input):
+    ///
+    /// ```
+    /// use winsfs_core::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [4., 2., 10.],
+    ///     [0., 3., 4.],
+    ///     [7., 2., 1.],
+    /// ];
+    /// let expected = sfs2d![
+    ///     [5., 4., 8.5],
+    ///     [4., 3., 0.],
+    ///     [8.5, 0., 0.],
+    /// ];
+    /// assert_eq!(sfs.fold(), expected);
+    /// ```
+    ///
+    /// Folding in 2D (non-square input):
+    ///
+    /// ```
+    /// use winsfs_core::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [4., 2., 10.],
+    ///     [0., 3., 4.],
+    /// ];
+    /// let expected = sfs2d![
+    ///     [8., 5., 0.],
+    ///     [10., 0., 0.],
+    /// ];
+    /// assert_eq!(sfs.fold(), expected);
+    /// ```    
+    pub fn fold(&self) -> Self {
+        let n = self.values.len();
+        let total_count = self.shape().iter().sum::<usize>() - N;
+
+        // In general, this point divides the folding line. Since we are folding onto the "upper"
+        // part of the array, we want to fold anything "below" it onto something "above" it.
+        let mid_count = total_count / 2;
+
+        // The spectrum may or may not have a "diagonal", i.e. a hyperplane that falls exactly on
+        // the midpoint. If such a diagonal exists, we need to handle it as a special case when
+        // folding below.
+        //
+        // For example, in 1D a spectrum with five elements has a "diagonal", marked X:
+        // [-, -, X, -, -]
+        // Whereas on with four elements would not.
+        //
+        // In two dimensions, e.g. three-by-three elements has a diagonal:
+        // [-, -, X]
+        // [-, X, -]
+        // [X, -, -]
+        // whereas two-by-three would not. On the other hand, two-by-four has a diagonal:
+        // [-, -, X, -]
+        // [-, X, -, -]
+        //
+        // Note that even-ploidy data should always have a diagonal, whereas odd-ploidy data
+        // may or may not.
+        let has_diagonal = total_count % 2 == 0;
+
+        // Note that we cannot use the algorithm below in-place, since the reverse iterator
+        // may reach elements that have already been folded, which causes bugs. Hence we fold
+        // into a zero-initialised copy.
+        let mut folded = Self::new_unchecked(vec![0.0; n], self.shape);
+
+        // We iterate over indices rather than values since we have to mutate on the array
+        // while looking at it from both directions.
+        (0..n).zip((0..n).rev()).for_each(|(i, rev_i)| {
+            let count = compute_index_sum_unchecked(i, n, self.shape);
+
+            match (count.cmp(&mid_count), has_diagonal) {
+                (Ordering::Less, _) | (Ordering::Equal, false) => {
+                    // We are in the upper part of the spectrum that should be folded onto.
+                    folded.values[i] = self.values[i] + self.values[rev_i];
+                }
+                (Ordering::Equal, true) => {
+                    // We are on a diagonal, which must be handled as a special case:
+                    // there are apparently different opinions on what the most correct
+                    // thing to do is. This adopts the same strategy as e.g. in dadi.
+                    folded.values[i] = 0.5 * self.values[i] + 0.5 * self.values[rev_i];
+                }
+                (Ordering::Greater, _) => (),
+            }
+        });
+
+        folded
     }
 
     /// Returns a string containing the SFS formatted in ANGSD format.
@@ -743,6 +852,20 @@ fn compute_index_unchecked<const N: usize>(
     index
 }
 
+fn compute_index_sum_unchecked<const N: usize>(
+    mut flat: usize,
+    mut n: usize,
+    shape: [usize; N],
+) -> usize {
+    let mut sum = 0;
+    for v in shape {
+        n /= v;
+        sum += flat / n;
+        flat %= n;
+    }
+    sum
+}
+
 fn compute_strides<const N: usize>(shape: [usize; N]) -> [usize; N] {
     let mut strides = [1; N];
     for (i, v) in shape.iter().enumerate().skip(1).rev() {
@@ -830,5 +953,158 @@ mod tests {
         assert_eq!(lhs, sub);
         lhs -= &rhs;
         assert_eq!(lhs, sub - rhs);
+    }
+
+    #[test]
+    fn test_fold_4() {
+        let sfs = sfs1d![0., 1., 2., 3.];
+
+        assert_eq!(sfs.fold(), sfs1d![3., 3., 0., 0.],);
+    }
+
+    #[test]
+    fn test_fold_5() {
+        let sfs = sfs1d![0., 1., 2., 3., 4.];
+
+        assert_eq!(sfs.fold(), sfs1d![4., 4., 2., 0., 0.],);
+    }
+
+    #[test]
+    fn test_fold_3x3() {
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [0., 1., 2.],
+            [3., 4., 5.],
+            [6., 7., 8.],
+        ];
+
+        #[rustfmt::skip]
+        let expected = sfs2d![
+            [8., 8., 4.],
+            [8., 4., 0.],
+            [4., 0., 0.],
+        ];
+
+        assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    fn test_fold_2x4() {
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [0., 1., 2., 3.],
+            [4., 5., 6., 7.],
+        ];
+
+        #[rustfmt::skip]
+        let expected = sfs2d![
+            [7., 7.,  3.5, 0.],
+            [7., 3.5, 0.,  0.],
+        ];
+
+        assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    fn test_fold_3x4() {
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [0., 1.,  2.,  3.],
+            [4., 5.,  6.,  7.],
+            [8., 9., 10., 11.],
+        ];
+
+        #[rustfmt::skip]
+        let expected = sfs2d![
+            [11., 11., 11., 0.],
+            [11., 11.,  0., 0.],
+            [11.,  0.,  0., 0.],
+        ];
+
+        assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    fn test_fold_3x7() {
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [ 0.,  1.,  2.,  3.,  4.,  5.,  6.],
+            [ 7.,  8.,  9., 10., 11., 12., 13.],
+            [14., 15., 16., 17., 18., 19., 20.],
+        ];
+
+        #[rustfmt::skip]
+        let expected = sfs2d![
+            [20., 20., 20., 20., 10., 0., 0.],
+            [20., 20., 20., 10.,  0., 0., 0.],
+            [20., 20., 10.,  0.,  0., 0., 0.],
+        ];
+
+        assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    fn test_fold_2x2x2() {
+        let sfs = Sfs::from_iter_shape((0..8).map(|x| x as f64), [2, 2, 2]).unwrap();
+
+        #[rustfmt::skip]
+        let expected = Sfs::from_vec_shape(
+            vec![
+                7., 7.,
+                7., 0.,
+                
+                7., 0.,
+                0., 0.,
+            ],
+            [2, 2, 2]
+        ).unwrap();
+
+        assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    fn test_fold_2x3x2() {
+        let sfs = Sfs::from_iter_shape((0..12).map(|x| x as f64), [2, 3, 2]).unwrap();
+
+        #[rustfmt::skip]
+        let expected = Sfs::from_vec_shape(
+            vec![
+                11., 11.,  
+                11.,  5.5,
+                5.5,  0.,
+                
+                11.,  5.5,
+                 5.5, 0.,
+                 0.,  0.,
+            ],
+            [2, 3, 2]
+        ).unwrap();
+
+        assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    fn test_fold_3x3x3() {
+        let sfs = Sfs::from_iter_shape((0..27).map(|x| x as f64), [3, 3, 3]).unwrap();
+
+        #[rustfmt::skip]
+        let expected = Sfs::from_vec_shape(
+            vec![
+                26., 26., 26.,
+                26., 26., 13.,
+                26., 13.,  0.,
+                
+                26., 26., 13.,
+                26., 13.,  0.,
+                13.,  0.,  0.,
+
+                26., 13.,  0.,
+                13.,  0.,  0.,
+                 0.,  0.,  0.,
+            ],
+            [3, 3, 3]
+        ).unwrap();
+
+        assert_eq!(sfs.fold(), expected);
     }
 }
