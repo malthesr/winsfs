@@ -6,7 +6,7 @@ use rand::{rngs::StdRng, SeedableRng};
 
 use winsfs_core::{
     saf::Saf,
-    sfs::{DynUSfs, Sfs, USfs},
+    sfs::{self, Sfs, USfs},
 };
 
 use super::Cli;
@@ -91,7 +91,7 @@ where
         path.as_ref().display()
     );
 
-    DynUSfs::read_from_angsd(path)
+    sfs::io::plain_text::read_sfs_from_path(path)
         .and_then(|sfs| {
             USfs::<D>::try_from(sfs).map_err(|_| {
                 io::Error::new(

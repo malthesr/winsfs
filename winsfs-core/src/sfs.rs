@@ -9,21 +9,17 @@ use std::{
     cmp::Ordering,
     error::Error,
     fmt::{self, Write as _},
-    fs,
-    io::Read,
     marker::PhantomData,
     ops::{Add, AddAssign, Index, IndexMut, Sub, SubAssign},
-    path::Path,
     slice,
 };
 
 use crate::ArrayExt;
 
-mod angsd;
-pub use angsd::ParseAngsdError;
-
 pub mod generics;
 use generics::{ConstShape, DynShape, Norm, Normalisation, Shape, Unnorm};
+
+pub mod io;
 
 pub mod iter;
 use iter::Indices;
@@ -245,14 +241,6 @@ impl<S: Shape, N: Normalisation> SfsBase<S, N> {
         });
 
         folded
-    }
-
-    /// Returns a string containing the SFS formatted in ANGSD format.
-    ///
-    /// The resulting string contains a header giving the shape of the SFS,
-    /// and a flat representation of the SFS.
-    pub fn format_angsd(&self, precision: Option<usize>) -> String {
-        angsd::format(self, precision)
     }
 
     /// Returns a string containing a flat, row-major represention of the SFS.
@@ -664,25 +652,6 @@ impl<S: Shape> SfsBase<S, Unnorm> {
     /// ```
     pub fn zeros(shape: S) -> Self {
         Self::from_elem(0.0, shape)
-    }
-}
-
-impl SfsBase<DynShape, Unnorm> {
-    /// Creates a new, unnormalised SFS from a string containing an SFS formatted in ANGSD format.
-    pub fn parse_from_angsd(s: &str) -> Result<Self, ParseAngsdError> {
-        angsd::parse(s)
-    }
-
-    /// Creates a new, unnormalised SFS from a path containing an SFS formatted in ANGSD format.
-    pub fn read_from_angsd<P>(path: P) -> std::io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let mut file = fs::File::open(path)?;
-        let mut buf = String::new();
-        file.read_to_string(&mut buf)?;
-        Self::parse_from_angsd(&buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
     }
 }
 

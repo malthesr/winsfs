@@ -3,7 +3,7 @@ use std::{io, num::NonZeroUsize, path::Path};
 use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
     io::shuffle::Reader,
-    sfs::Sfs,
+    sfs::{self, Sfs},
 };
 
 use crate::utils::{read_saf, read_sfs, set_threads, shuffle_saf};
@@ -85,7 +85,9 @@ impl Cli {
 
         let (_status, sfs) = runner.em(&initial_sfs, &saf, stopping_rule);
 
-        println!("{}", sfs.scale(sites as f64).format_angsd(None));
+        let stdout = io::stdout();
+        let mut writer = stdout.lock();
+        sfs::io::plain_text::write_sfs(&mut writer, &sfs.scale(sites as f64))?;
 
         Ok(())
     }
@@ -127,7 +129,9 @@ impl Cli {
 
         let (_status, sfs) = runner.stream_em(&initial_sfs, &mut reader, stopping_rule)?;
 
-        println!("{}", sfs.scale(sites as f64).format_angsd(None));
+        let stdout = io::stdout();
+        let mut writer = stdout.lock();
+        sfs::io::plain_text::write_sfs(&mut writer, &sfs.scale(sites as f64))?;
 
         Ok(())
     }
