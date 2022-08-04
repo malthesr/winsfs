@@ -11,9 +11,9 @@ use crate::{
     },
 };
 
-use super::{Sfs, UnnormalisedSfs};
+use super::{Sfs, USfs};
 
-impl<const N: usize> Sfs<N> {
+impl<const D: usize> Sfs<D> {
     /// Returns the log-likelihood of the data given the SFS, and the expected number of sites
     /// in each frequency bin given the SFS and the input.
     ///
@@ -40,9 +40,9 @@ impl<const N: usize> Sfs<N> {
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
     /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
     /// ```
-    pub fn e_step<I>(&self, input: I) -> (SumOf<LogLikelihood>, UnnormalisedSfs<N>)
+    pub fn e_step<I>(&self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
     where
-        I: IntoSiteIterator<N>,
+        I: IntoSiteIterator<D>,
     {
         let iter = input.into_site_iter();
         let sites = iter.len();
@@ -50,8 +50,8 @@ impl<const N: usize> Sfs<N> {
         let (log_likelihood, posterior, _) = iter.fold(
             (
                 LogLikelihood::from(0.0),
-                Sfs::zeros(self.shape()),
-                Sfs::zeros(self.shape()),
+                USfs::zeros(self.shape),
+                USfs::zeros(self.shape),
             ),
             |(mut log_likelihood, mut posterior, mut buf), site| {
                 log_likelihood += self.posterior_into(site, &mut posterior, &mut buf).ln();
@@ -87,9 +87,9 @@ impl<const N: usize> Sfs<N> {
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
     /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
     /// ```
-    pub fn par_e_step<I>(&self, input: I) -> (SumOf<LogLikelihood>, UnnormalisedSfs<N>)
+    pub fn par_e_step<I>(&self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
     where
-        I: IntoParallelSiteIterator<N>,
+        I: IntoParallelSiteIterator<D>,
     {
         let iter = input.into_par_site_iter();
         let sites = iter.len();
@@ -99,8 +99,8 @@ impl<const N: usize> Sfs<N> {
                 || {
                     (
                         LogLikelihood::from(0.0),
-                        Sfs::zeros(self.shape()),
-                        Sfs::zeros(self.shape()),
+                        USfs::zeros(self.shape),
+                        USfs::zeros(self.shape),
                     )
                 },
                 |(mut log_likelihood, mut posterior, mut buf), site| {
@@ -111,7 +111,7 @@ impl<const N: usize> Sfs<N> {
             )
             .map(|(log_likelihood, posterior, _buf)| (log_likelihood, posterior))
             .reduce(
-                || (LogLikelihood::from(0.0), Sfs::zeros(self.shape())),
+                || (LogLikelihood::from(0.0), USfs::zeros(self.shape)),
                 |a, b| (a.0 + b.0, a.1 + b.1),
             );
 
@@ -140,7 +140,7 @@ impl<const N: usize> Sfs<N> {
     /// ```
     pub fn log_likelihood<I>(&self, input: I) -> SumOf<LogLikelihood>
     where
-        I: IntoSiteIterator<N>,
+        I: IntoSiteIterator<D>,
     {
         let iter = input.into_site_iter();
         let sites = iter.len();
@@ -176,7 +176,7 @@ impl<const N: usize> Sfs<N> {
     /// ```
     pub fn par_log_likelihood<I>(&self, input: I) -> SumOf<LogLikelihood>
     where
-        I: IntoParallelSiteIterator<N>,
+        I: IntoParallelSiteIterator<D>,
     {
         let iter = input.into_par_site_iter();
         let sites = iter.len();
@@ -202,11 +202,11 @@ impl<const N: usize> Sfs<N> {
     pub(crate) fn posterior_into<T>(
         &self,
         site: T,
-        posterior: &mut UnnormalisedSfs<N>,
-        buf: &mut UnnormalisedSfs<N>,
+        posterior: &mut USfs<D>,
+        buf: &mut USfs<D>,
     ) -> Likelihood
     where
-        T: AsSiteView<N>,
+        T: AsSiteView<D>,
     {
         let site = site.as_site_view();
         assert_eq!(self.shape, site.shape());
@@ -250,7 +250,7 @@ impl<const N: usize> Sfs<N> {
     /// ```
     pub fn site_log_likelihood<T>(&self, site: T) -> LogLikelihood
     where
-        T: AsSiteView<N>,
+        T: AsSiteView<D>,
     {
         self.site_likelihood(site).ln()
     }
@@ -271,7 +271,7 @@ impl<const N: usize> Sfs<N> {
     /// ```
     pub fn site_likelihood<T>(&self, site: T) -> Likelihood
     where
-        T: AsSiteView<N>,
+        T: AsSiteView<D>,
     {
         let site = site.as_site_view();
         assert_eq!(self.shape, site.shape());
@@ -297,18 +297,15 @@ impl<const N: usize> Sfs<N> {
     /// # Panics
     ///
     /// Panics if any of the sites in the input does not fit the shape of `self`.
-    pub fn stream_e_step<R>(
-        &self,
-        mut reader: R,
-    ) -> io::Result<(SumOf<LogLikelihood>, UnnormalisedSfs<N>)>
+    pub fn stream_e_step<R>(&self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
     where
         R: ReadSite,
     {
-        let mut post = Sfs::zeros(self.shape());
-        let mut buf = Sfs::zeros(self.shape());
+        let mut post = USfs::zeros(self.shape);
+        let mut buf = USfs::zeros(self.shape);
 
-        let vec = vec![0.0; self.shape().iter().sum()];
-        let mut site = Site::new(vec, self.shape()).unwrap();
+        let vec = vec![0.0; self.shape.iter().sum()];
+        let mut site = Site::new(vec, self.shape).unwrap();
 
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
@@ -332,8 +329,8 @@ impl<const N: usize> Sfs<N> {
     where
         R: ReadSite,
     {
-        let vec = vec![0.0; self.shape().iter().sum()];
-        let mut site = Site::new(vec, self.shape()).unwrap();
+        let vec = vec![0.0; self.shape.iter().sum()];
+        let mut site = Site::new(vec, self.shape).unwrap();
 
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
@@ -436,7 +433,7 @@ mod tests {
 
         let site = Site::new(vec![2., 2., 2.], [3]).unwrap();
         let mut posterior = sfs1d![10., 20., 30.];
-        let mut buf = Sfs::zeros(sfs.shape());
+        let mut buf = USfs::zeros(sfs.shape);
 
         let posterior_likelihood = sfs.posterior_into(&site, &mut posterior, &mut buf);
 
@@ -458,8 +455,8 @@ mod tests {
         ].normalise();
 
         let site = Site::new(vec![2., 2., 2., 2., 4., 6., 8., 10.], [3, 5]).unwrap();
-        let mut posterior = Sfs::from_elem(1., sfs.shape());
-        let mut buf = Sfs::zeros(sfs.shape());
+        let mut posterior = USfs::from_elem(1., sfs.shape);
+        let mut buf = USfs::zeros(sfs.shape);
 
         let posterior_likelihood = sfs.posterior_into(&site, &mut posterior, &mut buf);
 
@@ -478,13 +475,13 @@ mod tests {
 
     #[test]
     fn test_3d() {
-        let sfs = Sfs::from_vec_shape((0..60).map(|x| x as f64).collect(), [3, 4, 5])
+        let sfs = USfs::from_vec_shape((0..60).map(|x| x as f64).collect(), [3, 4, 5])
             .unwrap()
             .normalise();
 
         let site = Site::new((1..=12).map(|x| x as f32).collect(), [3, 4, 5]).unwrap();
-        let mut posterior = Sfs::from_elem(1., sfs.shape());
-        let mut buf = Sfs::zeros(sfs.shape());
+        let mut posterior = USfs::from_elem(1., sfs.shape);
+        let mut buf = USfs::zeros(sfs.shape);
 
         let posterior_likelihood = sfs.posterior_into(&site, &mut posterior, &mut buf);
 

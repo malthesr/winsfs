@@ -3,7 +3,7 @@ use std::io;
 use crate::{
     io::Rewind,
     saf::iter::{IntoParallelSiteIterator, IntoSiteIterator},
-    sfs::{Sfs, UnnormalisedSfs},
+    sfs::{Sfs, USfs},
 };
 
 use super::{
@@ -45,7 +45,7 @@ impl<const N: usize, I> Em<N, I> for StandardEm<false>
 where
     for<'a> &'a I: IntoSiteIterator<N>,
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, UnnormalisedSfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
         sfs.e_step(input)
     }
 }
@@ -58,7 +58,7 @@ where
         &mut self,
         sfs: &Sfs<N>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, UnnormalisedSfs<N>)> {
+    ) -> io::Result<(Self::Status, USfs<N>)> {
         sfs.stream_e_step(reader)
     }
 }
@@ -67,7 +67,7 @@ impl<const N: usize, I> Em<N, I> for StandardEm<true>
 where
     for<'a> &'a I: IntoParallelSiteIterator<N>,
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, UnnormalisedSfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
         sfs.par_e_step(input)
     }
 }

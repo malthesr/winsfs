@@ -3,7 +3,7 @@ use std::{collections::VecDeque, io, iter::repeat};
 use crate::{
     io::{Enumerate, ReadSite, Rewind, Take},
     saf::{iter::IntoBlockIterator, AsSafView},
-    sfs::{Sfs, UnnormalisedSfs},
+    sfs::{Sfs, USfs},
 };
 
 use super::{to_f64, Em, EmStep, StreamingEm};
@@ -49,7 +49,7 @@ where
     for<'a> &'a I: IntoBlockIterator<N>,
     for<'a> T: Em<N, <&'a I as IntoBlockIterator<N>>::Item>,
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, UnnormalisedSfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
         let mut sfs = sfs.clone();
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
 
@@ -79,7 +79,7 @@ where
         &mut self,
         sfs: &Sfs<N>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, UnnormalisedSfs<N>)> {
+    ) -> io::Result<(Self::Status, USfs<N>)> {
         let mut sfs = sfs.clone();
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
 
@@ -113,12 +113,12 @@ where
 #[derive(Clone, Debug, PartialEq)]
 pub struct Window<const N: usize> {
     // Items are ordered old to new: oldest iterations are at the front, newest at the back
-    deque: VecDeque<UnnormalisedSfs<N>>,
+    deque: VecDeque<USfs<N>>,
 }
 
 impl<const N: usize> Window<N> {
     /// Creates a new window of with size `window_size` by repeating a provided SFS.
-    pub fn from_initial(initial: UnnormalisedSfs<N>, window_size: usize) -> Self {
+    pub fn from_initial(initial: USfs<N>, window_size: usize) -> Self {
         let deque = repeat(initial).take(window_size).collect();
 
         Self { deque }
@@ -126,19 +126,19 @@ impl<const N: usize> Window<N> {
 
     /// Creates a new window of zero-initialised SFS with size `window_size`.
     pub fn from_zeros(shape: [usize; N], window_size: usize) -> Self {
-        Self::from_initial(UnnormalisedSfs::zeros(shape), window_size)
+        Self::from_initial(USfs::zeros(shape), window_size)
     }
 
     /// Returns the shape of the window.
     pub fn shape(&self) -> [usize; N] {
         // We maintain as invariant that all items in deque have same shape,
         // in order to make this okay
-        self.deque[0].shape()
+        *(self.deque[0].shape())
     }
 
     /// Returns the sum of SFS in the window.
-    fn sum(&self) -> UnnormalisedSfs<N> {
-        let first = Sfs::zeros(self.shape());
+    fn sum(&self) -> USfs<N> {
+        let first = USfs::zeros(self.shape());
 
         self.deque.iter().fold(first, |sum, item| sum + item)
     }
@@ -146,8 +146,8 @@ impl<const N: usize> Window<N> {
     /// Updates the window after a new iteration of window EM.
     ///
     /// This corresponds to removing the oldest SFS from the window, and adding the new `sfs`.
-    fn update(&mut self, sfs: UnnormalisedSfs<N>) {
-        if sfs.shape() != self.shape() {
+    fn update(&mut self, sfs: USfs<N>) {
+        if *sfs.shape() != self.shape() {
             panic!("shape of provided SFS does not match shape of window")
         }
 

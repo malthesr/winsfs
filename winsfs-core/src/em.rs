@@ -18,7 +18,7 @@ pub use window_em::{Window, WindowEm};
 
 use crate::{
     io::Rewind,
-    sfs::{Sfs, UnnormalisedSfs},
+    sfs::{Sfs, USfs},
 };
 
 /// An EM-like type that runs in steps.
@@ -36,7 +36,7 @@ pub trait EmStep: Sized {
     /// Inspect the status after each E-step.
     fn inspect<const N: usize, F>(self, f: F) -> Inspect<Self, F>
     where
-        F: FnMut(&Self, &Self::Status, &UnnormalisedSfs<N>),
+        F: FnMut(&Self, &Self::Status, &USfs<N>),
     {
         Inspect::new(self, f)
     }
@@ -51,7 +51,7 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, UnnormalisedSfs<N>);
+    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>);
 
     /// A full EM-step of the algorithm.
     ///
@@ -107,7 +107,7 @@ where
         &mut self,
         sfs: &Sfs<N>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, UnnormalisedSfs<N>)>;
+    ) -> io::Result<(Self::Status, USfs<N>)>;
 
     /// A full EM-step of the algorithm.
     ///

@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 
-use winsfs_core::{io::Intersect, sfs::UnnormalisedSfs};
+use winsfs_core::io::Intersect;
 
-use crate::utils::join;
+use crate::utils::{join, read_sfs};
 
 /// Calculate log-likelihood of site frequency spectrum.
 ///
@@ -40,17 +40,11 @@ impl LogLikelihood {
         }
     }
 
-    pub fn run_n<const N: usize, P>(&self, paths: [P; N]) -> clap::Result<()>
+    pub fn run_n<const D: usize, P>(&self, paths: [P; D]) -> clap::Result<()>
     where
         P: AsRef<Path>,
     {
-        log::debug!(
-            target: "init",
-            "Reading SFS from path:\n\t{}",
-            self.sfs.display()
-        );
-
-        let sfs = UnnormalisedSfs::<N>::read_from_angsd(&self.sfs)?.normalise();
+        let sfs = read_sfs::<D, _>(&self.sfs)?;
 
         log::info!(
             target: "init",

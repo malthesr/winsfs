@@ -4,7 +4,10 @@ use clap::CommandFactory;
 
 use rand::{rngs::StdRng, SeedableRng};
 
-use winsfs_core::{saf::Saf, sfs::Sfs};
+use winsfs_core::{
+    saf::Saf,
+    sfs::{DynUSfs, Sfs, USfs},
+};
 
 use super::Cli;
 
@@ -78,7 +81,7 @@ where
     Ok(saf)
 }
 
-pub fn read_sfs<const N: usize, P>(path: P) -> io::Result<Sfs<N>>
+pub fn read_sfs<const D: usize, P>(path: P) -> io::Result<Sfs<D>>
 where
     P: AsRef<Path>,
 {
@@ -88,7 +91,16 @@ where
         path.as_ref().display()
     );
 
-    Sfs::read_from_angsd(path).map(Sfs::normalise)
+    DynUSfs::read_from_angsd(path)
+        .and_then(|sfs| {
+            USfs::<D>::try_from(sfs).map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "dimensions did not match expected",
+                )
+            })
+        })
+        .map(USfs::normalise)
 }
 
 pub fn shuffle_saf<const N: usize>(saf: &mut Saf<N>, seed: Option<u64>) {

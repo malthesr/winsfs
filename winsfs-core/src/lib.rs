@@ -16,7 +16,7 @@ pub mod prelude {
         Em, ParallelStandardEm, StandardEm, StreamingEm, WindowEm,
     };
     pub use crate::saf::Saf;
-    pub use crate::sfs::{Sfs, UnnormalisedSfs};
+    pub use crate::sfs::{Sfs, USfs};
 }
 
 /// Sets the number of threads to use for parallelization.

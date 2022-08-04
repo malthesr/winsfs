@@ -1,29 +1,23 @@
 //! Structs for SFS iteration.
 //!
-//! These types must be public since they are returned by [`Sfs`] methods, but they simply exist
-//! to be consumed as iterators. The corresponding method docs on [`Sfs`] are likely to be more
-//! informative.
+//! These types must be public since they are returned by [`SfsBase`](super::SfsBase) methods, but
+//! are just exposed to be consumed as iterators. The corresponding method docs on the base struct
+//! are likely to be more informative.
 
-use super::compute_index_unchecked;
-
-// Used for doc links, see github.com/rust-lang/rust/issues/79542
-#[allow(unused_imports)]
-use super::Sfs;
+use super::{ConstShape, Shape};
 
 /// An iterator over the indices of an SFS.
 #[derive(Clone, Debug)]
-pub struct Indices<const N: usize> {
+pub struct Indices<S: Shape> {
     n: usize,
     i: usize,
     rev_i: usize,
-    shape: [usize; N],
+    shape: S,
 }
 
-impl<const N: usize> Indices<N> {
+impl<S: Shape> Indices<S> {
     /// Returns a new iterator over the indices of a given shape.
-    ///
-    /// See also [`Sfs::indices`] to construct directly from an SFS, and for more documentation.
-    pub fn from_shape(shape: [usize; N]) -> Self {
+    pub fn from_shape(shape: S) -> Self {
         let n = shape.iter().product::<usize>();
 
         Self {
@@ -35,8 +29,8 @@ impl<const N: usize> Indices<N> {
     }
 }
 
-impl<const N: usize> Iterator for Indices<N> {
-    type Item = [usize; N];
+impl<const D: usize> Iterator for Indices<ConstShape<D>> {
+    type Item = [usize; D];
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.i < self.rev_i {
@@ -54,9 +48,7 @@ impl<const N: usize> Iterator for Indices<N> {
     }
 }
 
-impl<const N: usize> ExactSizeIterator for Indices<N> {}
-
-impl<const N: usize> DoubleEndedIterator for Indices<N> {
+impl<const D: usize> DoubleEndedIterator for Indices<ConstShape<D>> {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.i < self.rev_i {
             self.rev_i -= 1;
@@ -68,11 +60,34 @@ impl<const N: usize> DoubleEndedIterator for Indices<N> {
     }
 }
 
-impl<const N: usize> std::iter::FusedIterator for Indices<N> {}
+impl<S: Shape> ExactSizeIterator for Indices<S> where Indices<S>: Iterator {}
+
+impl<S: Shape> std::iter::FusedIterator for Indices<S> where Indices<S>: Iterator {}
+
+fn compute_index_unchecked<const D: usize>(
+    mut flat: usize,
+    mut n: usize,
+    shape: [usize; D],
+) -> [usize; D] {
+    let mut index = [0; D];
+    for i in 0..D {
+        n /= shape[i];
+        index[i] = flat / n;
+        flat %= n;
+    }
+    index
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_compute_index() {
+        assert_eq!(compute_index_unchecked(3, 4, [4]), [3]);
+        assert_eq!(compute_index_unchecked(16, 28, [4, 7]), [2, 2]);
+        assert_eq!(compute_index_unchecked(3, 6, [1, 3, 2]), [0, 1, 1]);
+    }
 
     #[test]
     fn test_indices_1d() {

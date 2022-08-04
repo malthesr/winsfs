@@ -1,6 +1,6 @@
 use crate::{
     io::Rewind,
-    sfs::{Sfs, UnnormalisedSfs},
+    sfs::{Sfs, USfs},
 };
 
 use super::{
@@ -35,9 +35,9 @@ where
 impl<const N: usize, T, F, I> Em<N, I> for Inspect<T, F>
 where
     T: Em<N, I>,
-    F: FnMut(&T, &T::Status, &UnnormalisedSfs<N>),
+    F: FnMut(&T, &T::Status, &USfs<N>),
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, UnnormalisedSfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
         let (status, sfs) = self.inner.e_step(sfs, input);
 
         (self.f)(&self.inner, &status, &sfs);
@@ -50,13 +50,13 @@ impl<const N: usize, T, F, R> StreamingEm<N, R> for Inspect<T, F>
 where
     R: Rewind,
     T: StreamingEm<N, R>,
-    F: FnMut(&T, &T::Status, &UnnormalisedSfs<N>),
+    F: FnMut(&T, &T::Status, &USfs<N>),
 {
     fn stream_e_step(
         &mut self,
         sfs: &Sfs<N>,
         reader: &mut R,
-    ) -> std::io::Result<(Self::Status, UnnormalisedSfs<N>)> {
+    ) -> std::io::Result<(Self::Status, USfs<N>)> {
         let (status, sfs) = self.inner.stream_e_step(sfs, reader)?;
 
         (self.f)(&self.inner, &status, &sfs);
