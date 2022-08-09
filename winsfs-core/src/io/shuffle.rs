@@ -121,7 +121,6 @@ mod tests {
         let mut site = Site::new(vec![0.; 5], [5]).unwrap();
         for &i in expected_order {
             reader.read_site(site.as_mut_slice())?;
-            println!("{:?}", site.as_slice());
 
             // Should be normalised, e.g. exp'd
             let expected_site = sites[i].iter().map(|x| x.exp()).collect::<Vec<_>>();

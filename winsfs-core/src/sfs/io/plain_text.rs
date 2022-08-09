@@ -195,8 +195,6 @@ mod tests {
         let mut dest = Vec::new();
         write_sfs(&mut dest, &sfs1d![0., 1., 2.])?;
 
-        eprintln!("{}", String::from_utf8(dest.clone()).unwrap());
-
         assert_eq!(dest, b"#SHAPE=<3>\n0.000000 1.000000 2.000000\n");
 
         Ok(())
@@ -206,8 +204,6 @@ mod tests {
     fn test_write_2d() -> io::Result<()> {
         let mut dest = Vec::new();
         write_sfs(&mut dest, &sfs2d![[0., 1., 2.], [3., 4., 5.]])?;
-
-        eprintln!("{}", String::from_utf8(dest.clone()).unwrap());
 
         assert_eq!(
             dest,
