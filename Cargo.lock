@@ -11,7 +11,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 [[package]]
 name = "angsd-io"
 version = "0.1.0"
-source = "git+https://github.com/malthesr/angsd-io.git?rev=c9d36cd#c9d36cd600b20df690b306339dc687cc651e9230"
+source = "git+https://github.com/malthesr/angsd-io.git?rev=94c7ded#94c7ded93b37c09e823d5db59257337dd72a2bdd"
 dependencies = [
  "byteorder",
  "indexmap",
