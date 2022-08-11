@@ -25,6 +25,19 @@ jobs:
         run: rustup component add clippy
       - run: cargo clippy --all-features -- --deny warnings
 
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update Rust
+        run: rustup update stable && rustup default stable
+      - name: Install cargo-msrv
+        run: cargo install cargo-msrv
+      - name: cargo-msrv winsfs-cli
+        run: cargo msrv --path winsfs-cli verify
+      - name: cargo-msrv winsfs-core
+        run: cargo msrv --path winsfs-core verify
+
   test:
     runs-on: ubuntu-latest
     steps:
