@@ -3,9 +3,18 @@ use std::{
     path::Path,
 };
 
-use winsfs_core::sfs::{io::plain_text, DynUSfs, USfs};
+use winsfs_core::sfs::{
+    io::{npy, plain_text},
+    DynUSfs, USfs,
+};
 
 use super::StdinOrFile;
+
+/// The npy magic number.
+const NPY_MAGIC: [u8; 6] = *b"\x93NUMPY";
+
+/// The beginning of a plain text format file.
+const PLAIN_TEXT_START: [u8; 6] = *b"#SHAPE";
 
 /// A reader for an input SFS.
 pub struct SfsReader {
@@ -76,6 +85,7 @@ impl SfsReader {
         let reader = &mut &bytes[..];
         match format {
             Format::PlainText => plain_text::read_sfs(reader),
+            Format::Npy => npy::read_sfs(reader),
         }
     }
 
@@ -101,15 +111,53 @@ impl SfsReader {
 }
 
 /// An SFS input format.
-#[derive(Clone, Debug)]
-enum Format {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Format {
     /// Plain text format.
     PlainText,
+    /// Numpy npy format.
+    Npy,
 }
 
 impl Format {
     /// Returns the format detected from a byte stream.
     pub fn detect(bytes: &[u8]) -> Option<Self> {
-        Some(Self::PlainText)
+        Self::detect_npy(bytes).xor(Self::detect_plain_text(bytes))
+    }
+
+    /// Returns the plain text format if detected in byte stream.
+    pub fn detect_npy(bytes: &[u8]) -> Option<Self> {
+        (bytes[..NPY_MAGIC.len()] == NPY_MAGIC).then_some(Self::Npy)
+    }
+
+    /// Returns the plain text format if detected in byte stream.
+    pub fn detect_plain_text(bytes: &[u8]) -> Option<Self> {
+        (bytes[..PLAIN_TEXT_START.len()] == PLAIN_TEXT_START).then_some(Self::PlainText)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_detect_npy() {
+        assert_eq!(Format::detect_npy(&NPY_MAGIC), Some(Format::Npy));
+
+        let mut bytes = NPY_MAGIC.to_vec();
+        bytes.extend(b"arbitrary bytes");
+        assert_eq!(Format::detect(&bytes), Some(Format::Npy));
+    }
+
+    #[test]
+    fn test_detect_plain_text() {
+        assert_eq!(
+            Format::detect_plain_text(&PLAIN_TEXT_START),
+            Some(Format::PlainText)
+        );
+
+        let mut bytes = PLAIN_TEXT_START.to_vec();
+        bytes.extend(b"=<17/19>\n1 2 3");
+        assert_eq!(Format::detect(&bytes), Some(Format::PlainText));
     }
 }
