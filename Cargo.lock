@@ -635,6 +635,7 @@ name = "winsfs-cli"
 version = "0.6.0"
 dependencies = [
  "angsd-io",
+ "atty",
  "clap",
  "log",
  "pretty_assertions",
