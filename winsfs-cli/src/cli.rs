@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, path::PathBuf};
 
 use clap::{ArgGroup, Parser, Subcommand};
 
-use crate::{estimate::Format, LogLikelihood, Shuffle};
+use crate::{estimate::Format, LogLikelihood, Shuffle, View};
 
 const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -141,6 +141,7 @@ pub struct Cli {
 pub enum Command {
     Shuffle(Shuffle),
     LogLikelihood(LogLikelihood),
+    View(View),
 }
 
 impl Command {
@@ -148,6 +149,7 @@ impl Command {
         match self {
             Command::Shuffle(shuffle) => shuffle.run(),
             Command::LogLikelihood(log_likelihood) => log_likelihood.run(),
+            Command::View(view) => view.run(),
         }
     }
 }

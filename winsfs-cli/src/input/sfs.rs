@@ -111,9 +111,10 @@ impl SfsReader {
 }
 
 /// An SFS input format.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(clap::ArgEnum, Clone, Debug, Eq, PartialEq)]
 pub enum Format {
     /// Plain text format.
+    #[clap(name = "txt")]
     PlainText,
     /// Numpy npy format.
     Npy,

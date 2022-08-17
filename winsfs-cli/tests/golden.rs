@@ -18,18 +18,19 @@ use std::{
     env,
     error::Error,
     ffi::OsStr,
-    fs::{read_to_string, remove_file, write, File},
-    io,
-    process::{Command, Output},
+    fs::{read, read_to_string, remove_file, write, File},
+    io::{self, Write},
+    path::Path,
+    process::{Command, Output, Stdio},
     str::from_utf8,
     thread,
 };
 
 use pretty_assertions::assert_eq;
 
-const WINSFS: &'static str = env!("CARGO_BIN_EXE_winsfs");
-const EXPECT_DIR: &'static str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/expected");
-const TMP_DIR: &'static str = env!("CARGO_TARGET_TMPDIR");
+const WINSFS: &str = env!("CARGO_BIN_EXE_winsfs");
+const EXPECT_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/expected");
+const TMP_DIR: &str = env!("CARGO_TARGET_TMPDIR");
 
 // This has to be a macro in order to expand in calls to concat!,
 // since concat! cannot take consts.
@@ -39,9 +40,17 @@ macro_rules! test_dir {
     };
 }
 
-const SAF_A: &'static str = concat!(test_dir!(), "/A.saf.idx");
-const SAF_B: &'static str = concat!(test_dir!(), "/B.saf.idx");
-const SAF_C: &'static str = concat!(test_dir!(), "/C.saf.idx");
+const SAF_A: &str = concat!(test_dir!(), "/A.saf.idx");
+const SAF_B: &str = concat!(test_dir!(), "/B.saf.idx");
+const SAF_C: &str = concat!(test_dir!(), "/C.saf.idx");
+
+const SFS_1D: &str = concat!(test_dir!(), "/A.sfs");
+const SFS_2D: &str = concat!(test_dir!(), "/A-B.sfs");
+const SFS_3D: &str = concat!(test_dir!(), "/A-B-C.sfs");
+
+const SFS_1D_NPY: &str = concat!(test_dir!(), "/A.npy");
+const SFS_2D_NPY: &str = concat!(test_dir!(), "/A-B.npy");
+const SFS_3D_NPY: &str = concat!(test_dir!(), "/A-B-C.npy");
 
 /// Get the path of the expected `.stdout` file in `EXPECT_DIR`.
 fn get_expected_stdout(test_name: &str) -> String {
@@ -114,8 +123,8 @@ fn test_output(output: Output) -> Result<(), Box<dyn Error>> {
     if let Ok(true) = env::var("WINSFS_GOLDEN").map(|s| s == "overwrite") {
         overwrite_expected_stdout(stdout, &test_name)?;
         overwrite_expected_stderr(stderr, &test_name)?;
-        eprintln!("Overwrote expected test output; test will fail, please rerun!");
-        assert!(false);
+
+        panic!("Overwrote expected test output; test will fail, please rerun!");
     } else {
         assert_eq!(stdout, read_expected_stdout(&test_name)?);
         assert_eq!(stderr, read_expected_stderr(&test_name)?);
@@ -124,7 +133,7 @@ fn test_output(output: Output) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/// Helper to run the produced winsfs binary with the provided arguments.
+/// Runs the produced winsfs binary with the provided arguments.
 fn winsfs_cmd<I, S>(args: I) -> Command
 where
     I: IntoIterator<Item = S>,
@@ -134,28 +143,96 @@ where
     cmd.args(args);
 
     // If test fails, it's nice to see the commands involved
-    eprintln!("Failing command: {}", format!("{cmd:?}").replace("\"", ""));
+    eprintln!("Failing command: {}", format!("{cmd:?}").replace('"', ""));
 
     cmd
 }
 
+/// Runs winsfs with the provided args and returns the output.
+fn winsfs<I, S>(args: I) -> io::Result<Output>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    winsfs_cmd(args).output()
+}
+
+/// Runs winsfs with the provided args and stdin and returns the output.
+fn winsfs_with_stdin<I, S>(args: I, stdin: &[u8]) -> io::Result<Output>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let mut process = winsfs_cmd(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    let process_stdin = process.stdin.as_mut().unwrap();
+    process_stdin.write_all(stdin)?;
+
+    process.wait_with_output()
+}
+
+/// Runs winsfs with the provided args and stdin from path and returns the output.
+fn winsfs_with_stdin_path<I, S, P>(args: I, stdin_path: P) -> io::Result<Output>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+    P: AsRef<Path>,
+{
+    winsfs_with_stdin(args, &read(stdin_path)?)
+}
+
+#[test]
+fn test_1d_view_fold_normalise() -> Result<(), Box<dyn Error>> {
+    winsfs(["view", "-vv", "--fold", "--normalise", SFS_1D]).map(test_output)?
+}
+
+#[test]
+fn test_1d_view_npy_from_stdin() -> Result<(), Box<dyn Error>> {
+    winsfs_with_stdin_path(["view", "-vv"], SFS_1D_NPY).map(test_output)?
+}
+
+#[test]
+fn test_1d_view_fold_from_stdin() -> Result<(), Box<dyn Error>> {
+    winsfs_with_stdin_path(["view", "-vv", "--fold"], SFS_1D).map(test_output)?
+}
+
+#[test]
+fn test_2d_view_normalise_from_stdin() -> Result<(), Box<dyn Error>> {
+    winsfs_with_stdin_path(["view", "-vv", "--normalise"], SFS_2D).map(test_output)?
+}
+
+#[test]
+fn test_2d_view_fold_npy() -> Result<(), Box<dyn Error>> {
+    winsfs(["view", "-vv", "--fold", SFS_2D_NPY]).map(test_output)?
+}
+
+#[test]
+fn test_3d_view_normalise() -> Result<(), Box<dyn Error>> {
+    winsfs_with_stdin_path(["view", "-vv", "--normalise"], SFS_3D).map(test_output)?
+}
+
+#[test]
+fn test_3d_view_fold_npy_from_stdin() -> Result<(), Box<dyn Error>> {
+    winsfs_with_stdin_path(["view", "-vv", "--fold"], SFS_3D_NPY).map(test_output)?
+}
+
 #[test]
 fn test_1d_estimate_default() -> Result<(), Box<dyn Error>> {
-    winsfs_cmd(["-vv", "--seed", "1", SAF_A])
-        .output()
-        .map(test_output)?
+    winsfs(["-vv", "--seed", "1", SAF_A]).map(test_output)?
 }
 
 #[test]
 fn test_2d_estimate_default() -> Result<(), Box<dyn Error>> {
-    winsfs_cmd(["-vv", "--seed", "1", SAF_A, SAF_B])
-        .output()
-        .map(test_output)?
+    winsfs(["-vv", "--seed", "1", SAF_A, SAF_B]).map(test_output)?
 }
 
 #[test]
 fn test_3d_estimate_3_epochs() -> Result<(), Box<dyn Error>> {
-    winsfs_cmd([
+    winsfs([
         "-vv",
         "--seed",
         "1",
@@ -165,7 +242,6 @@ fn test_3d_estimate_3_epochs() -> Result<(), Box<dyn Error>> {
         SAF_B,
         SAF_C,
     ])
-    .output()
     .map(test_output)?
 }
 
@@ -192,9 +268,7 @@ fn test_2d_stream_estimate_3_epochs() -> Result<(), Box<dyn Error>> {
         .spawn()?
         .wait()?;
 
-    winsfs_cmd(["-vv", "--max-epochs", "3", &saf_shuf])
-        .output()
-        .map(test_output)??;
+    winsfs(["-vv", "--max-epochs", "3", &saf_shuf]).map(test_output)??;
 
     remove_file(saf_shuf)?;
 
@@ -209,9 +283,7 @@ fn test_3d_stream_estimate_1_epoch() -> Result<(), Box<dyn Error>> {
         .spawn()?
         .wait()?;
 
-    winsfs_cmd(["-vv", "--max-epochs", "1", &saf_shuf])
-        .output()
-        .map(test_output)??;
+    winsfs(["-vv", "--max-epochs", "1", &saf_shuf]).map(test_output)??;
 
     remove_file(saf_shuf)?;
 
@@ -227,9 +299,7 @@ fn test_1d_log_likelihood() -> Result<(), Box<dyn Error>> {
         .spawn()?
         .wait()?;
 
-    winsfs_cmd(["log-likelihood", "-vv", "--sfs", &sfs, SAF_A])
-        .output()
-        .map(test_output)??;
+    winsfs(["log-likelihood", "-vv", "--sfs", &sfs, SAF_A]).map(test_output)??;
 
     remove_file(sfs)?;
 
@@ -245,9 +315,7 @@ fn test_2d_log_likelihood() -> Result<(), Box<dyn Error>> {
         .spawn()?
         .wait()?;
 
-    winsfs_cmd(["log-likelihood", "-vv", "--sfs", &sfs, SAF_A, SAF_B])
-        .output()
-        .map(test_output)??;
+    winsfs(["log-likelihood", "-vv", "--sfs", &sfs, SAF_A, SAF_B]).map(test_output)??;
 
     remove_file(sfs)?;
 
@@ -263,9 +331,7 @@ fn test_3d_log_likelihood() -> Result<(), Box<dyn Error>> {
         .spawn()?
         .wait()?;
 
-    winsfs_cmd(["log-likelihood", "-vv", "--sfs", &sfs, SAF_A, SAF_B, SAF_C])
-        .output()
-        .map(test_output)??;
+    winsfs(["log-likelihood", "-vv", "--sfs", &sfs, SAF_A, SAF_B, SAF_C]).map(test_output)??;
 
     remove_file(sfs)?;
 

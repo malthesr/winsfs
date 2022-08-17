@@ -17,6 +17,9 @@ pub use shuffle::Shuffle;
 
 pub mod utils;
 
+mod view;
+pub use view::View;
+
 fn main() {
     let args = Cli::parse();
 

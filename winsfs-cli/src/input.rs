@@ -9,16 +9,6 @@ pub enum StdinOrFile {
 }
 
 impl StdinOrFile {
-    /// Creates a new reader from a file path if `Some`, otherwise fall back to stdin.
-    ///
-    /// This will fail if no path is provided and stdin is not readable.
-    pub fn from_path_or_stdin<P>(path: Option<P>) -> io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        path.map(Self::from_path).unwrap_or_else(Self::from_stdin)
-    }
-
     /// Creates a new reader from a file path.
     pub fn from_path<P>(path: P) -> io::Result<Self>
     where
