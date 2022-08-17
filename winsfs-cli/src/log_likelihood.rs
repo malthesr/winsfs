@@ -4,7 +4,7 @@ use clap::Args;
 
 use winsfs_core::io::Intersect;
 
-use crate::utils::{join, read_sfs};
+use crate::{input, utils::join};
 
 /// Calculate log-likelihood of site frequency spectrum.
 ///
@@ -44,7 +44,9 @@ impl LogLikelihood {
     where
         P: AsRef<Path>,
     {
-        let sfs = read_sfs::<D, _>(&self.sfs)?;
+        let sfs = input::sfs::SfsReader::from_path(&self.sfs)?
+            .read::<D>()?
+            .normalise();
 
         log::info!(
             target: "init",

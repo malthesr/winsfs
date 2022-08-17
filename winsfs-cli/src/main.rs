@@ -7,6 +7,8 @@ use cli::Cli;
 
 mod estimate;
 
+mod input;
+
 mod log_likelihood;
 pub use log_likelihood::LogLikelihood;
 

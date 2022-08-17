@@ -6,7 +6,10 @@ use winsfs_core::{
     sfs::{self, Sfs},
 };
 
-use crate::utils::{read_saf, read_sfs, set_threads, shuffle_saf};
+use crate::{
+    input,
+    utils::{read_saf, set_threads, shuffle_saf},
+};
 
 use super::Cli;
 
@@ -162,7 +165,7 @@ where
 {
     Ok(match initial_sfs_path {
         Some(path) => {
-            let initial_sfs = read_sfs(path)?;
+            let initial_sfs = input::sfs::SfsReader::from_path(path)?.read()?.normalise();
 
             // The initial block SFSs should be scaled by block size for weighting
             let initial_block_sfs = initial_sfs.clone().scale(block_size as f64);
