@@ -57,10 +57,10 @@ fn get_expected_stdout(test_name: &str) -> String {
     format!("{EXPECT_DIR}/{test_name}.stdout")
 }
 
-/// Read the expected stdout from the `.stdout` file in `EXPECT_DIR`.
-fn read_expected_stdout(test_name: &str) -> io::Result<String> {
+/// Read the raw expected stdout from the `.stdout` file in `EXPECT_DIR`.
+fn read_raw_expected_stdout(test_name: &str) -> io::Result<Vec<u8>> {
     let path = get_expected_stdout(test_name);
-    read_to_string(path)
+    read(path)
 }
 
 /// Overwrite new stdout into the `.stdout` file in `EXPECT_DIR`.
@@ -117,16 +117,16 @@ fn test_output(output: Output) -> Result<(), Box<dyn Error>> {
         .expect("failed to get test name")
         .to_string();
 
-    let stdout = from_utf8(&output.stdout)?;
+    let raw_stdout = &output.stdout;
     let stderr = from_utf8(&output.stderr).map(remove_dirs)?;
 
     if let Ok(true) = env::var("WINSFS_GOLDEN").map(|s| s == "overwrite") {
-        overwrite_expected_stdout(stdout, &test_name)?;
+        overwrite_expected_stdout(raw_stdout, &test_name)?;
         overwrite_expected_stderr(stderr, &test_name)?;
 
         panic!("Overwrote expected test output; test will fail, please rerun!");
     } else {
-        assert_eq!(stdout, read_expected_stdout(&test_name)?);
+        assert_eq!(raw_stdout, &read_raw_expected_stdout(&test_name)?);
         assert_eq!(stderr, read_expected_stderr(&test_name)?);
     }
 
@@ -211,6 +211,11 @@ fn test_2d_view_fold_npy() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
+fn test_2d_view_output_npy() -> Result<(), Box<dyn Error>> {
+    winsfs(["view", "-vv", "--output-format", "npy", SFS_2D]).map(test_output)?
+}
+
+#[test]
 fn test_3d_view_normalise() -> Result<(), Box<dyn Error>> {
     winsfs_with_stdin_path(["view", "-vv", "--normalise"], SFS_3D).map(test_output)?
 }
@@ -218,6 +223,19 @@ fn test_3d_view_normalise() -> Result<(), Box<dyn Error>> {
 #[test]
 fn test_3d_view_fold_npy_from_stdin() -> Result<(), Box<dyn Error>> {
     winsfs_with_stdin_path(["view", "-vv", "--fold"], SFS_3D_NPY).map(test_output)?
+}
+
+#[test]
+fn test_3d_view_normalise_npy_output_npy() -> Result<(), Box<dyn Error>> {
+    winsfs([
+        "view",
+        "-vv",
+        "--normalise",
+        "--output-format",
+        "npy",
+        SFS_3D_NPY,
+    ])
+    .map(test_output)?
 }
 
 #[test]
