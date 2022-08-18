@@ -16,7 +16,9 @@ In overview, `winsfs` iteratively estimates the SFS on smaller blocks of data co
     2. [Estimation](#estimation)
     3. [Output](#output)
     4. [Streaming](#streaming)
-4. [Installation](#installation)
+4. [Utilities](#utilities)
+    1. [View](#view)
+5. [Installation](#installation)
 
 ## Quickstart
 
@@ -138,6 +140,8 @@ The header line tells us that this SFS has shape 11/13, i.e. it can be read as a
 
 Note also that the output SFS is unnormalised: the values in the SFS sums to the total number of (intersecting) input sites. Hence, to get the SFS on probability scale, you can simply divide each value by the sum.
 
+See the [View](#view) section for normalising or folding the output spectrum, or for conversion to other formats.
+
 ### Streaming
 
 It is possible to run `winsfs` in so-called "streaming mode". Unlike the main usage mode described above, streaming mode uses only a trivial amount of RAM (a couple of MB, say), but this comes at the expense of disk space usage and longer run-time. If you have the RAM required to run in the main usage mode, doing so will be more convenient.
@@ -166,6 +170,45 @@ winsfs A-B.saf.shuf > A-B.sfs
 ```
 
 Note, however, that the input to the `winsfs` in the second line is only a single file now, since populations A and B have been jointly shuffled into the `A-B.saf.shuf` file. This is by necessity: it is **not** possible to run `winsfs shuffle` for each of the A and B populations separately and then run two-dimensional estimation from the results of the output.
+
+## Utilities
+
+Apart from the main tools to estimate the SFS, `winsfs` contains some subcommand to work with frequency spectra in general. Note that the following can be used whether or not the spectrum has been created by `winsfs`.
+
+### View
+
+The `winsfs view` subcommand can fold the SFS, normalise the SFS, and convert it between formats. We can create an SFS for demonstration:
+
+```shell
+winsfs --seed 1 A.saf.idx > A.sfs
+cat A.sfs
+```
+```
+#SHAPE=<11>
+219338.725607 234.737776 95.505146 32.339889 124.751169 2.732751 71.741684 18.504599 0.004084 37.070165 43.887130
+```
+
+We can normalise the SFS with the `-n`/`--normalise` flag:
+
+```
+winsfs view --normalise A.sfs
+```
+```
+#SHAPE=<11>
+0.996994 0.001067 0.000434 0.000147 0.000567 0.000012 0.000326 0.000084 0.000000 0.000169 0.000199
+```
+
+Or fold it using `-f`/`--fold`:
+
+```
+winsfs view --fold A.sfs
+```
+```
+#SHAPE=<11>
+219382.612737 271.807941 95.509230 50.844488 196.492853 2.732751 0.000000 0.000000 0.000000 0.000000 0.000000
+```
+
+`winsfs view` also supports conversion between the standard plain text format and the numpy `npy` binary format using the `-o`/`--output-format` flag, which may be helpful for downstream processing of the SFS in python.
 
 ## Installation
 
