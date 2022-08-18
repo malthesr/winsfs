@@ -93,7 +93,7 @@ mod tests {
         let path = file.path();
 
         let header = Header::new(9, vec![1, 4], 4);
-        let mut writer = Writer::create(path, header.clone())?;
+        let mut writer = Writer::create(path, header)?;
 
         let sites = vec![
             &[0., 0., 0., 0., 0.],
