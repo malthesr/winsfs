@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use angsd_io::saf;
+use angsd_saf as saf;
 
 use clap::Args;
 
@@ -73,7 +73,7 @@ impl Shuffle {
     where
         P: AsRef<Path>,
     {
-        let mut reader = saf::BgzfReader::from_bgzf_member_path(&path)?;
+        let mut reader = saf::ReaderV3::from_member_path(&path)?;
 
         // In 1D we can get the expected number of sites directly from the SAF file index
         let index = reader.index();
@@ -85,13 +85,9 @@ impl Shuffle {
 
         let mut writer = Writer::create(&self.output, header)?;
 
-        let mut buf = vec![0.0; index.alleles() + 1];
-        while reader
-            .value_reader_mut()
-            .read_values(buf.as_mut_slice())?
-            .is_not_done()
-        {
-            writer.write_site(buf.as_slice())?;
+        let mut buf = vec![0.0; index.alleles() + 1].into();
+        while reader.read_item(&mut buf)?.is_not_done() {
+            writer.write_site(&buf)?;
         }
 
         writer.try_finish().map_err(clap::Error::from)
@@ -128,7 +124,7 @@ impl Shuffle {
         }
 
         while intersect.read_records(&mut bufs)?.is_not_done() {
-            writer.write_disjoint_site(bufs.iter().map(|rec| rec.values()))?;
+            writer.write_disjoint_site(bufs.iter().map(|rec| rec.item()))?;
         }
 
         writer.try_finish().map_err(clap::Error::from)

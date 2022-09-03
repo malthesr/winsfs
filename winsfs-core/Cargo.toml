@@ -9,14 +9,15 @@ homepage = "https://github.com/malthesr/winsfs"
 repository = "https://github.com/malthesr/winsfs"
 
 [features]
-default = ["angsd-io/libdeflate"]
+default = ["angsd-saf/libdeflate"]
 
 [dev-dependencies]
 approx = "0.5"
 tempfile = "3.3"
 
 [dependencies]
-angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "94c7ded" }
+angsd-saf = { git = "https://github.com/malthesr/angsd-io.git", rev = "a35c079" }
+byteorder = "1.4"
 nom = "7.1"
 rand = "0.8"
 rayon = "1.5"

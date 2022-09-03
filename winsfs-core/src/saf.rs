@@ -28,7 +28,7 @@
 
 use std::{cmp::Ordering, error::Error, fmt, io, path::Path};
 
-use angsd_io::saf;
+use angsd_saf as saf;
 
 use rand::Rng;
 
@@ -361,7 +361,7 @@ impl<const N: usize> Saf<N> {
     /// # Panics
     ///
     /// Panics if `N == 0`.
-    pub fn read<R>(readers: [saf::BgzfReader<R>; N]) -> io::Result<Self>
+    pub fn read<R>(readers: [saf::ReaderV3<R>; N]) -> io::Result<Self>
     where
         R: io::BufRead + io::Seek,
     {
@@ -380,12 +380,12 @@ impl<const N: usize> Saf<N> {
         let capacity = shape.iter().map(|shape| shape * max_sites).sum();
         let mut values = Vec::with_capacity(capacity);
 
-        let mut intersect = saf::reader::Intersect::new(Vec::from(readers));
+        let mut intersect = saf::Intersect::new(Vec::from(readers));
         let mut bufs = intersect.create_record_bufs();
 
         while intersect.read_records(&mut bufs)?.is_not_done() {
             for buf in bufs.iter() {
-                values.extend_from_slice(buf.values());
+                values.extend_from_slice(buf.item());
             }
         }
         // The allocated capacity is an overestimate unless all sites in smallest file intersected.
@@ -415,7 +415,7 @@ impl<const N: usize> Saf<N> {
         // TODO: Use array::try_map when stable here
         let readers: [_; N] = paths
             .iter()
-            .map(saf::Reader::from_bgzf_member_path)
+            .map(saf::Reader::from_member_path)
             .collect::<io::Result<Vec<_>>>()?
             .try_into()
             .map_err(|_| ()) // Reader is not debug, so this is necessary to unwrap

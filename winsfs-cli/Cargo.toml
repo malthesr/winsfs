@@ -15,7 +15,7 @@ path = "src/main.rs"
 pretty_assertions = "1.2"
 
 [dependencies]
-angsd-io = { git = "https://github.com/malthesr/angsd-io.git", rev = "94c7ded" }
+angsd-saf = { git = "https://github.com/malthesr/angsd-io.git", rev = "a35c079" }
 atty = "0.2"
 clap = { version = "3.1", features = ["derive"] }
 log = "0.4"

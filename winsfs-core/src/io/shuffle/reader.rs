@@ -4,7 +4,7 @@ use std::{
     path::Path,
 };
 
-use angsd_io::saf::reader::ValueReader;
+use byteorder::{ReadBytesExt, LE};
 
 use crate::io::{ReadSite, ReadStatus, Rewind};
 
@@ -12,7 +12,7 @@ use super::{to_u64, Header};
 
 /// A pseudo-shuffled SAF file reader.
 pub struct Reader<R> {
-    inner: ValueReader<R>,
+    inner: R,
     header: Header,
 }
 
@@ -22,12 +22,12 @@ where
     R: io::BufRead,
 {
     /// Returns the inner reader.
-    pub fn get(&self) -> &ValueReader<R> {
+    pub fn get(&self) -> &R {
         &self.inner
     }
 
     /// Returns a mutable reference to the the inner reader.
-    pub fn get_mut(&mut self) -> &mut ValueReader<R> {
+    pub fn get_mut(&mut self) -> &mut R {
         &mut self.inner
     }
 
@@ -37,7 +37,7 @@ where
     }
 
     /// Returns the inner reader, consuming `self`.
-    pub fn into_inner(self) -> ValueReader<R> {
+    pub fn into_inner(self) -> R {
         self.inner
     }
 
@@ -45,16 +45,17 @@ where
     ///
     /// The stream is expected to be positioned after the header.
     pub fn new(reader: R, header: Header) -> Self {
-        let inner = ValueReader::new(reader);
-
-        Self { inner, header }
+        Self {
+            inner: reader,
+            header,
+        }
     }
 
     /// Reads the header from the reader.
     ///
     /// The stream is assumed to be positioned at the beginning.
     pub fn read_header(&mut self) -> io::Result<Header> {
-        Header::read(self.inner.get_mut())
+        Header::read(&mut self.inner)
     }
 }
 
@@ -63,7 +64,7 @@ where
     R: io::BufRead + io::Seek,
 {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        self.inner.get_mut().seek(pos)
+        self.inner.seek(pos)
     }
 }
 
@@ -90,7 +91,7 @@ where
     fn is_done(&mut self) -> io::Result<bool> {
         // TODO: This can use io::BufRead::has_data_left once stable,
         // see github.com/rust-lang/rust/issues/86423
-        self.inner.get_mut().fill_buf().map(|b| b.is_empty())
+        self.inner.fill_buf().map(|b| b.is_empty())
     }
 
     fn rewind(&mut self) -> io::Result<()> {
@@ -104,10 +105,14 @@ where
     R: io::BufRead + io::Seek,
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
-        let status = self.inner.read_values(buf);
+        if ReadStatus::check(&mut self.inner)?.is_done() {
+            return Ok(ReadStatus::Done);
+        }
+
+        self.inner.read_f32_into::<LE>(buf)?;
 
         buf.iter_mut().for_each(|x| *x = x.exp());
 
-        status
+        Ok(ReadStatus::NotDone)
     }
 }

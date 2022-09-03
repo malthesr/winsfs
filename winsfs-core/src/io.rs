@@ -1,12 +1,16 @@
 //! Utilities for working with SAF files stored on disk.
 //!
-//! To read and write standard SAF files, see the [`angsd_io`] crate. This module contains utilities
-//! based on that for doing SFS estimation from files kept on disk.
+//! To read and write standard SAF files, see the [`angsd_saf`] crate. This module contains
+//! utilities based on that for doing SFS estimation from files kept on disk.
 
 use std::{fs::File, io, path::Path};
 
-use angsd_io::saf;
-pub use angsd_io::ReadStatus;
+use angsd_saf as saf;
+pub use saf::{
+    record::{Id, Likelihoods},
+    version::V3,
+    ReadStatus,
+};
 
 mod adaptors;
 pub use adaptors::{Enumerate, Take};
@@ -77,12 +81,12 @@ where
 
 /// An intersecting SAF reader.
 ///
-/// This a wrapper around the [`Intersect`](angsd_io::saf::reader::Intersect) type that can
+/// This a wrapper around the [`Intersect`](saf::Intersect) type that can
 /// implement [`ReadSite`]. This can be used to stream through the intersecting sites of multiple
 /// SAF files when shuffling is not required.
 pub struct Intersect<R> {
-    inner: saf::reader::Intersect<R>,
-    bufs: Vec<saf::IdRecord>,
+    inner: saf::Intersect<R, V3>,
+    bufs: Vec<saf::Record<Id, Likelihoods>>,
 }
 
 impl<R> Intersect<R>
@@ -90,23 +94,23 @@ where
     R: io::BufRead + io::Seek,
 {
     /// Returns the inner reader.
-    pub fn get(&self) -> &saf::reader::Intersect<R> {
+    pub fn get(&self) -> &saf::Intersect<R, V3> {
         &self.inner
     }
 
     /// Returns a mutable reference to the the inner reader.
-    pub fn get_mut(&mut self) -> &mut saf::reader::Intersect<R> {
+    pub fn get_mut(&mut self) -> &mut saf::Intersect<R, V3> {
         &mut self.inner
     }
 
     /// Returns the inner reader, consuming `self`.
-    pub fn into_inner(self) -> saf::reader::Intersect<R> {
+    pub fn into_inner(self) -> saf::Intersect<R, V3> {
         self.inner
     }
 
     /// Creates a new reader.
-    pub fn new(readers: Vec<saf::BgzfReader<R>>) -> Self {
-        let inner = saf::reader::Intersect::new(readers);
+    pub fn new(readers: Vec<saf::ReaderV3<R>>) -> Self {
+        let inner = saf::Intersect::new(readers);
         let bufs = inner.create_record_bufs();
 
         Self { inner, bufs }
@@ -123,17 +127,17 @@ impl Intersect<io::BufReader<File>> {
     {
         paths
             .iter()
-            .map(saf::BgzfReader::from_bgzf_member_path)
+            .map(saf::ReaderV3::from_member_path)
             .collect::<io::Result<Vec<_>>>()
             .map(Self::new)
     }
 }
 
-impl<R> From<saf::reader::Intersect<R>> for Intersect<R>
+impl<R> From<saf::Intersect<R, V3>> for Intersect<R>
 where
     R: io::BufRead + io::Seek,
 {
-    fn from(inner: saf::reader::Intersect<R>) -> Self {
+    fn from(inner: saf::Intersect<R, V3>) -> Self {
         let bufs = inner.create_record_bufs();
 
         Self { inner, bufs }
@@ -147,7 +151,7 @@ where
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         let status = self.inner.read_records(&mut self.bufs)?;
 
-        let src = self.bufs.iter().map(|rec| rec.values());
+        let src = self.bufs.iter().map(|rec| rec.item());
         copy_from_slices(src, buf);
 
         buf.iter_mut().for_each(|x| *x = x.exp());

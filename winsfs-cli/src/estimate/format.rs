@@ -1,10 +1,9 @@
 use std::{fs::File, io, path::Path};
 
-use angsd_io::saf::MAGIC_NUMBER as STANDARD_MAGIC_NUMBER;
+use angsd_saf as saf;
+use saf::version::Version;
 
 use clap::{ArgEnum, CommandFactory};
-
-use winsfs_core::io::shuffle::MAGIC_NUMBER as SHUFFLED_MAGIC_NUMBER;
 
 use super::Cli;
 
@@ -40,15 +39,15 @@ impl Format {
     where
         R: io::Read + io::Seek,
     {
-        const MAGIC_NUMBER_LEN: usize = magic_number_len();
+        const MAGIC_LEN: usize = 8;
 
-        let mut buf = [0; MAGIC_NUMBER_LEN];
+        let mut buf = [0; MAGIC_LEN];
         reader.read_exact(&mut buf)?;
-        reader.seek(io::SeekFrom::Current(-(MAGIC_NUMBER_LEN as i64)))?;
+        reader.seek(io::SeekFrom::Current(-(MAGIC_LEN as i64)))?;
 
-        Ok(match &buf {
-            STANDARD_MAGIC_NUMBER => Some(Self::Standard),
-            &SHUFFLED_MAGIC_NUMBER => Some(Self::Shuffled),
+        Ok(match buf {
+            saf::version::V3::MAGIC_NUMBER => Some(Self::Standard),
+            winsfs_core::io::shuffle::MAGIC_NUMBER => Some(Self::Shuffled),
             _ => None,
         })
     }
@@ -94,11 +93,4 @@ impl TryFrom<&Cli> for Format {
             }
         }
     }
-}
-
-const fn magic_number_len() -> usize {
-    if STANDARD_MAGIC_NUMBER.len() != SHUFFLED_MAGIC_NUMBER.len() {
-        panic!("length of magic numbers do not match")
-    }
-    STANDARD_MAGIC_NUMBER.len()
 }

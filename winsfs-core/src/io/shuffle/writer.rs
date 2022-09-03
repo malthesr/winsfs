@@ -1,11 +1,9 @@
 use std::{
     fs::File,
-    io::{self, Seek},
+    io::{self, Seek, Write},
     path::Path,
     thread::panicking,
 };
-
-use angsd_io::saf::writer::ValueWriter;
 
 use super::{to_u64, to_usize, Header};
 
@@ -15,7 +13,7 @@ use super::{to_u64, to_usize, Header};
 /// See [`Writer::create`] and [`Writer::try_finish`] for more, as well as
 /// the [module docs](index.html#write) for general usage..
 pub struct Writer<W> {
-    writers: Vec<ValueWriter<W>>,
+    writers: Vec<W>,
     header: Header,
     current: usize,
     finish_flag: bool, // Flag used for drop check
@@ -28,7 +26,7 @@ impl<W> Writer<W> {
     }
 
     /// Creates a new writer.
-    fn new(writers: Vec<ValueWriter<W>>, header: Header) -> Self {
+    fn new(writers: Vec<W>, header: Header) -> Self {
         let finish_flag = header.sites() == 0;
 
         Self {
@@ -111,7 +109,10 @@ impl Writer<io::BufWriter<File>> {
         }
 
         let next_idx = self.current % self.writers.len();
-        self.writers[next_idx].write_values(values)?;
+        let writer = &mut self.writers[next_idx];
+        for v in values {
+            writer.write_all(&v.to_le_bytes())?;
+        }
 
         self.current += 1;
 
@@ -156,7 +157,9 @@ impl Writer<io::BufWriter<File>> {
                 ));
             }
 
-            writer.write_values(values.as_ref())?;
+            for v in values.as_ref() {
+                writer.write_all(&v.to_le_bytes())?
+            }
         }
 
         self.current += 1;
@@ -176,14 +179,14 @@ impl<W> Drop for Writer<W> {
 }
 
 /// Opens path for writing without truncating and creates a writer positioned at byte offset.
-fn open_writer_at_offset<P>(path: P, offset: u64) -> io::Result<ValueWriter<io::BufWriter<File>>>
+fn open_writer_at_offset<P>(path: P, offset: u64) -> io::Result<io::BufWriter<File>>
 where
     P: AsRef<Path>,
 {
     let mut f = File::options().write(true).open(&path)?;
     f.seek(io::SeekFrom::Start(offset))?;
 
-    Ok(ValueWriter::new(io::BufWriter::new(f)))
+    Ok(io::BufWriter::new(f))
 }
 
 #[cfg(test)]
