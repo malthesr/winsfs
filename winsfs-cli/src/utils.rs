@@ -40,32 +40,6 @@ where
         .join(sep)
 }
 
-/// Creates a new in-memory SAF by reading from paths with the provided number of threads.
-pub fn read_saf<const N: usize, P>(paths: [P; N], threads: usize) -> io::Result<Saf<N>>
-where
-    P: AsRef<Path>,
-{
-    log::info!(
-        target: "init",
-        "Reading (intersecting) sites in input SAF files:\n\t{}",
-        join(paths.iter().map(|p| p.as_ref().display()), "\n\t"),
-    );
-
-    let saf = Saf::read_from_paths(
-        paths,
-        Some(NonZeroUsize::new(threads).unwrap_or(thread::available_parallelism()?)),
-    )?;
-
-    log::debug!(
-        target: "init",
-        "Found {sites} (intersecting) sites in SAF files with shape {shape}",
-        sites = saf.sites(),
-        shape = join(saf.shape(), "/"),
-    );
-
-    Ok(saf)
-}
-
 /// Creates a new intersecting SAF reader with the provided number of threads.
 pub fn setup_intersect<P>(paths: &[P], threads: usize) -> io::Result<Intersect<io::BufReader<File>>>
 where

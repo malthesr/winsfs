@@ -1,7 +1,8 @@
-INFO  [init] Reading (intersecting) sites in input SAF files:
+INFO  [init] Opening input SAF v3 files:
 	tests/data/A.saf.idx
 	tests/data/B.saf.idx
 	tests/data/C.saf.idx
+INFO  [init] Reading (intersecting) sites in input SAF files into memory.
 DEBUG [init] Found 220000 (intersecting) sites in SAF files with shape 11/13/15
 DEBUG [init] Shuffling SAF sites
 DEBUG [init] Using 500 full blocks of size 440

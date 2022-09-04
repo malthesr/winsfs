@@ -8,7 +8,7 @@ use winsfs_core::{
 
 use crate::{
     input,
-    utils::{read_saf, set_threads, shuffle_saf},
+    utils::{set_threads, shuffle_saf},
 };
 
 use super::Cli;
@@ -78,7 +78,7 @@ impl Cli {
     where
         P: AsRef<Path>,
     {
-        let mut saf = read_saf(paths, self.threads)?;
+        let mut saf = input::saf::SafReaders::from_member_paths(paths, self.threads)?.read_saf()?;
         shuffle_saf(&mut saf, self.seed);
         let sites = saf.sites();
         let shape = saf.shape();

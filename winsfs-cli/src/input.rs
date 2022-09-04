@@ -1,5 +1,6 @@
 use std::{fs, io, path::Path};
 
+pub mod saf;
 pub mod sfs;
 
 /// A reader that can either read from stdin or from a file.
