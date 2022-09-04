@@ -109,12 +109,11 @@ pub struct Cli {
     #[clap(short = 'l', long, help_heading = "STOPPING", value_name = "FLOAT")]
     pub tolerance: Option<f64>,
 
-    /// Number of threads.
+    /// Number of threads to use.
     ///
-    /// If the provided value is less than or equal to zero, the number of threads used will be
-    /// equal to the available threads minus the provided value.
+    /// If set to 0, all available cores will be used.
     #[clap(short = 't', long, default_value_t = 4, value_name = "INT")]
-    pub threads: i32,
+    pub threads: usize,
 
     /// Verbosity.
     ///

@@ -22,25 +22,7 @@ pub fn init_logger(verbosity_arg: usize) -> clap::Result<()> {
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise logger"))
 }
 
-pub fn set_threads(thread_arg: i32) -> clap::Result<()> {
-    // If value is non-positive, set to available minus value.
-    let threads = match usize::try_from(thread_arg) {
-        Ok(0) => thread::available_parallelism()?.get(),
-        Ok(v) => v,
-        Err(_) => {
-            let available = thread::available_parallelism()?.get();
-
-            let subtract = usize::try_from(thread_arg.abs()).map_err(|_| {
-                Cli::command().error(
-                    clap::ErrorKind::ValueValidation,
-                    "Cannot convert number of threads to usize",
-                )
-            })?;
-
-            available.checked_sub(subtract).unwrap_or(1)
-        }
-    };
-
+pub fn set_threads(threads: usize) -> clap::Result<()> {
     winsfs_core::set_threads(threads)
         .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise threadpool"))
 }
