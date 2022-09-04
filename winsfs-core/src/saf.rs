@@ -19,14 +19,14 @@
 //! use winsfs_core::saf::Saf;
 //! let paths = ["/path/to/A.saf.gz", "path/to/B.saf.idx"];
 //!
-//! // Read joint SAF containing the intersecting sites in populations A and B.
-//! let saf = Saf::read_from_paths(paths)?;
+//! // Read joint SAF containing the intersecting sites in populations A and B using one thread.
+//! let saf = Saf::read_from_paths(paths, None)?;
 //! # Ok(()) }
 //! ```
 //!
 //! [angsd]: http://www.popgen.dk/angsd/index.php/ANGSD
 
-use std::{cmp::Ordering, error::Error, fmt, io, path::Path};
+use std::{cmp::Ordering, error::Error, fmt, io, num::NonZeroUsize, path::Path};
 
 use angsd_saf as saf;
 
@@ -399,6 +399,9 @@ impl<const N: usize> Saf<N> {
 
     /// Creates a new SAF by reading intersecting sites among SAF member file paths.
     ///
+    /// By default, reading is single-threaded. The number of threads used can be increased by
+    /// with the `threads` argument.
+    ///
     /// This is a convenience wrapper around [`Saf::read`], see also its documentation.
     ///
     /// # Panics
@@ -408,14 +411,18 @@ impl<const N: usize> Saf<N> {
     /// # Examples
     ///
     /// See [module docs](index.html#reading-from-saf-files).
-    pub fn read_from_paths<P>(paths: [P; N]) -> io::Result<Self>
+    pub fn read_from_paths<P>(paths: [P; N], threads: Option<NonZeroUsize>) -> io::Result<Self>
     where
         P: AsRef<Path>,
     {
         // TODO: Use array::try_map when stable here
         let readers: [_; N] = paths
             .iter()
-            .map(saf::Reader::from_member_path)
+            .map(|p| {
+                saf::reader::Builder::v3()
+                    .set_threads(threads.unwrap_or(NonZeroUsize::new(1).unwrap()))
+                    .build_from_member_path(p)
+            })
             .collect::<io::Result<Vec<_>>>()?
             .try_into()
             .map_err(|_| ()) // Reader is not debug, so this is necessary to unwrap
