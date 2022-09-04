@@ -365,6 +365,43 @@ impl<const N: usize> Saf<N> {
     where
         R: io::BufRead + io::Seek,
     {
+        Self::read_inner_impl(readers, |values, item, _| {
+            values.extend_from_slice(item);
+        })
+    }
+
+    /// Creates a new SAF by reading intersecting sites among banded SAF readers.
+    ///
+    /// SAF files contain values in log-space. The returned values will be exponentiated
+    /// to get out of log-space.
+    ///
+    /// Note that this simply fills all non-explicitly represented values in the banded SAF
+    /// with zeros (after getting out of log-space). Hence, this amounts to in some sense "undoing"
+    /// the banding.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `N == 0`.
+    pub fn read_from_banded<R>(readers: [saf::ReaderV4<R>; N]) -> io::Result<Self>
+    where
+        R: io::BufRead + io::Seek,
+    {
+        Self::read_inner_impl(readers, |values, item, alleles| {
+            let full_likelihoods = &item.clone().into_full(alleles, f32::NEG_INFINITY);
+            values.extend_from_slice(full_likelihoods);
+        })
+    }
+
+    /// The inner implementor of readers from full SAF and banded SAF.
+    ///
+    /// The functions differ only in what to do with each buffer in for each site, so the caller
+    /// can simply provide this to avoid code duplication.
+    fn read_inner_impl<R, V, F>(readers: [saf::Reader<R, V>; N], f: F) -> io::Result<Self>
+    where
+        R: io::BufRead + io::Seek,
+        V: saf::version::Version,
+        F: Fn(&mut Vec<f32>, &V::Item, usize),
+    {
         assert!(N > 0);
 
         let max_sites = readers
@@ -384,8 +421,8 @@ impl<const N: usize> Saf<N> {
         let mut bufs = intersect.create_record_bufs();
 
         while intersect.read_records(&mut bufs)?.is_not_done() {
-            for buf in bufs.iter() {
-                values.extend_from_slice(buf.item());
+            for (buf, alleles) in bufs.iter().zip(shape.iter().map(|x| x - 1)) {
+                f(&mut values, buf.item(), alleles)
             }
         }
         // The allocated capacity is an overestimate unless all sites in smallest file intersected.
