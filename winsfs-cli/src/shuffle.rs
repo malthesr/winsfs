@@ -1,15 +1,16 @@
-use std::path::{Path, PathBuf};
+use std::{
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    thread,
+};
 
 use angsd_saf as saf;
 
 use clap::Args;
 
-use winsfs_core::io::{
-    shuffle::{Header, Writer},
-    Intersect,
-};
+use winsfs_core::io::shuffle::{Header, Writer};
 
-use crate::utils::join;
+use crate::utils::{join, setup_intersect};
 
 /// Jointly pseudo-shuffle SAF files blockwise on disk.
 ///
@@ -42,6 +43,12 @@ pub struct Shuffle {
     /// Number of blocks to use.
     #[clap(short = 'B', long, value_name = "INT", default_value_t = 100)]
     pub blocks: u16,
+
+    /// Number of threads to use for reading.
+    ///
+    /// If set to 0, all available cores will be used.
+    #[clap(short = 't', long, default_value_t = 4, value_name = "INT")]
+    pub threads: usize,
 }
 
 impl Shuffle {
@@ -73,7 +80,11 @@ impl Shuffle {
     where
         P: AsRef<Path>,
     {
-        let mut reader = saf::reader::Builder::v3().build_from_member_path(&path)?;
+        let mut reader = saf::reader::Builder::v3()
+            .set_threads(
+                NonZeroUsize::new(self.threads).unwrap_or(thread::available_parallelism()?),
+            )
+            .build_from_member_path(&path)?;
 
         // In 1D we can get the expected number of sites directly from the SAF file index
         let index = reader.index();
@@ -97,7 +108,8 @@ impl Shuffle {
     where
         P: AsRef<Path>,
     {
-        let mut intersect = Intersect::from_paths(paths)?.into_inner();
+        let mut intersect = setup_intersect(paths, self.threads)?.into_inner();
+
         let shape = intersect
             .get_readers()
             .iter()

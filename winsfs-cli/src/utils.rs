@@ -1,10 +1,12 @@
-use std::{io, num::NonZeroUsize, path::Path, thread};
+use std::{fs::File, io, num::NonZeroUsize, path::Path, thread};
+
+use angsd_saf as saf;
 
 use clap::CommandFactory;
 
 use rand::{rngs::StdRng, SeedableRng};
 
-use winsfs_core::saf::Saf;
+use winsfs_core::{io::Intersect, saf::Saf};
 
 use super::Cli;
 
@@ -38,6 +40,7 @@ where
         .join(sep)
 }
 
+/// Creates a new in-memory SAF by reading from paths with the provided number of threads.
 pub fn read_saf<const N: usize, P>(paths: [P; N], threads: usize) -> io::Result<Saf<N>>
 where
     P: AsRef<Path>,
@@ -61,6 +64,24 @@ where
     );
 
     Ok(saf)
+}
+
+/// Creates a new intersecting SAF reader with the provided number of threads.
+pub fn setup_intersect<P>(paths: &[P], threads: usize) -> io::Result<Intersect<io::BufReader<File>>>
+where
+    P: AsRef<Path>,
+{
+    let threads = NonZeroUsize::new(threads).unwrap_or(thread::available_parallelism()?);
+
+    paths
+        .iter()
+        .map(|p| {
+            saf::reader::Builder::v3()
+                .set_threads(threads)
+                .build_from_member_path(p)
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .map(Intersect::new)
 }
 
 pub fn shuffle_saf<const N: usize>(saf: &mut Saf<N>, seed: Option<u64>) {
