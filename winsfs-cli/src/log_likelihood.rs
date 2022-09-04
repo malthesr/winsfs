@@ -2,9 +2,10 @@ use std::path::{Path, PathBuf};
 
 use clap::Args;
 
-use winsfs_core::io::Intersect;
-
-use crate::{input, utils::join};
+use crate::{
+    input,
+    utils::{join, setup_intersect},
+};
 
 /// Calculate log-likelihood of site frequency spectrum.
 ///
@@ -28,6 +29,12 @@ pub struct LogLikelihood {
     /// Input SFS to calculate log-likelihood from.
     #[clap(short = 'i', long)]
     pub sfs: PathBuf,
+
+    /// Number of threads to use for reading.
+    ///
+    /// If set to 0, all available cores will be used.
+    #[clap(short = 't', long, default_value_t = 4, value_name = "INT")]
+    pub threads: usize,
 }
 
 impl LogLikelihood {
@@ -54,7 +61,7 @@ impl LogLikelihood {
             join(paths.iter().map(|p| p.as_ref().display()), "\n\t")
         );
 
-        let mut reader = Intersect::from_paths(paths.as_slice())?;
+        let mut reader = setup_intersect(paths.as_slice(), self.threads)?;
 
         let (log_likelihood, sites) = sfs.stream_log_likelihood(&mut reader)?.into();
 
