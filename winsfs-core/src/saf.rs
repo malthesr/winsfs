@@ -4,29 +4,8 @@
 //! populations. To estimate the N-dimensional SFS, we need the SAF likelihoods from intersecting
 //! sites for those N populations. We represent those by the owned type [`Saf`] or the borrowed type
 //! [`SafView`], which may represent the full data or only a smaller block of sites.
-//!
-//! # Examples
-//!
-//! ## Reading from SAF files
-//!
-//! It is expected that SAF likelihoods will be read from [ANGSD][angsd] SAF files.
-//! A convenience constructor is provided to read all intersecting sites from `N` SAF files:
-//!
-//! ```no_run
-//! # fn main() -> ::std::io::Result<()> {
-//! // Any of the SAF member files (with extensions ".saf.gz", ".saf.pos.gz", or ".saf.idx")
-//! // can be used, and the remaining will be found
-//! use winsfs_core::saf::Saf;
-//! let paths = ["/path/to/A.saf.gz", "path/to/B.saf.idx"];
-//!
-//! // Read joint SAF containing the intersecting sites in populations A and B using one thread.
-//! let saf = Saf::read_from_paths(paths, None)?;
-//! # Ok(()) }
-//! ```
-//!
-//! [angsd]: http://www.popgen.dk/angsd/index.php/ANGSD
 
-use std::{cmp::Ordering, error::Error, fmt, io, num::NonZeroUsize, path::Path};
+use std::{cmp::Ordering, error::Error, fmt, io};
 
 use angsd_saf as saf;
 
@@ -393,9 +372,6 @@ impl<const N: usize> Saf<N> {
     }
 
     /// The inner implementor of readers from full SAF and banded SAF.
-    ///
-    /// The functions differ only in what to do with each buffer in for each site, so the caller
-    /// can simply provide this to avoid code duplication.
     fn read_inner_impl<R, V, F>(readers: [saf::Reader<R, V>; N], f: F) -> io::Result<Self>
     where
         R: io::BufRead + io::Seek,
@@ -432,40 +408,6 @@ impl<const N: usize> Saf<N> {
         values.iter_mut().for_each(|x| *x = x.exp());
 
         Ok(Self::new_unchecked(values, shape))
-    }
-
-    /// Creates a new SAF by reading intersecting sites among SAF member file paths.
-    ///
-    /// By default, reading is single-threaded. The number of threads used can be increased by
-    /// with the `threads` argument.
-    ///
-    /// This is a convenience wrapper around [`Saf::read`], see also its documentation.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `N == 0`.
-    ///
-    /// # Examples
-    ///
-    /// See [module docs](index.html#reading-from-saf-files).
-    pub fn read_from_paths<P>(paths: [P; N], threads: Option<NonZeroUsize>) -> io::Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        // TODO: Use array::try_map when stable here
-        let readers: [_; N] = paths
-            .iter()
-            .map(|p| {
-                saf::reader::Builder::v3()
-                    .set_threads(threads.unwrap_or(NonZeroUsize::new(1).unwrap()))
-                    .build_from_member_path(p)
-            })
-            .collect::<io::Result<Vec<_>>>()?
-            .try_into()
-            .map_err(|_| ()) // Reader is not debug, so this is necessary to unwrap
-            .unwrap();
-
-        Self::read(readers)
     }
 
     /// Shuffles the SAF sitewise according to a random permutation.
