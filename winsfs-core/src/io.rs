@@ -127,7 +127,7 @@ impl Intersect<io::BufReader<File>> {
     {
         paths
             .iter()
-            .map(saf::ReaderV3::from_member_path)
+            .map(|p| saf::reader::Builder::v3().build_from_member_path(p))
             .collect::<io::Result<Vec<_>>>()
             .map(Self::new)
     }

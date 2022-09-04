@@ -11,12 +11,12 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 [[package]]
 name = "angsd-io-core"
 version = "0.1.0"
-source = "git+https://github.com/malthesr/angsd-io.git?rev=a35c079#a35c079c7e16ece5a0afa047e5bb90c17b8fdca4"
+source = "git+https://github.com/malthesr/angsd-io.git?rev=1e7a9d1#1e7a9d1b3888618bb2a103e67411eb68e6eff2db"
 
 [[package]]
 name = "angsd-saf"
 version = "0.1.0"
-source = "git+https://github.com/malthesr/angsd-io.git?rev=a35c079#a35c079c7e16ece5a0afa047e5bb90c17b8fdca4"
+source = "git+https://github.com/malthesr/angsd-io.git?rev=1e7a9d1#1e7a9d1b3888618bb2a103e67411eb68e6eff2db"
 dependencies = [
  "angsd-io-core",
  "byteorder",
@@ -356,8 +356,7 @@ dependencies = [
 [[package]]
 name = "noodles-bgzf"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "36ebbec47ff8c1e931f5da61e077a7774bbb2fc43158d72f334a51dae20dcc4b"
+source = "git+https://github.com/zaeleus/noodles.git?rev=531273d#531273daa3b900e6cd8d05ea0572ef84482cfb52"
 dependencies = [
  "byteorder",
  "bytes",

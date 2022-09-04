@@ -73,7 +73,7 @@ impl Shuffle {
     where
         P: AsRef<Path>,
     {
-        let mut reader = saf::ReaderV3::from_member_path(&path)?;
+        let mut reader = saf::reader::Builder::v3().build_from_member_path(&path)?;
 
         // In 1D we can get the expected number of sites directly from the SAF file index
         let index = reader.index();
