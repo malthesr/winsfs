@@ -1,6 +1,7 @@
 use std::{fs::File, io, num::NonZeroUsize, path::Path, thread};
 
 use angsd_saf as saf;
+use saf::version::Version;
 
 use clap::CommandFactory;
 
@@ -41,16 +42,20 @@ where
 }
 
 /// Creates a new intersecting SAF reader with the provided number of threads.
-pub fn setup_intersect<P>(paths: &[P], threads: usize) -> io::Result<Intersect<io::BufReader<File>>>
+pub fn setup_intersect<P, V>(
+    paths: &[P],
+    threads: usize,
+) -> io::Result<Intersect<io::BufReader<File>, V>>
 where
     P: AsRef<Path>,
+    V: Version,
 {
     let threads = NonZeroUsize::new(threads).unwrap_or(thread::available_parallelism()?);
 
     paths
         .iter()
         .map(|p| {
-            saf::reader::Builder::v3()
+            saf::reader::Builder::<V>::default()
                 .set_threads(threads)
                 .build_from_member_path(p)
         })

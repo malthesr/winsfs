@@ -8,7 +8,7 @@ use std::{fs::File, io, path::Path};
 use angsd_saf as saf;
 pub use saf::{
     record::{Id, Likelihoods},
-    version::V3,
+    version::{Version, V3, V4},
     ReadStatus,
 };
 
@@ -84,32 +84,36 @@ where
 /// This a wrapper around the [`Intersect`](saf::Intersect) type that can
 /// implement [`ReadSite`]. This can be used to stream through the intersecting sites of multiple
 /// SAF files when shuffling is not required.
-pub struct Intersect<R> {
-    inner: saf::Intersect<R, V3>,
-    bufs: Vec<saf::Record<Id, Likelihoods>>,
+pub struct Intersect<R, V>
+where
+    V: Version,
+{
+    inner: saf::Intersect<R, V>,
+    bufs: Vec<saf::Record<Id, V::Item>>,
 }
 
-impl<R> Intersect<R>
+impl<R, V> Intersect<R, V>
 where
     R: io::BufRead + io::Seek,
+    V: Version,
 {
     /// Returns the inner reader.
-    pub fn get(&self) -> &saf::Intersect<R, V3> {
+    pub fn get(&self) -> &saf::Intersect<R, V> {
         &self.inner
     }
 
     /// Returns a mutable reference to the the inner reader.
-    pub fn get_mut(&mut self) -> &mut saf::Intersect<R, V3> {
+    pub fn get_mut(&mut self) -> &mut saf::Intersect<R, V> {
         &mut self.inner
     }
 
     /// Returns the inner reader, consuming `self`.
-    pub fn into_inner(self) -> saf::Intersect<R, V3> {
+    pub fn into_inner(self) -> saf::Intersect<R, V> {
         self.inner
     }
 
     /// Creates a new reader.
-    pub fn new(readers: Vec<saf::ReaderV3<R>>) -> Self {
+    pub fn new(readers: Vec<saf::Reader<R, V>>) -> Self {
         let inner = saf::Intersect::new(readers);
         let bufs = inner.create_record_bufs();
 
@@ -117,7 +121,10 @@ where
     }
 }
 
-impl Intersect<io::BufReader<File>> {
+impl<V> Intersect<io::BufReader<File>, V>
+where
+    V: Version,
+{
     /// Creates a new reader from a collection of member file paths.
     ///
     /// The stream will be positioned immediately after the magic number.
@@ -127,31 +134,56 @@ impl Intersect<io::BufReader<File>> {
     {
         paths
             .iter()
-            .map(|p| saf::reader::Builder::v3().build_from_member_path(p))
+            .map(|p| saf::reader::Builder::<V>::default().build_from_member_path(p))
             .collect::<io::Result<Vec<_>>>()
             .map(Self::new)
     }
 }
 
-impl<R> From<saf::Intersect<R, V3>> for Intersect<R>
+impl<R, V> From<saf::Intersect<R, V>> for Intersect<R, V>
 where
     R: io::BufRead + io::Seek,
+    V: Version,
 {
-    fn from(inner: saf::Intersect<R, V3>) -> Self {
+    fn from(inner: saf::Intersect<R, V>) -> Self {
         let bufs = inner.create_record_bufs();
 
         Self { inner, bufs }
     }
 }
 
-impl<R> ReadSite for Intersect<R>
+impl<R> ReadSite for Intersect<R, V3>
 where
     R: io::BufRead + io::Seek,
 {
     fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
         let status = self.inner.read_records(&mut self.bufs)?;
 
-        let src = self.bufs.iter().map(|rec| rec.item());
+        let src = self.bufs.iter().map(|record| record.item());
+        copy_from_slices(src, buf);
+
+        buf.iter_mut().for_each(|x| *x = x.exp());
+
+        Ok(status)
+    }
+}
+
+impl<R> ReadSite for Intersect<R, V4>
+where
+    R: io::BufRead + io::Seek,
+{
+    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
+        let status = self.inner.read_records(&mut self.bufs)?;
+
+        let alleles_iter = self
+            .inner
+            .get_readers()
+            .iter()
+            .map(|reader| reader.index().alleles());
+        let src =
+            self.bufs.iter().zip(alleles_iter).map(|(record, alleles)| {
+                record.item().clone().into_full(alleles, f32::NEG_INFINITY)
+            });
         copy_from_slices(src, buf);
 
         buf.iter_mut().for_each(|x| *x = x.exp());

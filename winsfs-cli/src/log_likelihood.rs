@@ -1,5 +1,8 @@
 use std::path::{Path, PathBuf};
 
+use angsd_saf as saf;
+use saf::version::V3;
+
 use clap::Args;
 
 use crate::{
@@ -61,7 +64,7 @@ impl LogLikelihood {
             join(paths.iter().map(|p| p.as_ref().display()), "\n\t")
         );
 
-        let mut reader = setup_intersect(paths.as_slice(), self.threads)?;
+        let mut reader = setup_intersect::<_, V3>(paths.as_slice(), self.threads)?;
 
         let (log_likelihood, sites) = sfs.stream_log_likelihood(&mut reader)?.into();
 

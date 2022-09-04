@@ -5,6 +5,7 @@ use std::{
 };
 
 use angsd_saf as saf;
+use saf::version::V3;
 
 use clap::Args;
 
@@ -108,7 +109,7 @@ impl Shuffle {
     where
         P: AsRef<Path>,
     {
-        let mut intersect = setup_intersect(paths, self.threads)?.into_inner();
+        let mut intersect = setup_intersect::<_, V3>(paths, self.threads)?.into_inner();
 
         let shape = intersect
             .get_readers()
