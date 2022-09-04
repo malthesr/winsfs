@@ -78,7 +78,7 @@ impl Cli {
     where
         P: AsRef<Path>,
     {
-        let mut saf = read_saf(paths)?;
+        let mut saf = read_saf(paths, self.threads)?;
         shuffle_saf(&mut saf, self.seed);
         let sites = saf.sites();
         let shape = saf.shape();

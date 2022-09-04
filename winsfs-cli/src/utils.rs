@@ -1,4 +1,4 @@
-use std::{io, path::Path, thread};
+use std::{io, num::NonZeroUsize, path::Path, thread};
 
 use clap::CommandFactory;
 
@@ -38,7 +38,7 @@ where
         .join(sep)
 }
 
-pub fn read_saf<const N: usize, P>(paths: [P; N]) -> io::Result<Saf<N>>
+pub fn read_saf<const N: usize, P>(paths: [P; N], threads: usize) -> io::Result<Saf<N>>
 where
     P: AsRef<Path>,
 {
@@ -48,7 +48,10 @@ where
         join(paths.iter().map(|p| p.as_ref().display()), "\n\t"),
     );
 
-    let saf = Saf::read_from_paths(paths)?;
+    let saf = Saf::read_from_paths(
+        paths,
+        Some(NonZeroUsize::new(threads).unwrap_or(thread::available_parallelism()?)),
+    )?;
 
     log::debug!(
         target: "init",
