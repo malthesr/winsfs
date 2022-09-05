@@ -100,8 +100,8 @@ macro_rules! sfs2d {
 // see github.com/rust-lang/rust/issues/95174
 pub struct SfsBase<S: Shape, N: Normalisation> {
     values: Vec<f64>,
-    shape: S,
-    strides: S,
+    pub(crate) shape: S,
+    pub(crate) strides: S,
     norm: PhantomData<N>,
 }
 

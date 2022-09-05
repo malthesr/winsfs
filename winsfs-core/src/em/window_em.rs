@@ -6,7 +6,7 @@ use crate::{
     sfs::{Sfs, USfs},
 };
 
-use super::{to_f64, Em, EmStep, StreamingEm};
+use super::{to_f64, Em, EmSite, EmStep, StreamingEm};
 
 /// A runner of the window EM algorithm.
 ///
@@ -15,20 +15,20 @@ use super::{to_f64, Em, EmStep, StreamingEm};
 /// window to smooth the global estimate. The algorithm can be configured to use different EM-like
 /// algorithms (corresponding to the parameter `T`) for each inner block update step.
 #[derive(Clone, Debug, PartialEq)]
-pub struct WindowEm<const N: usize, T> {
+pub struct WindowEm<const D: usize, T> {
     em: T,
-    window: Window<N>,
+    window: Window<D>,
     block_size: usize,
 }
 
-impl<const N: usize, T> WindowEm<N, T> {
+impl<const D: usize, T> WindowEm<D, T> {
     /// Returns a new instance of the runner.
     ///
     /// The `em` is the inner kind of EM to handle the blocks, and the `block_size` is the number
     /// of sites per blocks. The provided `window` should match the shape of the input and SFS
     /// that is provided for inference later. Where no good prior guess for the SFS exists,
     /// using [`Window::from_zeros`] is recommended.
-    pub fn new(em: T, window: Window<N>, block_size: usize) -> Self {
+    pub fn new(em: T, window: Window<D>, block_size: usize) -> Self {
         Self {
             em,
             window,
@@ -37,19 +37,19 @@ impl<const N: usize, T> WindowEm<N, T> {
     }
 }
 
-impl<const N: usize, T> EmStep for WindowEm<N, T>
+impl<const D: usize, T> EmStep for WindowEm<D, T>
 where
     T: EmStep,
 {
     type Status = Vec<T::Status>;
 }
 
-impl<const N: usize, I, T> Em<N, I> for WindowEm<N, T>
+impl<const D: usize, I, T> Em<D, I> for WindowEm<D, T>
 where
-    for<'a> &'a I: IntoBlockIterator<N>,
-    for<'a> T: Em<N, <&'a I as IntoBlockIterator<N>>::Item>,
+    for<'a> &'a I: IntoBlockIterator<D>,
+    for<'a> T: Em<D, <&'a I as IntoBlockIterator<D>>::Item>,
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         let mut sfs = sfs.clone();
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
 
@@ -70,16 +70,17 @@ where
     }
 }
 
-impl<const N: usize, R, T> StreamingEm<N, R> for WindowEm<N, T>
+impl<const D: usize, R, T> StreamingEm<D, R> for WindowEm<D, T>
 where
     R: Rewind,
-    for<'a> T: StreamingEm<N, Take<Enumerate<&'a mut R>>>,
+    R::Site: EmSite<D>,
+    for<'a> T: StreamingEm<D, Take<Enumerate<&'a mut R>>>,
 {
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<N>,
+        sfs: &Sfs<D>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, USfs<N>)> {
+    ) -> io::Result<(Self::Status, USfs<D>)> {
         let mut sfs = sfs.clone();
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
 
@@ -111,33 +112,33 @@ where
 /// a running estimate of the SFS. The "window size" governs the number of past block estimates
 /// that are remembered and averaged over.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Window<const N: usize> {
+pub struct Window<const D: usize> {
     // Items are ordered old to new: oldest iterations are at the front, newest at the back
-    deque: VecDeque<USfs<N>>,
+    deque: VecDeque<USfs<D>>,
 }
 
-impl<const N: usize> Window<N> {
+impl<const D: usize> Window<D> {
     /// Creates a new window of with size `window_size` by repeating a provided SFS.
-    pub fn from_initial(initial: USfs<N>, window_size: usize) -> Self {
+    pub fn from_initial(initial: USfs<D>, window_size: usize) -> Self {
         let deque = repeat(initial).take(window_size).collect();
 
         Self { deque }
     }
 
     /// Creates a new window of zero-initialised SFS with size `window_size`.
-    pub fn from_zeros(shape: [usize; N], window_size: usize) -> Self {
+    pub fn from_zeros(shape: [usize; D], window_size: usize) -> Self {
         Self::from_initial(USfs::zeros(shape), window_size)
     }
 
     /// Returns the shape of the window.
-    pub fn shape(&self) -> [usize; N] {
+    pub fn shape(&self) -> [usize; D] {
         // We maintain as invariant that all items in deque have same shape,
         // in order to make this okay
         *(self.deque[0].shape())
     }
 
     /// Returns the sum of SFS in the window.
-    fn sum(&self) -> USfs<N> {
+    fn sum(&self) -> USfs<D> {
         let first = USfs::zeros(self.shape());
 
         self.deque.iter().fold(first, |sum, item| sum + item)
@@ -146,7 +147,7 @@ impl<const N: usize> Window<N> {
     /// Updates the window after a new iteration of window EM.
     ///
     /// This corresponds to removing the oldest SFS from the window, and adding the new `sfs`.
-    fn update(&mut self, sfs: USfs<N>) {
+    fn update(&mut self, sfs: USfs<D>) {
         if *sfs.shape() != self.shape() {
             panic!("shape of provided SFS does not match shape of window")
         }

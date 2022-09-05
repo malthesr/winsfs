@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     stopping::{Stop, StoppingRule},
-    Em, EmStep, StreamingEm,
+    Em, EmSite, EmStep, StreamingEm,
 };
 
 /// A combinator for types that allows inspection after each E-step.
@@ -32,12 +32,12 @@ where
     type Status = T::Status;
 }
 
-impl<const N: usize, T, F, I> Em<N, I> for Inspect<T, F>
+impl<const D: usize, T, F, I> Em<D, I> for Inspect<T, F>
 where
-    T: Em<N, I>,
-    F: FnMut(&T, &T::Status, &USfs<N>),
+    T: Em<D, I>,
+    F: FnMut(&T, &T::Status, &USfs<D>),
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         let (status, sfs) = self.inner.e_step(sfs, input);
 
         (self.f)(&self.inner, &status, &sfs);
@@ -46,17 +46,18 @@ where
     }
 }
 
-impl<const N: usize, T, F, R> StreamingEm<N, R> for Inspect<T, F>
+impl<const D: usize, T, F, R> StreamingEm<D, R> for Inspect<T, F>
 where
     R: Rewind,
-    T: StreamingEm<N, R>,
-    F: FnMut(&T, &T::Status, &USfs<N>),
+    R::Site: EmSite<D>,
+    T: StreamingEm<D, R>,
+    F: FnMut(&T, &T::Status, &USfs<D>),
 {
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<N>,
+        sfs: &Sfs<D>,
         reader: &mut R,
-    ) -> std::io::Result<(Self::Status, USfs<N>)> {
+    ) -> std::io::Result<(Self::Status, USfs<D>)> {
         let (status, sfs) = self.inner.stream_e_step(sfs, reader)?;
 
         (self.f)(&self.inner, &status, &sfs);
@@ -75,7 +76,7 @@ where
 {
     type Status = T::Status;
 
-    fn stop<const N: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<N>) -> bool {
+    fn stop<const D: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<D>) -> bool {
         (self.f)(&self.inner);
 
         self.inner.stop(em, status, sfs)

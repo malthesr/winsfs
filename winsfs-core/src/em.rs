@@ -7,6 +7,9 @@ pub mod likelihood;
 mod adaptors;
 pub use adaptors::Inspect;
 
+mod site;
+pub use site::{EmSite, StreamEmSite};
+
 mod standard_em;
 pub use standard_em::{ParallelStandardEm, StandardEm};
 
@@ -92,9 +95,10 @@ pub trait Em<const N: usize, I>: EmStep {
 }
 
 /// A type capable of running an EM-like algorithm for SFS inference by streaming through data.
-pub trait StreamingEm<const N: usize, R>: EmStep
+pub trait StreamingEm<const D: usize, R>: EmStep
 where
     R: Rewind,
+    R::Site: EmSite<D>,
 {
     /// The E-step of the algorithm.
     ///
@@ -105,9 +109,9 @@ where
     /// Panics if the shapes of the SFS and the input do not match.
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<N>,
+        sfs: &Sfs<D>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, USfs<N>)>;
+    ) -> io::Result<(Self::Status, USfs<D>)>;
 
     /// A full EM-step of the algorithm.
     ///
@@ -118,9 +122,9 @@ where
     /// Panics if the shapes of the SFS and the input do not match.
     fn stream_em_step(
         &mut self,
-        sfs: &Sfs<N>,
+        sfs: &Sfs<D>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, Sfs<N>)> {
+    ) -> io::Result<(Self::Status, Sfs<D>)> {
         let (status, posterior) = self.stream_e_step(sfs, reader)?;
 
         Ok((status, posterior.normalise()))
@@ -136,10 +140,10 @@ where
     /// Panics if the shapes of the SFS and the input do not match.
     fn stream_em<S>(
         &mut self,
-        sfs: &Sfs<N>,
+        sfs: &Sfs<D>,
         reader: &mut R,
         mut stopping_rule: S,
-    ) -> io::Result<(Self::Status, Sfs<N>)>
+    ) -> io::Result<(Self::Status, Sfs<D>)>
     where
         S: Stop<Self, Status = Self::Status>,
     {

@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     likelihood::{LogLikelihood, SumOf},
-    Em, EmStep, StreamingEm,
+    Em, EmStep, StreamEmSite, StreamingEm,
 };
 
 /// A parallel runner of the standard EM algorithm.
@@ -41,33 +41,34 @@ impl<const PAR: bool> EmStep for StandardEm<PAR> {
     type Status = SumOf<LogLikelihood>;
 }
 
-impl<const N: usize, I> Em<N, I> for StandardEm<false>
+impl<const D: usize, I> Em<D, I> for StandardEm<false>
 where
-    for<'a> &'a I: IntoSiteIterator<N>,
+    for<'a> &'a I: IntoSiteIterator<D>,
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         sfs.e_step(input)
     }
 }
 
-impl<const N: usize, R> StreamingEm<N, R> for StandardEm<false>
+impl<const D: usize, R> StreamingEm<D, R> for StandardEm<false>
 where
     R: Rewind,
+    R::Site: StreamEmSite<D>,
 {
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<N>,
+        sfs: &Sfs<D>,
         reader: &mut R,
-    ) -> io::Result<(Self::Status, USfs<N>)> {
+    ) -> io::Result<(Self::Status, USfs<D>)> {
         sfs.stream_e_step(reader)
     }
 }
 
-impl<const N: usize, I> Em<N, I> for StandardEm<true>
+impl<const D: usize, I> Em<D, I> for StandardEm<true>
 where
-    for<'a> &'a I: IntoParallelSiteIterator<N>,
+    for<'a> &'a I: IntoParallelSiteIterator<D>,
 {
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>) {
+    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         sfs.par_e_step(input)
     }
 }
