@@ -58,7 +58,7 @@ macro_rules! setup {
 impl Cli {
     pub fn run(self) -> clap::Result<()> {
         match Format::try_from(&self)? {
-            Format::Standard => self.run_in_memory(),
+            Format::Standard | Format::Banded => self.run_in_memory(),
             Format::Shuffled => self.run_streaming(),
         }
     }

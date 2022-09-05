@@ -1,7 +1,7 @@
-use std::{fmt, fs::File, io, num::NonZeroUsize, path::Path, thread};
+use std::{fs::File, io, num::NonZeroUsize, path::Path, thread};
 
 use angsd_saf as saf;
-use saf::version::{Version, V3, V4};
+use saf::version::Version;
 
 use winsfs_core::{
     em::{likelihood::LogLikelihood, StreamEmSite},
@@ -10,12 +10,12 @@ use winsfs_core::{
     sfs::Sfs,
 };
 
-use crate::utils::join;
+use crate::{estimate::Format, utils::join};
 
 /// A collection of SAF file readers from one of the supported SAF file formats.
 pub enum Readers<const D: usize, R> {
     /// A collection of full SAF V3 readers.
-    Full([saf::ReaderV3<R>; D]),
+    Standard([saf::ReaderV3<R>; D]),
     /// A collection of banded SAF V4 readers.
     Banded([saf::ReaderV4<R>; D]),
 }
@@ -31,7 +31,7 @@ where
     /// reader, in which case the number of sites can be taken directly from the index.
     pub fn count_sites(self) -> io::Result<usize> {
         match self {
-            Self::Full(readers) => readers.count_sites(),
+            Self::Standard(readers) => readers.count_sites(),
             Self::Banded(readers) => readers.count_sites(),
         }
     }
@@ -40,7 +40,7 @@ where
     /// (intersecting) sites in the readers.
     pub fn log_likelihood(self, sfs: &Sfs<D>) -> io::Result<(LogLikelihood, usize)> {
         match self {
-            Self::Full(readers) => readers.log_likelihood(sfs),
+            Self::Standard(readers) => readers.log_likelihood(sfs),
             Self::Banded(readers) => readers.log_likelihood(sfs),
         }
     }
@@ -48,7 +48,7 @@ where
     /// Returns the shape of the SAF to be read.
     pub fn shape(&self) -> [usize; D] {
         match self {
-            Self::Full(readers) => readers.shape(),
+            Self::Standard(readers) => readers.shape(),
             Self::Banded(readers) => readers.shape(),
         }
     }
@@ -56,7 +56,7 @@ where
     /// Pseudo-shuffles the sites in the readers into the provided shuffle writer.
     pub fn shuffle(self, writer: shuffle::Writer<io::BufWriter<File>>) -> io::Result<()> {
         match self {
-            Self::Full(readers) => {
+            Self::Standard(readers) => {
                 let intersect = Intersect::new(readers);
                 writer.write_intersect(intersect)
             }
@@ -78,7 +78,7 @@ where
         );
 
         let saf = match self {
-            Readers::Full(readers) => Saf::read(readers),
+            Readers::Standard(readers) => Saf::read(readers),
             Readers::Banded(readers) => Saf::read_from_banded(readers),
         }?;
 
@@ -104,7 +104,7 @@ impl<const D: usize> Readers<D, io::BufReader<File>> {
         P: AsRef<Path>,
     {
         let mut file = File::open(&paths[0])?;
-        let format = Format::detect(&mut file)?;
+        let format = Format::infer_from_magic(&mut file)?;
 
         log::info!(
             target: "init",
@@ -114,8 +114,12 @@ impl<const D: usize> Readers<D, io::BufReader<File>> {
         );
 
         match format {
-            Format::Full => create_readers(paths, threads).map(Self::Full),
+            Format::Standard => create_readers(paths, threads).map(Self::Standard),
             Format::Banded => create_readers(paths, threads).map(Self::Banded),
+            Format::Shuffled => Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "cannot construct joint reader from shuffled format file",
+            )),
         }
     }
 }
@@ -205,51 +209,4 @@ where
                 .map_err(|_| ()) // Reader is not debug, so this is necessary to unwrap
                 .unwrap()
         })
-}
-
-/// The supported SAF file version.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Format {
-    Full,
-    Banded,
-}
-
-impl Format {
-    /// Returns the SAF file version by reading the magic number from a reader.
-    ///
-    /// The stream will be positioned immediately after the magic number.
-    pub fn detect<R>(reader: &mut R) -> io::Result<Self>
-    where
-        R: io::Read,
-    {
-        let mut buf = [0; 8];
-        reader.read_exact(&mut buf)?;
-
-        match buf {
-            V3::MAGIC_NUMBER => Ok(Self::Full),
-            V4::MAGIC_NUMBER => Ok(Self::Banded),
-            _ => Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("failed to detect SAF file version from magic number {buf:02x?}",),
-            )),
-        }
-    }
-
-    /// Returns the format as a string representation of the corresponding SAF file format.
-    pub fn version_string(&self) -> String {
-        match self {
-            Self::Full => "v3",
-            Self::Banded => "v4",
-        }
-        .to_string()
-    }
-}
-
-impl fmt::Display for Format {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Full => f.write_str("full"),
-            Self::Banded => f.write_str("banded"),
-        }
-    }
 }

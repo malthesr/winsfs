@@ -1,4 +1,4 @@
-use std::{fs::File, io, path::Path};
+use std::{fmt, fs::File, io};
 
 use angsd_saf as saf;
 use saf::version::Version;
@@ -12,30 +12,17 @@ use super::Cli;
 pub enum Format {
     /// One or more standard SAF ANGSD files
     Standard,
+    /// One or more standard SAF ANGSD files
+    Banded,
     /// A single pseudo-shuffled SAF file, which may contain one or more populations
     Shuffled,
 }
 
 impl Format {
-    /// Infer format from path name.
-    fn infer_from_path<P>(path: P) -> Option<Self>
-    where
-        P: AsRef<Path>,
-    {
-        // Cannot use Path::extension, since it splits on last '.'
-        let (_stem, ext) = path.as_ref().to_str()?.split_once('.')?;
-
-        match ext {
-            "saf.idx" | "saf.gz" | "saf.pos.gz" => Some(Self::Standard),
-            "saf.shuf" => Some(Self::Shuffled),
-            _ => None,
-        }
-    }
-
     /// Infer format from magic number in reader, and rewind reader to start.
     ///
     /// Note that this is sensitive to whether the input is bgzipped or not.
-    fn infer_from_magic<R>(reader: &mut R) -> io::Result<Option<Self>>
+    pub fn infer_from_magic<R>(reader: &mut R) -> io::Result<Self>
     where
         R: io::Read + io::Seek,
     {
@@ -45,11 +32,25 @@ impl Format {
         reader.read_exact(&mut buf)?;
         reader.seek(io::SeekFrom::Current(-(MAGIC_LEN as i64)))?;
 
-        Ok(match buf {
-            saf::version::V3::MAGIC_NUMBER => Some(Self::Standard),
-            winsfs_core::io::shuffle::MAGIC_NUMBER => Some(Self::Shuffled),
-            _ => None,
-        })
+        match buf {
+            saf::version::V3::MAGIC_NUMBER => Ok(Self::Standard),
+            saf::version::V4::MAGIC_NUMBER => Ok(Self::Banded),
+            winsfs_core::io::shuffle::MAGIC_NUMBER => Ok(Self::Shuffled),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("failed to detect SAF file version from magic number {buf:02x?}",),
+            )),
+        }
+    }
+
+    /// Returns the format as a string representation of the corresponding SAF file format.
+    pub fn version_string(&self) -> String {
+        match self {
+            Self::Standard => "v3",
+            Self::Banded => "v4",
+            Self::Shuffled => "vshuf",
+        }
+        .to_string()
     }
 }
 
@@ -60,24 +61,12 @@ impl TryFrom<&Cli> for Format {
         match args.paths.as_slice() {
             [] => unreachable!(), // Checked by clap
             [path] => {
-                // Single input file, could be either standard or shuffled;
+                // Single input file, could be either standard, banded, or shuffled;
                 // if user provided format, trust that and defer check to file reader,
                 if let Some(expected_format) = args.input_format {
-                    return Ok(expected_format);
-                }
-
-                // Otherwise, infer from path name; if that fails, try to infer from magic number.
-                // This procedure fails if user provides standard non-index file with unconventional
-                // name, since both path check and magic check will fail (the latter due to bgzip).
-                if let Some(format) = Self::infer_from_path(path) {
-                    Ok(format)
-                } else if let Some(format) = Format::infer_from_magic(&mut File::open(path)?)? {
-                    Ok(format)
+                    Ok(expected_format)
                 } else {
-                    Err(Cli::command().error(
-                        clap::ErrorKind::ValueValidation,
-                        "unrecognised input file type",
-                    ))
+                    Format::infer_from_magic(&mut File::open(path)?).map_err(|e| e.into())
                 }
             }
             [..] => {
@@ -91,6 +80,16 @@ impl TryFrom<&Cli> for Format {
                     Ok(Format::Standard)
                 }
             }
+        }
+    }
+}
+
+impl fmt::Display for Format {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Standard => f.write_str("full"),
+            Self::Banded => f.write_str("banded"),
+            Self::Shuffled => f.write_str("shuffled"),
         }
     }
 }
