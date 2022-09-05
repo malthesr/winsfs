@@ -78,7 +78,7 @@ impl Cli {
     where
         P: AsRef<Path>,
     {
-        let mut saf = input::saf::SafReaders::from_member_paths(paths, self.threads)?.read_saf()?;
+        let mut saf = input::saf::Readers::from_member_paths(paths, self.threads)?.read_saf()?;
         shuffle_saf(&mut saf, self.seed);
         let sites = saf.sites();
         let shape = saf.shape();
@@ -165,7 +165,7 @@ where
 {
     Ok(match initial_sfs_path {
         Some(path) => {
-            let initial_sfs = input::sfs::SfsReader::from_path(path)?.read()?.normalise();
+            let initial_sfs = input::sfs::Reader::from_path(path)?.read()?.normalise();
 
             // The initial block SFSs should be scaled by block size for weighting
             let initial_block_sfs = initial_sfs.clone().scale(block_size as f64);

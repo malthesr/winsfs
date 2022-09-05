@@ -1,4 +1,4 @@
-use std::{fmt, fs::File, io, num::NonZeroUsize, path::Path, thread};
+use std::{fs::File, io, num::NonZeroUsize, path::Path, thread};
 
 use angsd_saf as saf;
 use saf::version::{Version as _, V3, V4};
@@ -8,14 +8,14 @@ use winsfs_core::saf::Saf;
 use crate::utils::join;
 
 /// A collection of SAF file readers from one of the supported SAF file formats.
-pub enum SafReaders<const N: usize, R> {
-    /// A collection of SAF V3 readers.
-    V3([saf::Reader<R, V3>; N]),
-    /// A collection of SAF V4 readers.
-    V4([saf::Reader<R, V4>; N]),
+pub enum Readers<const N: usize, R> {
+    /// A collection of full SAF V3 readers.
+    Full([saf::ReaderV3<R>; N]),
+    /// A collection of banded SAF V4 readers.
+    Banded([saf::ReaderV4<R>; N]),
 }
 
-impl<const N: usize, R> SafReaders<N, R>
+impl<const N: usize, R> Readers<N, R>
 where
     R: io::BufRead + io::Seek,
 {
@@ -30,8 +30,8 @@ where
         );
 
         let saf = match self {
-            SafReaders::V3(readers) => Saf::read(readers),
-            SafReaders::V4(readers) => Saf::read_from_banded(readers),
+            Readers::Full(readers) => Saf::read(readers),
+            Readers::Banded(readers) => Saf::read_from_banded(readers),
         }?;
 
         log::debug!(
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<const N: usize> SafReaders<N, io::BufReader<File>> {
+impl<const N: usize> Readers<N, io::BufReader<File>> {
     /// Returns a new collection of SAF file readers from member file paths.
     ///
     /// This will automatically attempt to infer the SAF file version based on the magic number of
@@ -56,17 +56,18 @@ impl<const N: usize> SafReaders<N, io::BufReader<File>> {
         P: AsRef<Path>,
     {
         let mut file = File::open(&paths[0])?;
-        let version = Version::detect(&mut file)?;
+        let format = Format::detect(&mut file)?;
 
         log::info!(
             target: "init",
-            "Opening input SAF {version} files:\n\t{}",
+            "Opening input SAF {} files:\n\t{}",
+            if format == Format::Full { "v3" } else { "v4" },
             join(paths.iter().map(|p| p.as_ref().display()), "\n\t"),
         );
 
-        match version {
-            Version::V3 => create_readers(paths, threads).map(Self::V3),
-            Version::V4 => create_readers(paths, threads).map(Self::V4),
+        match format {
+            Format::Full => create_readers(paths, threads).map(Self::Full),
+            Format::Banded => create_readers(paths, threads).map(Self::Banded),
         }
     }
 }
@@ -100,12 +101,12 @@ where
 
 /// The supported SAF file version.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum Version {
-    V3,
-    V4,
+pub enum Format {
+    Full,
+    Banded,
 }
 
-impl Version {
+impl Format {
     /// Returns the SAF file version by reading the magic number from a reader.
     ///
     /// The stream will be positioned immediately after the magic number.
@@ -117,21 +118,12 @@ impl Version {
         reader.read_exact(&mut buf)?;
 
         match buf {
-            V3::MAGIC_NUMBER => Ok(Self::V3),
-            V4::MAGIC_NUMBER => Ok(Self::V4),
+            V3::MAGIC_NUMBER => Ok(Self::Full),
+            V4::MAGIC_NUMBER => Ok(Self::Banded),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("failed to detect SAF file version from magic number {buf:02x?}",),
             )),
-        }
-    }
-}
-
-impl fmt::Display for Version {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::V3 => f.write_str("v3"),
-            Self::V4 => f.write_str("v4"),
         }
     }
 }

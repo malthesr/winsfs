@@ -4,7 +4,7 @@ use clap::Args;
 
 use winsfs_core::sfs::io::{npy, plain_text};
 
-use crate::input::sfs::{self, Format};
+use crate::input;
 
 /// View and modify site frequency spectrum.
 #[derive(Args, Debug)]
@@ -36,13 +36,13 @@ pub struct View {
     /// By default, the output SFS is written in a plain text format, where the first line is a
     /// header giving the shape of the SFS, and the second line gives the values of the SFS in flat
     /// row-major order. Alternatively, the SFS can be written in the npy binary format.
-    #[clap(short = 'o', long, arg_enum, default_value_t = Format::PlainText)]
-    pub output_format: Format,
+    #[clap(short = 'o', long, arg_enum, default_value_t = input::sfs::Format::PlainText)]
+    pub output_format: input::sfs::Format,
 }
 
 impl View {
     pub fn run(self) -> clap::Result<()> {
-        let mut sfs = sfs::SfsReader::from_path_or_stdin(self.path)?.read_dyn()?;
+        let mut sfs = input::sfs::Reader::from_path_or_stdin(self.path)?.read_dyn()?;
 
         if self.normalise {
             sfs = sfs.normalise().into_unnormalised();
@@ -56,8 +56,8 @@ impl View {
         let mut writer = stdout.lock();
 
         match self.output_format {
-            Format::PlainText => plain_text::write_sfs(&mut writer, &sfs),
-            Format::Npy => npy::write_sfs(&mut writer, &sfs),
+            input::sfs::Format::PlainText => plain_text::write_sfs(&mut writer, &sfs),
+            input::sfs::Format::Npy => npy::write_sfs(&mut writer, &sfs),
         }
         .map_err(clap::Error::from)
     }

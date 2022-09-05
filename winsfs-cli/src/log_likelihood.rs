@@ -54,7 +54,7 @@ impl LogLikelihood {
     where
         P: AsRef<Path>,
     {
-        let sfs = input::sfs::SfsReader::from_path(&self.sfs)?
+        let sfs = input::sfs::Reader::from_path(&self.sfs)?
             .read::<D>()?
             .normalise();
 

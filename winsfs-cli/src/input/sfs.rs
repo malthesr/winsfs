@@ -17,11 +17,11 @@ const NPY_MAGIC: [u8; 6] = *b"\x93NUMPY";
 const PLAIN_TEXT_START: [u8; 6] = *b"#SHAPE";
 
 /// A reader for an input SFS.
-pub struct SfsReader {
+pub struct Reader {
     inner: StdinOrFile,
 }
 
-impl SfsReader {
+impl Reader {
     /// Creates a new reader from a file path.
     pub fn from_path<P>(path: P) -> io::Result<Self>
     where
