@@ -1,14 +1,8 @@
 use std::path::{Path, PathBuf};
 
-use angsd_saf as saf;
-use saf::version::V3;
-
 use clap::Args;
 
-use crate::{
-    input,
-    utils::{join, setup_intersect},
-};
+use crate::input;
 
 /// Calculate log-likelihood of site frequency spectrum.
 ///
@@ -58,15 +52,14 @@ impl LogLikelihood {
             .read::<D>()?
             .normalise();
 
+        let readers = input::saf::Readers::from_member_paths(&paths, self.threads)?;
+
         log::info!(
             target: "init",
-            "Streaming (intersecting) sites in input SAF files:\n\t{}",
-            join(paths.iter().map(|p| p.as_ref().display()), "\n\t")
+            "Streaming (intersecting) sites in input SAF files",
         );
 
-        let mut reader = setup_intersect::<_, V3>(paths.as_slice(), self.threads)?;
-
-        let (log_likelihood, sites) = sfs.stream_log_likelihood(&mut reader)?.into();
+        let (log_likelihood, sites) = readers.log_likelihood(&sfs)?;
 
         log::info!(target: "log-likelihood", "Processed {sites} sites");
 

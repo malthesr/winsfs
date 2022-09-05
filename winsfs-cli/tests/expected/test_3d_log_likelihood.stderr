@@ -1,7 +1,9 @@
 DEBUG [init] Reading SFS from path:
 	A-B-C.sfs
-INFO  [init] Streaming (intersecting) sites in input SAF files:
+INFO  [init] Opening input full (v3) SAF files:
 	tests/data/A.saf.idx
 	tests/data/B.saf.idx
 	tests/data/C.saf.idx
+DEBUG [init] Using 4 threads for reading
+INFO  [init] Streaming (intersecting) sites in input SAF files
 INFO  [log-likelihood] Processed 220000 sites

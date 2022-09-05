@@ -78,7 +78,7 @@ impl Cli {
     where
         P: AsRef<Path>,
     {
-        let mut saf = input::saf::Readers::from_member_paths(paths, self.threads)?.read_saf()?;
+        let mut saf = input::saf::Readers::from_member_paths(&paths, self.threads)?.read_saf()?;
         shuffle_saf(&mut saf, self.seed);
         let sites = saf.sites();
         let shape = saf.shape();
@@ -96,36 +96,35 @@ impl Cli {
     }
 
     fn run_streaming(&self) -> clap::Result<()> {
-        let reader = match &self.paths[..] {
-            [p] => {
-                log::info!(
-                    target: "init",
-                    "Streaming through shuffled SAF file from path:\n\t{}",
-                    p.display()
-                );
+        if let [path] = &self.paths[..] {
+            log::info!(
+                target: "init",
+                "Streaming through shuffled SAF file from path:\n\t{}",
+                path.display()
+            );
 
-                Reader::from_path(p)?
+            if let Ok(reader) = Reader::<1, _>::try_from_path(path) {
+                self.run_streaming_n::<1, _>(reader)
+            } else if let Ok(reader) = Reader::<2, _>::try_from_path(path) {
+                self.run_streaming_n::<2, _>(reader)
+            } else if let Ok(reader) = Reader::<3, _>::try_from_path(path) {
+                self.run_streaming_n::<3, _>(reader)
+            } else {
+                unimplemented!("only dimensions up to three currently supported")
             }
+        } else {
             // Checked and handled properly in format inference
-            _ => unreachable!("cannot run streaming with multiple input files"),
-        };
-
-        let n = reader.header().shape().len();
-        match n {
-            1 => self.run_streaming_n::<1, _>(reader),
-            2 => self.run_streaming_n::<2, _>(reader),
-            3 => self.run_streaming_n::<3, _>(reader),
-            _ => unimplemented!("only dimensions up to three currently supported"),
+            unreachable!("cannot run streaming with multiple input files")
         }
     }
 
-    fn run_streaming_n<const N: usize, R>(&self, mut reader: Reader<R>) -> clap::Result<()>
+    fn run_streaming_n<const D: usize, R>(&self, mut reader: Reader<D, R>) -> clap::Result<()>
     where
         R: io::BufRead + io::Seek,
     {
         let header = reader.header();
         let sites = header.sites();
-        let shape: [usize; N] = header.shape().to_vec().try_into().unwrap();
+        let shape: [usize; D] = header.shape().to_vec().try_into().unwrap();
 
         let (initial_sfs, mut runner) = setup!(self, sites, shape, StandardEm);
         let stopping_rule = Rule::from(self);
