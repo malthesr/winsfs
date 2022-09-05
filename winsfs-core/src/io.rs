@@ -5,12 +5,13 @@
 
 use std::{fs::File, io, path::Path};
 
-use angsd_saf as saf;
-pub use saf::{
-    record::{Id, Likelihoods},
+pub use angsd_saf::{
+    record::Id,
     version::{Version, V3, V4},
     ReadStatus,
 };
+
+use crate::saf::Site;
 
 mod adaptors;
 pub use adaptors::{Enumerate, Take};
@@ -19,13 +20,21 @@ pub mod shuffle;
 
 /// A type that can read SAF sites from a source.
 pub trait ReadSite {
+    /// The type of site that can be read.
+    type Site;
+
     /// Reads a single site into the provided buffer.
     ///
     /// In the multi-dimensional case, values should be read from the first population into the
     /// start of the buffer, then the next population, and so on. That is, providing
     /// [`Site::as_mut_slice`](crate::saf::Site::as_mut_slice) as a buffer will be correct, given
     /// a site of correct shape for the underlying reader.
-    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus>;
+    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus>;
+
+    /// Reads a single site into the provided buffer without normalising out of log-space.
+    ///
+    /// See also documentation for [`Self::read_site`].
+    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus>;
 
     /// Returns a reader adaptor which counts the number of sites read.
     fn enumerate(self) -> Enumerate<Self>
@@ -74,105 +83,123 @@ impl<'a, T> ReadSite for &'a mut T
 where
     T: ReadSite,
 {
-    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
+    type Site = T::Site;
+
+    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
         <T as ReadSite>::read_site(*self, buf)
+    }
+
+    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+        <T as ReadSite>::read_site_unnormalised(*self, buf)
     }
 }
 
 /// An intersecting SAF reader.
 ///
-/// This a wrapper around the [`Intersect`](saf::Intersect) type that can
-/// implement [`ReadSite`]. This can be used to stream through the intersecting sites of multiple
-/// SAF files when shuffling is not required.
-pub struct Intersect<R, V>
+/// This a wrapper around the [`Intersect`](angsd_saf::Intersect) with a static number of readers
+/// and holds its read buffers internally.
+pub struct Intersect<const D: usize, R, V>
 where
     V: Version,
 {
-    inner: saf::Intersect<R, V>,
-    bufs: Vec<saf::Record<Id, V::Item>>,
+    // D readers in inner intersect is maintained as invariant
+    inner: angsd_saf::Intersect<R, V>,
+    bufs: [angsd_saf::Record<Id, V::Item>; D],
 }
 
-impl<R, V> Intersect<R, V>
+impl<const D: usize, R, V> Intersect<D, R, V>
 where
     R: io::BufRead + io::Seek,
     V: Version,
 {
     /// Returns the inner reader.
-    pub fn get(&self) -> &saf::Intersect<R, V> {
+    pub fn get(&self) -> &angsd_saf::Intersect<R, V> {
         &self.inner
     }
 
     /// Returns a mutable reference to the the inner reader.
-    pub fn get_mut(&mut self) -> &mut saf::Intersect<R, V> {
+    pub fn get_mut(&mut self) -> &mut angsd_saf::Intersect<R, V> {
         &mut self.inner
     }
 
     /// Returns the inner reader, consuming `self`.
-    pub fn into_inner(self) -> saf::Intersect<R, V> {
+    pub fn into_inner(self) -> angsd_saf::Intersect<R, V> {
         self.inner
     }
 
     /// Creates a new reader.
-    pub fn new(readers: Vec<saf::Reader<R, V>>) -> Self {
-        let inner = saf::Intersect::new(readers);
-        let bufs = inner.create_record_bufs();
+    pub fn new(readers: [angsd_saf::Reader<R, V>; D]) -> Self {
+        let inner = angsd_saf::Intersect::new(readers.into());
+        let bufs = inner
+            .create_record_bufs()
+            .try_into()
+            .map_err(|_| ())
+            .unwrap();
 
         Self { inner, bufs }
     }
 }
 
-impl<V> Intersect<io::BufReader<File>, V>
+impl<const D: usize, V> Intersect<D, io::BufReader<File>, V>
 where
     V: Version,
 {
     /// Creates a new reader from a collection of member file paths.
     ///
     /// The stream will be positioned immediately after the magic number.
-    pub fn from_paths<P>(paths: &[P]) -> io::Result<Self>
+    pub fn from_paths<P>(paths: &[P; D]) -> io::Result<Self>
     where
         P: AsRef<Path>,
     {
         paths
             .iter()
-            .map(|p| saf::reader::Builder::<V>::default().build_from_member_path(p))
+            .map(|p| angsd_saf::reader::Builder::<V>::default().build_from_member_path(p))
             .collect::<io::Result<Vec<_>>>()
-            .map(Self::new)
+            .map(|vec| Self::new(vec.try_into().map_err(|_| ()).unwrap()))
     }
 }
 
-impl<R, V> From<saf::Intersect<R, V>> for Intersect<R, V>
-where
-    R: io::BufRead + io::Seek,
-    V: Version,
-{
-    fn from(inner: saf::Intersect<R, V>) -> Self {
-        let bufs = inner.create_record_bufs();
-
-        Self { inner, bufs }
-    }
-}
-
-impl<R> ReadSite for Intersect<R, V3>
+impl<const D: usize, R> ReadSite for Intersect<D, R, V3>
 where
     R: io::BufRead + io::Seek,
 {
-    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
-        let status = self.inner.read_records(&mut self.bufs)?;
+    type Site = Site<D>;
 
-        let src = self.bufs.iter().map(|record| record.item());
-        copy_from_slices(src, buf);
+    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+        let status = self.read_site_unnormalised(buf)?;
 
         buf.iter_mut().for_each(|x| *x = x.exp());
 
         Ok(status)
     }
+
+    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+        let status = self.inner.read_records(&mut self.bufs)?;
+
+        let src = self.bufs.iter().map(|record| record.item());
+        copy_from_slices(src, buf.as_mut_slice());
+
+        Ok(status)
+    }
 }
 
-impl<R> ReadSite for Intersect<R, V4>
+impl<const D: usize, R> ReadSite for Intersect<D, R, V4>
 where
     R: io::BufRead + io::Seek,
 {
-    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
+    // TODO: This should be fixed after implementing EM logic for banded sites;
+    // for now, we use it as a stop-gap to get V4 working
+    type Site = Site<D>;
+
+    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+        let status = self.read_site_unnormalised(buf)?;
+
+        buf.iter_mut().for_each(|x| *x = x.exp());
+
+        Ok(status)
+    }
+
+    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
         let status = self.inner.read_records(&mut self.bufs)?;
 
         let alleles_iter = self
@@ -180,13 +207,12 @@ where
             .get_readers()
             .iter()
             .map(|reader| reader.index().alleles());
-        let src =
-            self.bufs.iter().zip(alleles_iter).map(|(record, alleles)| {
-                record.item().clone().into_full(alleles, f32::NEG_INFINITY)
-            });
-        copy_from_slices(src, buf);
-
-        buf.iter_mut().for_each(|x| *x = x.exp());
+        let src = self
+            .bufs
+            .iter_mut()
+            .zip(alleles_iter)
+            .map(|(record, alleles)| record.item().clone().into_full(alleles, f32::NEG_INFINITY));
+        copy_from_slices(src, buf.as_mut_slice());
 
         Ok(status)
     }

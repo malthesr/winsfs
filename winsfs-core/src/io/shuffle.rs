@@ -114,20 +114,20 @@ mod tests {
         // Drop the writer to flush
         writer.try_finish().unwrap();
 
-        let mut reader = Reader::from_path(path)?;
+        let mut reader = Reader::try_from_path(path)?;
 
         let expected_order = &[0, 4, 8, 1, 5, 2, 6, 3, 7];
 
-        let mut site = Site::new(vec![0.; 5], [5]).unwrap();
+        let mut site = Site::new(vec![0.; 5], [1, 4]).unwrap();
         for &i in expected_order {
-            reader.read_site(site.as_mut_slice())?;
+            reader.read_site(&mut site)?;
 
             // Should be normalised, e.g. exp'd
             let expected_site = sites[i].iter().map(|x| x.exp()).collect::<Vec<_>>();
             assert_eq!(site.as_slice(), expected_site.as_slice());
         }
 
-        assert!(reader.read_site(site.as_mut_slice())?.is_done());
+        assert!(reader.read_site(&mut site)?.is_done());
 
         file.close()
     }

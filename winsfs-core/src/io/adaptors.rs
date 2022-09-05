@@ -51,9 +51,16 @@ impl<R> ReadSite for Enumerate<R>
 where
     R: ReadSite,
 {
-    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
+    type Site = R::Site;
+
+    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
         self.sites_read += 1;
         self.inner.read_site(buf)
+    }
+
+    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+        self.sites_read += 1;
+        self.inner.read_site_unnormalised(buf)
     }
 }
 
@@ -101,9 +108,19 @@ impl<R> ReadSite for Take<Enumerate<R>>
 where
     R: ReadSite,
 {
-    fn read_site(&mut self, buf: &mut [f32]) -> io::Result<ReadStatus> {
+    type Site = R::Site;
+
+    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
         if self.inner.sites_read() < self.max_sites {
             self.inner.read_site(buf)
+        } else {
+            Ok(ReadStatus::Done)
+        }
+    }
+
+    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+        if self.inner.sites_read() < self.max_sites {
+            self.inner.read_site_unnormalised(buf)
         } else {
             Ok(ReadStatus::Done)
         }
