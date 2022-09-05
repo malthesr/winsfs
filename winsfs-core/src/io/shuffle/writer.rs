@@ -5,7 +5,15 @@ use std::{
     thread::panicking,
 };
 
+use angsd_saf::version::Version;
+
 use super::{to_u64, to_usize, Header};
+
+use crate::{
+    em::StreamEmSite,
+    io::{Intersect, ReadSite},
+    saf::Site,
+};
 
 /// A pseudo-shuffled SAF file writer.
 ///
@@ -88,6 +96,35 @@ impl Writer<io::BufWriter<File>> {
             .collect::<io::Result<Vec<_>>>()?;
 
         Ok(Self::new(writers, header))
+    }
+
+    /// Writes an entire reader to the writer.
+    ///
+    /// Assumes that the reader contains the appropriate number of sites.
+    pub fn write_intersect<const D: usize, R, V>(
+        mut self,
+        mut intersect: Intersect<D, R, V>,
+    ) -> io::Result<()>
+    where
+        Intersect<D, R, V>: ReadSite<Site = Site<D>>,
+        R: io::BufRead + io::Seek,
+        V: Version,
+    {
+        let shape = intersect
+            .get()
+            .get_readers()
+            .iter()
+            .map(|reader| reader.index().alleles() + 1)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        let mut site = Site::from_shape(shape);
+
+        while intersect.read_site_unnormalised(&mut site)?.is_not_done() {
+            self.write_site(site.as_slice())?
+        }
+
+        self.try_finish()
     }
 
     /// Writes a single site to the writer.
