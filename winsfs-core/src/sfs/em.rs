@@ -55,7 +55,7 @@ impl<const D: usize> Sfs<D> {
                 USfs::zeros(self.shape),
             ),
             |(mut log_likelihood, mut posterior, mut buf), site| {
-                log_likelihood += site.posterior_into(&self, &mut posterior, &mut buf).ln();
+                log_likelihood += site.posterior_into(self, &mut posterior, &mut buf).ln();
 
                 (log_likelihood, posterior, buf)
             },
@@ -106,7 +106,7 @@ impl<const D: usize> Sfs<D> {
                     )
                 },
                 |(mut log_likelihood, mut posterior, mut buf), site| {
-                    log_likelihood += site.posterior_into(&self, &mut posterior, &mut buf).ln();
+                    log_likelihood += site.posterior_into(self, &mut posterior, &mut buf).ln();
 
                     (log_likelihood, posterior, buf)
                 },
@@ -148,7 +148,7 @@ impl<const D: usize> Sfs<D> {
         let sites = iter.len();
 
         let log_likelihood = iter.fold(LogLikelihood::from(0.0), |log_likelihood, site| {
-            log_likelihood + site.log_likelihood(&self)
+            log_likelihood + site.log_likelihood(self)
         });
 
         SumOf::new(log_likelihood, sites)
@@ -186,7 +186,7 @@ impl<const D: usize> Sfs<D> {
         let log_likelihood = iter
             .fold(
                 || LogLikelihood::from(0.0),
-                |log_likelihood, site| log_likelihood + site.log_likelihood(&self),
+                |log_likelihood, site| log_likelihood + site.log_likelihood(self),
             )
             .sum();
 
@@ -214,7 +214,7 @@ impl<const D: usize> Sfs<D> {
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
         while reader.read_site(&mut site)?.is_not_done() {
-            log_likelihood += site.posterior_into(&self, &mut post, &mut buf).ln();
+            log_likelihood += site.posterior_into(self, &mut post, &mut buf).ln();
 
             sites += 1;
         }
@@ -239,7 +239,7 @@ impl<const D: usize> Sfs<D> {
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
         while reader.read_site(&mut site)?.is_not_done() {
-            log_likelihood += site.log_likelihood(&self);
+            log_likelihood += site.log_likelihood(self);
 
             sites += 1;
         }
