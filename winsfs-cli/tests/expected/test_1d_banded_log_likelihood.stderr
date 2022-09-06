@@ -1,0 +1,7 @@
+DEBUG [init] Reading SFS from path:
+	tests/data/D.sfs
+INFO  [init] Opening input banded (v4) SAF files:
+	tests/data/D.banded.saf.idx
+DEBUG [init] Using 4 threads for reading
+INFO  [init] Streaming (intersecting) sites in input SAF files
+INFO  [log-likelihood] Processed 25000 sites

@@ -1,5 +1,5 @@
 DEBUG [init] Reading SFS from path:
-	A-B.sfs
+	tests/data/A-B.sfs
 INFO  [init] Opening input full (v3) SAF files:
 	tests/data/A.saf.idx
 	tests/data/B.saf.idx

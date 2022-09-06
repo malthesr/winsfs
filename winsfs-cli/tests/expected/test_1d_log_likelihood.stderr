@@ -1,5 +1,5 @@
 DEBUG [init] Reading SFS from path:
-	A.sfs
+	tests/data/A.sfs
 INFO  [init] Opening input full (v3) SAF files:
 	tests/data/A.saf.idx
 DEBUG [init] Using 4 threads for reading

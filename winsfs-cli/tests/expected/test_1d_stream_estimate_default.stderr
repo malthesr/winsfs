@@ -1,5 +1,5 @@
 INFO  [init] Streaming through shuffled SAF file from path:
-	A.saf.shuf
+	test_1d_stream_estimate_default.saf.shuf
 DEBUG [init] Using 500 full blocks of size 440
 DEBUG [init] Using window size of 100 blocks per window
 DEBUG [init] Creating uniform initial SFS
