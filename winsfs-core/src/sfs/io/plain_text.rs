@@ -16,6 +16,20 @@ use crate::sfs::{
     DynUSfs, SfsBase,
 };
 
+/// Parses an SFS in plain text format from the raw, flat text representation.
+///
+/// `s` is assumed to not contain the header.
+fn parse_sfs(s: &str, shape: DynShape) -> io::Result<DynUSfs> {
+    s.split_ascii_whitespace()
+        .map(f64::from_str)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        .and_then(|vec| {
+            DynUSfs::from_vec_shape(vec, shape)
+                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        })
+}
+
 /// Reads an SFS in plain text format from a reader.
 ///
 /// The stream is assumed to be positioned at the start.
@@ -28,14 +42,7 @@ where
     let mut buf = String::new();
     let _bytes_read = reader.read_to_string(&mut buf)?;
 
-    buf.split_ascii_whitespace()
-        .map(f64::from_str)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-        .and_then(|vec| {
-            DynUSfs::from_vec_shape(vec, header.shape)
-                .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
-        })
+    parse_sfs(&buf, header.shape)
 }
 
 /// Reads an SFS in plain text format from a file path.
