@@ -45,7 +45,7 @@ impl<const D: usize, I> Em<D, I> for StandardEm<false>
 where
     for<'a> &'a I: IntoSiteIterator<D>,
 {
-    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
+    fn e_step(&mut self, sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         sfs.e_step(input)
     }
 }
@@ -57,7 +57,7 @@ where
 {
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<D>,
+        sfs: Sfs<D>,
         reader: &mut R,
     ) -> io::Result<(Self::Status, USfs<D>)> {
         sfs.stream_e_step(reader)
@@ -68,7 +68,7 @@ impl<const D: usize, I> Em<D, I> for StandardEm<true>
 where
     for<'a> &'a I: IntoParallelSiteIterator<D>,
 {
-    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
+    fn e_step(&mut self, sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         sfs.par_e_step(input)
     }
 }

@@ -36,11 +36,11 @@ impl<const D: usize> Sfs<D> {
     ///     [1., 0., 0., 0., 0.],
     ///     [0., 0., 0., 1., 0.],
     /// ];
-    /// let (log_likelihood, posterior) = sfs.e_step(&saf);
+    /// let (log_likelihood, posterior) = sfs.clone().e_step(&saf);
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
     /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
     /// ```
-    pub fn e_step<I>(&self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
+    pub fn e_step<I>(self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
     where
         I: IntoSiteIterator<D>,
         I::Item: EmSite<D>,
@@ -55,7 +55,7 @@ impl<const D: usize> Sfs<D> {
                 USfs::zeros(self.shape),
             ),
             |(mut log_likelihood, mut posterior, mut buf), site| {
-                log_likelihood += site.posterior_into(self, &mut posterior, &mut buf).ln();
+                log_likelihood += site.posterior_into(&self, &mut posterior, &mut buf).ln();
 
                 (log_likelihood, posterior, buf)
             },
@@ -84,11 +84,11 @@ impl<const D: usize> Sfs<D> {
     ///     [1., 0., 0., 0., 0.],
     ///     [0., 0., 0., 1., 0.],
     /// ];
-    /// let (log_likelihood, posterior) = sfs.par_e_step(&saf);
+    /// let (log_likelihood, posterior) = sfs.clone().par_e_step(&saf);
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
     /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
     /// ```
-    pub fn par_e_step<I>(&self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
+    pub fn par_e_step<I>(self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
     where
         I: IntoParallelSiteIterator<D>,
         I::Item: EmSite<D>,
@@ -106,7 +106,7 @@ impl<const D: usize> Sfs<D> {
                     )
                 },
                 |(mut log_likelihood, mut posterior, mut buf), site| {
-                    log_likelihood += site.posterior_into(self, &mut posterior, &mut buf).ln();
+                    log_likelihood += site.posterior_into(&self, &mut posterior, &mut buf).ln();
 
                     (log_likelihood, posterior, buf)
                 },
@@ -140,7 +140,7 @@ impl<const D: usize> Sfs<D> {
     /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
     /// assert_eq!(sfs.log_likelihood(&saf), expected);
     /// ```
-    pub fn log_likelihood<I>(&self, input: I) -> SumOf<LogLikelihood>
+    pub fn log_likelihood<I>(self, input: I) -> SumOf<LogLikelihood>
     where
         I: IntoSiteIterator<D>,
     {
@@ -148,7 +148,7 @@ impl<const D: usize> Sfs<D> {
         let sites = iter.len();
 
         let log_likelihood = iter.fold(LogLikelihood::from(0.0), |log_likelihood, site| {
-            log_likelihood + site.log_likelihood(self)
+            log_likelihood + site.log_likelihood(&self)
         });
 
         SumOf::new(log_likelihood, sites)
@@ -176,7 +176,7 @@ impl<const D: usize> Sfs<D> {
     /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
     /// assert_eq!(sfs.par_log_likelihood(&saf), expected);
     /// ```
-    pub fn par_log_likelihood<I>(&self, input: I) -> SumOf<LogLikelihood>
+    pub fn par_log_likelihood<I>(mut self, input: I) -> SumOf<LogLikelihood>
     where
         I: IntoParallelSiteIterator<D>,
     {
@@ -186,7 +186,7 @@ impl<const D: usize> Sfs<D> {
         let log_likelihood = iter
             .fold(
                 || LogLikelihood::from(0.0),
-                |log_likelihood, site| log_likelihood + site.log_likelihood(self),
+                |log_likelihood, site| log_likelihood + site.log_likelihood(&self),
             )
             .sum();
 
@@ -201,7 +201,7 @@ impl<const D: usize> Sfs<D> {
     /// # Panics
     ///
     /// Panics if any of the sites in the input does not fit the shape of `self`.
-    pub fn stream_e_step<R>(&self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
+    pub fn stream_e_step<R>(self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
     where
         R: ReadSite,
         R::Site: StreamEmSite<D>,
@@ -214,7 +214,7 @@ impl<const D: usize> Sfs<D> {
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
         while reader.read_site(&mut site)?.is_not_done() {
-            log_likelihood += site.posterior_into(self, &mut post, &mut buf).ln();
+            log_likelihood += site.posterior_into(&self, &mut post, &mut buf).ln();
 
             sites += 1;
         }
@@ -229,7 +229,7 @@ impl<const D: usize> Sfs<D> {
     /// # Panics
     ///
     /// Panics if any of the sites in the input does not fit the shape of `self`.
-    pub fn stream_log_likelihood<R>(&self, mut reader: R) -> io::Result<SumOf<LogLikelihood>>
+    pub fn stream_log_likelihood<R>(mut self, mut reader: R) -> io::Result<SumOf<LogLikelihood>>
     where
         R: ReadSite,
         R::Site: StreamEmSite<D>,
@@ -239,7 +239,7 @@ impl<const D: usize> Sfs<D> {
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
         while reader.read_site(&mut site)?.is_not_done() {
-            log_likelihood += site.log_likelihood(self);
+            log_likelihood += site.log_likelihood(&self);
 
             sites += 1;
         }

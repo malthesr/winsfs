@@ -86,7 +86,7 @@ impl Cli {
         let (initial_sfs, mut runner) = setup!(self, sites, shape, ParallelStandardEm);
         let stopping_rule = Rule::from(self);
 
-        let (_status, sfs) = runner.em(&initial_sfs, &saf, stopping_rule);
+        let (_status, sfs) = runner.em(initial_sfs, &saf, stopping_rule);
 
         let stdout = io::stdout();
         let mut writer = stdout.lock();
@@ -129,7 +129,7 @@ impl Cli {
         let (initial_sfs, mut runner) = setup!(self, sites, shape, StandardEm);
         let stopping_rule = Rule::from(self);
 
-        let (_status, sfs) = runner.stream_em(&initial_sfs, &mut reader, stopping_rule)?;
+        let (_status, sfs) = runner.stream_em(initial_sfs, &mut reader, stopping_rule)?;
 
         let stdout = io::stdout();
         let mut writer = stdout.lock();

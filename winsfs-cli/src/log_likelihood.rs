@@ -59,7 +59,7 @@ impl LogLikelihood {
             "Streaming (intersecting) sites in input SAF files",
         );
 
-        let (log_likelihood, sites) = readers.log_likelihood(&sfs)?;
+        let (log_likelihood, sites) = readers.log_likelihood(sfs)?;
 
         log::info!(target: "log-likelihood", "Processed {sites} sites");
 

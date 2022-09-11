@@ -54,7 +54,7 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn e_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, USfs<N>);
+    fn e_step(&mut self, sfs: Sfs<N>, input: &I) -> (Self::Status, USfs<N>);
 
     /// A full EM-step of the algorithm.
     ///
@@ -63,7 +63,7 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn em_step(&mut self, sfs: &Sfs<N>, input: &I) -> (Self::Status, Sfs<N>) {
+    fn em_step(&mut self, sfs: Sfs<N>, input: &I) -> (Self::Status, Sfs<N>) {
         let (status, posterior) = self.e_step(sfs, input);
 
         (status, posterior.normalise())
@@ -77,14 +77,12 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn em<S>(&mut self, sfs: &Sfs<N>, input: &I, mut stopping_rule: S) -> (Self::Status, Sfs<N>)
+    fn em<S>(&mut self, mut sfs: Sfs<N>, input: &I, mut stopping_rule: S) -> (Self::Status, Sfs<N>)
     where
         S: Stop<Self, Status = Self::Status>,
     {
-        let mut sfs = sfs.clone();
-
         loop {
-            let (status, new_sfs) = self.em_step(&sfs, input);
+            let (status, new_sfs) = self.em_step(sfs, input);
             sfs = new_sfs;
 
             if stopping_rule.stop(self, &status, &sfs) {
@@ -107,11 +105,8 @@ where
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn stream_e_step(
-        &mut self,
-        sfs: &Sfs<D>,
-        reader: &mut R,
-    ) -> io::Result<(Self::Status, USfs<D>)>;
+    fn stream_e_step(&mut self, sfs: Sfs<D>, reader: &mut R)
+        -> io::Result<(Self::Status, USfs<D>)>;
 
     /// A full EM-step of the algorithm.
     ///
@@ -122,7 +117,7 @@ where
     /// Panics if the shapes of the SFS and the input do not match.
     fn stream_em_step(
         &mut self,
-        sfs: &Sfs<D>,
+        sfs: Sfs<D>,
         reader: &mut R,
     ) -> io::Result<(Self::Status, Sfs<D>)> {
         let (status, posterior) = self.stream_e_step(sfs, reader)?;
@@ -140,17 +135,15 @@ where
     /// Panics if the shapes of the SFS and the input do not match.
     fn stream_em<S>(
         &mut self,
-        sfs: &Sfs<D>,
+        mut sfs: Sfs<D>,
         reader: &mut R,
         mut stopping_rule: S,
     ) -> io::Result<(Self::Status, Sfs<D>)>
     where
         S: Stop<Self, Status = Self::Status>,
     {
-        let mut sfs = sfs.clone();
-
         loop {
-            let (status, new_sfs) = self.stream_em_step(&sfs, reader)?;
+            let (status, new_sfs) = self.stream_em_step(sfs, reader)?;
             sfs = new_sfs;
 
             if stopping_rule.stop(self, &status, &sfs) {

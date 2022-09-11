@@ -38,7 +38,7 @@ where
 
     /// Returns the log-likelihood of an SFS given the data in readers, as well as the number of
     /// (intersecting) sites in the readers.
-    pub fn log_likelihood(self, sfs: &Sfs<D>) -> io::Result<(LogLikelihood, usize)> {
+    pub fn log_likelihood(self, sfs: Sfs<D>) -> io::Result<(LogLikelihood, usize)> {
         match self {
             Self::Standard(readers) => readers.log_likelihood(sfs),
             Self::Banded(readers) => readers.log_likelihood(sfs),
@@ -134,7 +134,7 @@ where
 {
     fn count_sites(self) -> io::Result<usize>;
 
-    fn log_likelihood(self, sfs: &Sfs<D>) -> io::Result<(LogLikelihood, usize)>
+    fn log_likelihood(self, sfs: Sfs<D>) -> io::Result<(LogLikelihood, usize)>
     where
         winsfs_core::io::Intersect<D, R, V>: ReadSite,
         <winsfs_core::io::Intersect<D, R, V> as ReadSite>::Site: StreamEmSite<D>;
@@ -163,7 +163,7 @@ where
         Ok(sites)
     }
 
-    fn log_likelihood(self, sfs: &Sfs<D>) -> io::Result<(LogLikelihood, usize)>
+    fn log_likelihood(self, sfs: Sfs<D>) -> io::Result<(LogLikelihood, usize)>
     where
         winsfs_core::io::Intersect<D, R, V>: ReadSite,
         <winsfs_core::io::Intersect<D, R, V> as ReadSite>::Site: StreamEmSite<D>,

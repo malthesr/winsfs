@@ -37,7 +37,7 @@ where
     T: Em<D, I>,
     F: FnMut(&T, &T::Status, &USfs<D>),
 {
-    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
+    fn e_step(&mut self, sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         let (status, sfs) = self.inner.e_step(sfs, input);
 
         (self.f)(&self.inner, &status, &sfs);
@@ -55,7 +55,7 @@ where
 {
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<D>,
+        sfs: Sfs<D>,
         reader: &mut R,
     ) -> std::io::Result<(Self::Status, USfs<D>)> {
         let (status, sfs) = self.inner.stream_e_step(sfs, reader)?;

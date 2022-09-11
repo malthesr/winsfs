@@ -49,8 +49,7 @@ where
     for<'a> &'a I: IntoBlockIterator<D>,
     for<'a> T: Em<D, <&'a I as IntoBlockIterator<D>>::Item>,
 {
-    fn e_step(&mut self, sfs: &Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
-        let mut sfs = sfs.clone();
+    fn e_step(&mut self, mut sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
 
         let mut sites = 0;
@@ -58,7 +57,7 @@ where
         for block in input.into_block_iter(self.block_size) {
             sites += block.as_saf_view().sites();
 
-            let (log_likelihood, posterior) = self.em.e_step(&sfs, &block);
+            let (log_likelihood, posterior) = self.em.e_step(sfs, &block);
 
             self.window.update(posterior);
 
@@ -78,10 +77,9 @@ where
 {
     fn stream_e_step(
         &mut self,
-        sfs: &Sfs<D>,
+        mut sfs: Sfs<D>,
         reader: &mut R,
     ) -> io::Result<(Self::Status, USfs<D>)> {
-        let mut sfs = sfs.clone();
         let mut log_likelihoods = Vec::with_capacity(self.block_size);
 
         let mut sites = 0;
@@ -89,7 +87,7 @@ where
         loop {
             let mut block_reader = reader.take(self.block_size);
 
-            let (log_likelihood, posterior) = self.em.stream_e_step(&sfs, &mut block_reader)?;
+            let (log_likelihood, posterior) = self.em.stream_e_step(sfs, &mut block_reader)?;
             self.window.update(posterior);
 
             sfs = self.window.sum().normalise();
