@@ -24,6 +24,9 @@ pub mod io;
 pub mod iter;
 use iter::Indices;
 
+pub mod multi;
+pub use multi::Multi;
+
 mod em;
 
 const NORMALISATION_TOLERANCE: f64 = 10. * f64::EPSILON;
