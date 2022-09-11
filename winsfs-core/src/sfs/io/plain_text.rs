@@ -9,11 +9,11 @@
 //! except with the addition of a header line so that the SFS can be read without
 //! passing the shape separately.
 
-use std::{error::Error, fmt, fs::File, io, path::Path, str::FromStr};
+use std::{error::Error, fmt, io, str::FromStr};
 
 use crate::sfs::{
     generics::{DynShape, Normalisation, Shape},
-    DynUSfs, SfsBase,
+    DynUSfs, Multi, SfsBase,
 };
 
 /// Parses an SFS in plain text format from the raw, flat text representation.
@@ -45,13 +45,26 @@ where
     parse_sfs(&buf, header.shape)
 }
 
-/// Reads an SFS in plain text format from a file path.
-pub fn read_sfs_from_path<P>(path: P) -> io::Result<DynUSfs>
+/// Reads a multi-SFS in plain text format from a reader.
+///
+/// The stream is assumed to be positioned at the start.
+pub fn read_multi_sfs<R>(reader: &mut R) -> io::Result<Multi<DynUSfs>>
 where
-    P: AsRef<Path>,
+    R: io::BufRead,
 {
-    let mut reader = File::open(path).map(io::BufReader::new)?;
-    read_sfs(&mut reader)
+    let header = Header::read(reader)?;
+
+    let mut buf = String::new();
+    let mut vec = Vec::new();
+
+    while reader.read_line(&mut buf)? != 0 {
+        let sfs = parse_sfs(&buf, header.shape.clone())?;
+        vec.push(sfs);
+
+        buf.clear()
+    }
+
+    Multi::try_from(vec).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 /// Writes an SFS in plain text format to a writer.
@@ -67,17 +80,21 @@ where
     writeln!(writer, "{}", sfs.format_flat(" ", 6))
 }
 
-/// Writes an SFS in plain text format to a file path.
-///
-/// If the file already exists, it will be overwritten.
-pub fn write_sfs_to_path<P, S, N>(path: P, sfs: &SfsBase<S, N>) -> io::Result<()>
+/// Writes a multi-SFS in plain text format to a writer.
+pub fn write_multi_sfs<W, S, N>(writer: &mut W, multi: &Multi<SfsBase<S, N>>) -> io::Result<()>
 where
-    P: AsRef<Path>,
+    W: io::Write,
     S: Shape,
     N: Normalisation,
 {
-    let mut writer = File::create(path)?;
-    write_sfs(&mut writer, sfs)
+    let header = Header::new(multi[0].shape().as_ref().to_vec().into_boxed_slice());
+    header.write(writer)?;
+
+    for sfs in multi.iter() {
+        writeln!(writer, "{}", sfs.format_flat(" ", 6))?;
+    }
+
+    Ok(())
 }
 
 /// A plain text SFS header.
@@ -198,6 +215,38 @@ mod tests {
     }
 
     #[test]
+    fn test_read_multi_1d() -> io::Result<()> {
+        let src = b"#SHAPE=<3>\n0.0 1.0 2.0\n3.0 4.0 5.0\n";
+
+        assert_eq!(
+            read_multi_sfs(&mut &src[..])?,
+            Multi::try_from(vec![
+                DynUSfs::from(sfs1d![0., 1., 2.]),
+                DynUSfs::from(sfs1d![3., 4., 5.])
+            ])
+            .unwrap()
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_multi_2d() -> io::Result<()> {
+        let src = b"#SHAPE=<3/2>\n0.0 1.0 2.0 3.0 4.0 5.0\n10.0 11.0 12.0 13.0 14.0 15.0\n";
+
+        assert_eq!(
+            read_multi_sfs(&mut &src[..])?,
+            Multi::try_from(vec![
+                DynUSfs::from(sfs2d![[0., 1.], [2., 3.], [4., 5.]]),
+                DynUSfs::from(sfs2d![[10., 11.], [12., 13.], [14., 15.]]),
+            ])
+            .unwrap()
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_write_1d() -> io::Result<()> {
         let mut dest = Vec::new();
         write_sfs(&mut dest, &sfs1d![0., 1., 2.])?;
@@ -215,6 +264,47 @@ mod tests {
         assert_eq!(
             dest,
             b"#SHAPE=<2/3>\n0.000000 1.000000 2.000000 3.000000 4.000000 5.000000\n",
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_write_multi_1d() -> io::Result<()> {
+        let mut dest = Vec::new();
+        write_multi_sfs(
+            &mut dest,
+            &Multi::try_from(vec![
+                DynUSfs::from(sfs1d![0., 1., 2.]),
+                DynUSfs::from(sfs1d![3., 4., 5.]),
+            ])
+            .unwrap(),
+        )?;
+
+        assert_eq!(
+            dest,
+            b"#SHAPE=<3>\n0.000000 1.000000 2.000000\n3.000000 4.000000 5.000000\n"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_write_multi_2d() -> io::Result<()> {
+        let mut dest = Vec::new();
+        write_multi_sfs(
+            &mut dest,
+            &Multi::try_from(vec![
+                DynUSfs::from(sfs2d![[0., 1.], [2., 3.]]),
+                DynUSfs::from(sfs2d![[10., 11.], [12., 13.]]),
+            ])
+            .unwrap(),
+        )?;
+
+        assert_eq!(
+            dest,
+            b"#SHAPE=<2/2>\n0.000000 1.000000 2.000000 3.000000\n\
+            10.000000 11.000000 12.000000 13.000000\n"
         );
 
         Ok(())
