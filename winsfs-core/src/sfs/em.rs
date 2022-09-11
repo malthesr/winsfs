@@ -13,6 +13,9 @@ use crate::{
 
 use super::{Sfs, USfs};
 
+/// The minimum allowable SFS value during EM.
+const RESTRICT_MIN: f64 = f64::EPSILON;
+
 impl<const D: usize> Sfs<D> {
     /// Returns the log-likelihood of the data given the SFS, and the expected number of sites
     /// in each frequency bin given the SFS and the input.
@@ -40,11 +43,12 @@ impl<const D: usize> Sfs<D> {
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
     /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
     /// ```
-    pub fn e_step<I>(self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
+    pub fn e_step<I>(mut self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
     where
         I: IntoSiteIterator<D>,
         I::Item: EmSite<D>,
     {
+        self = restrict(self, RESTRICT_MIN);
         let iter = input.into_site_iter();
         let sites = iter.len();
 
@@ -88,11 +92,12 @@ impl<const D: usize> Sfs<D> {
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
     /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
     /// ```
-    pub fn par_e_step<I>(self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
+    pub fn par_e_step<I>(mut self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
     where
         I: IntoParallelSiteIterator<D>,
         I::Item: EmSite<D>,
     {
+        self = restrict(self, RESTRICT_MIN);
         let iter = input.into_par_site_iter();
         let sites = iter.len();
 
@@ -140,10 +145,11 @@ impl<const D: usize> Sfs<D> {
     /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
     /// assert_eq!(sfs.log_likelihood(&saf), expected);
     /// ```
-    pub fn log_likelihood<I>(self, input: I) -> SumOf<LogLikelihood>
+    pub fn log_likelihood<I>(mut self, input: I) -> SumOf<LogLikelihood>
     where
         I: IntoSiteIterator<D>,
     {
+        self = restrict(self, RESTRICT_MIN);
         let iter = input.into_site_iter();
         let sites = iter.len();
 
@@ -180,6 +186,7 @@ impl<const D: usize> Sfs<D> {
     where
         I: IntoParallelSiteIterator<D>,
     {
+        self = restrict(self, RESTRICT_MIN);
         let iter = input.into_par_site_iter();
         let sites = iter.len();
 
@@ -201,11 +208,12 @@ impl<const D: usize> Sfs<D> {
     /// # Panics
     ///
     /// Panics if any of the sites in the input does not fit the shape of `self`.
-    pub fn stream_e_step<R>(self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
+    pub fn stream_e_step<R>(mut self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
     where
         R: ReadSite,
         R::Site: StreamEmSite<D>,
     {
+        self = restrict(self, RESTRICT_MIN);
         let mut post = USfs::zeros(self.shape);
         let mut buf = USfs::zeros(self.shape);
 
@@ -234,6 +242,7 @@ impl<const D: usize> Sfs<D> {
         R: ReadSite,
         R::Site: StreamEmSite<D>,
     {
+        self = restrict(self, RESTRICT_MIN);
         let mut site = <R::Site>::from_shape(self.shape);
 
         let mut sites = 0;
@@ -246,4 +255,19 @@ impl<const D: usize> Sfs<D> {
 
         Ok(SumOf::new(log_likelihood, sites))
     }
+}
+
+/// Restricts the SFS so that all values in the spectrum are above `min`.
+///
+/// We have to ensure that that no value in the SFS is zero. If that happens, a situation can
+/// arise in which a site arrives with information only in the part of the SFS that is zero: this
+/// will lead to a zero posterior that cannot be normalised.
+fn restrict<const D: usize>(mut sfs: Sfs<D>, min: f64) -> Sfs<D> {
+    sfs.values.iter_mut().for_each(|v| {
+        if *v < min {
+            *v = min;
+        }
+    });
+
+    sfs
 }
