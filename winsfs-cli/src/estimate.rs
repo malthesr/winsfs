@@ -1,4 +1,4 @@
-use std::{io, num::NonZeroUsize, path::Path};
+use std::{io, num::NonZeroUsize, path::Path, process};
 
 use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
@@ -46,6 +46,15 @@ macro_rules! setup {
 
         let mut epoch = 1;
         let runner = WindowEm::new(block_runner, window, block_size).inspect(move |_, _, sfs| {
+            if sfs.iter().any(|x| x.is_nan()) {
+                log::error!(
+                    target: "windowem",
+                    "Found NaN: this is a bug, and the process will abort, please file an issue"
+                );
+
+                process::exit(1);
+            }
+
             log::info!(target: "windowem", "Finished epoch {epoch}");
             log::debug!(target: "windowem", "Current SFS: {}", sfs.format_flat(" ", 6));
             epoch += 1;

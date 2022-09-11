@@ -8,7 +8,7 @@ use super::Cli;
 
 pub fn init_logger(verbosity_arg: usize) -> clap::Result<()> {
     let level = match verbosity_arg {
-        0 => return Ok(()),
+        0 => log::LevelFilter::Warn,
         1 => log::LevelFilter::Info,
         2 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
