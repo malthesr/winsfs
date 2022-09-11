@@ -162,3 +162,42 @@ pub(self) fn to_f64(x: usize) -> f64 {
     }
     result
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{saf::Saf, saf1d, sfs1d};
+
+    fn impl_test_em_zero_not_nan<E>(mut runner: E)
+    where
+        E: Em<1, Saf<1>>,
+    {
+        let saf = saf1d![[0., 0., 1.]];
+        let init_sfs = sfs1d![1., 0., 0.].into_normalised().unwrap();
+
+        let (_, sfs) = runner.em(init_sfs, &saf, stopping::Steps::new(1));
+
+        let has_nan = sfs.iter().any(|x| x.is_nan());
+        assert!(!has_nan);
+    }
+
+    #[test]
+    fn test_em_zero_sfs_not_nan() {
+        impl_test_em_zero_not_nan(StandardEm::<false>::new())
+    }
+
+    #[test]
+    fn test_parallel_em_zero_sfs_not_nan() {
+        impl_test_em_zero_not_nan(ParallelStandardEm::new())
+    }
+
+    #[test]
+    fn test_window_em_zero_sfs_not_nan() {
+        impl_test_em_zero_not_nan(WindowEm::new(
+            StandardEm::<false>::new(),
+            Window::from_zeros([3], 1),
+            1,
+        ))
+    }
+}
