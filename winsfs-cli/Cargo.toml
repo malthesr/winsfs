@@ -22,6 +22,7 @@ atty = "0.2"
 clap = { version = "4.0", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
+rayon = "1.5"
 simple_logger = { version = "2.1", default-features = false, features = ["stderr"] }
 winsfs-core = { version = "0.1", path = "../winsfs-core" }
 

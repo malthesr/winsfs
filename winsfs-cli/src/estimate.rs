@@ -195,52 +195,8 @@ where
     })
 }
 
-pub fn get_block_spec(args: &Cli, sites: usize) -> Blocks {
-    let spec = match (args.blocks, args.block_size) {
-        (Some(number), None) => Blocks::Number(number.get()),
-        (None, Some(block_size)) => Blocks::Size(block_size.get()),
-        (None, None) => Blocks::Number(DEFAULT_NUMBER_OF_BLOCKS),
-        (Some(_), Some(_)) => unreachable!("checked by clap"),
-    };
+fn get_block_spec(args: &Cli, sites: usize) -> Blocks {
+    let default = Blocks::Number(DEFAULT_NUMBER_OF_BLOCKS);
 
-    // We log the block spec with some precision: it's useful information to output, and also
-    // helpful for debugging.
-    match spec {
-        Blocks::Number(number) => {
-            let block_size = sites / number;
-            let rem = sites % number;
-            if rem == 0 {
-                log::debug!(
-                    target: "init",
-                    "Using {number} blocks, all containing {block_size} sites"
-                );
-            } else {
-                log::debug!(
-                    target: "init",
-                    "Using {number} blocks, the first {rem} containing {} sites \
-                    and the remaining blocks containing {block_size} sites",
-                    block_size + 1
-                );
-            }
-        }
-        Blocks::Size(size) => {
-            let rem = sites % size;
-            let blocks = sites / size;
-            if rem == 0 {
-                log::debug!(
-                    target: "init",
-                    "Using {blocks} blocks, all containing {size} sites",
-                );
-            } else {
-                log::debug!(
-                    target: "init",
-                    "Using {} blocks, the first {blocks} containing {size} sites \
-                    and the last block containing {rem} sites",
-                    blocks + 1
-                );
-            }
-        }
-    }
-
-    spec
+    crate::utils::get_block_spec(args.blocks, args.block_size, sites, default, "block")
 }

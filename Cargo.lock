@@ -618,6 +618,7 @@ dependencies = [
  "log",
  "pretty_assertions",
  "rand",
+ "rayon",
  "simple_logger",
  "winsfs-core",
 ]
