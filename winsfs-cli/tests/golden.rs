@@ -230,7 +230,7 @@ fn test_2d_view_fold_npy() -> DynResult {
 
 #[test]
 fn test_2d_view_output_npy() -> DynResult {
-    winsfs(["view", "-vv", "--output-format", "npy", SFS_A_B]).map(test_output)?
+    winsfs(["view", "-vv", "--output-format", "np", SFS_A_B]).map(test_output)?
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn test_3d_view_normalise_npy_output_npy() -> DynResult {
         "-vv",
         "--normalise",
         "--output-format",
-        "npy",
+        "np",
         NPY_SFS_A_B_C,
     ])
     .map(test_output)?
