@@ -1,15 +1,10 @@
-use std::{
-    error::Error,
-    fmt,
-    io::{self, Write},
-    path::PathBuf,
-};
+use std::{error::Error, fmt, io, path::PathBuf};
 
 use clap::{ArgEnum, Args, CommandFactory};
 
 use winsfs_core::sfs::{DynUSfs, USfs};
 
-use crate::{input, Cli};
+use crate::{input, utils::join, Cli};
 
 /// Calculate statistics from SFS.
 #[derive(Args, Debug)]
@@ -63,6 +58,9 @@ pub struct Stat {
 #[derive(ArgEnum, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Statistic {
     F2,
+    King,
+    R0,
+    R1,
     Sum,
 }
 
@@ -83,6 +81,9 @@ impl Statistic {
                     found: dim,
                 }),
             },
+            Statistic::King => calculate_kinship_stat(sfs, "King", |sfs| sfs.king()),
+            Statistic::R0 => calculate_kinship_stat(sfs, "R0", |sfs| sfs.r0()),
+            Statistic::R1 => calculate_kinship_stat(sfs, "R1", |sfs| sfs.r1()),
             Statistic::Sum => Ok(sfs.iter().sum::<f64>()),
         }
     }
@@ -91,6 +92,9 @@ impl Statistic {
     pub fn header_name(&self) -> String {
         match self {
             Statistic::F2 => "f2",
+            Statistic::King => "king",
+            Statistic::R0 => "r0",
+            Statistic::R1 => "r1",
             Statistic::Sum => "sum",
         }
         .to_string()
@@ -114,9 +118,7 @@ impl Stat {
 
         let precisions = self.get_precisions()?;
 
-        self.print_values(&mut writer, &values, &precisions);
-
-        Ok(())
+        self.print_values(&mut writer, &values, &precisions)
     }
 
     /// Calculate the required statistic for a single SFS.
@@ -197,12 +199,18 @@ impl Stat {
     }
 }
 
+/// An error associated with calculation of the various statistics from the input SFS.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum StatisticError {
     DimensionError {
         name: &'static str,
         expected: usize,
         found: usize,
+    },
+    ShapeError {
+        name: &'static str,
+        expected: Vec<usize>,
+        found: Vec<usize>,
     },
 }
 
@@ -220,11 +228,50 @@ impl fmt::Display for StatisticError {
                     found SFS with dimension {found}"
                 )
             }
+            StatisticError::ShapeError {
+                name,
+                expected,
+                found,
+            } => {
+                write!(
+                    f,
+                    "calculating {name} requires SFS with shape {}, found SFS with shape {}",
+                    join(expected, "/"),
+                    join(found, "/"),
+                )
+            }
         }
     }
 }
 
 impl Error for StatisticError {}
+
+/// Helper to calculate R0, R1, or King statistic.
+///
+/// This factors out the error checking and handling.
+fn calculate_kinship_stat<F>(sfs: DynUSfs, name: &'static str, f: F) -> Result<f64, StatisticError>
+where
+    F: Fn(&USfs<2>) -> Option<f64>,
+{
+    let shape = sfs.shape().clone();
+    let dim = shape.len();
+
+    match USfs::<2>::try_from(sfs) {
+        Ok(sfs_2d) => match f(&sfs_2d) {
+            Some(stat) => Ok(stat),
+            None => Err(StatisticError::ShapeError {
+                name,
+                expected: vec![3, 3],
+                found: shape.to_vec(),
+            }),
+        },
+        Err(_) => Err(StatisticError::DimensionError {
+            name,
+            expected: 2,
+            found: dim,
+        }),
+    }
+}
 
 #[cfg(test)]
 mod tests {
