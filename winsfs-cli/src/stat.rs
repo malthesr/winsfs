@@ -5,7 +5,7 @@ use clap::{
     Args, CommandFactory, ValueEnum,
 };
 
-use winsfs_core::sfs::{DynUSfs, Sfs, USfs};
+use winsfs_core::sfs::{DynUSfs, Multi, Sfs, USfs};
 
 use crate::{input, utils::join, Cli};
 
@@ -112,11 +112,9 @@ impl Statistic {
 
 impl Stat {
     pub fn run(self) -> ClapResult<()> {
-        let sfs = input::sfs::Reader::from_path_or_stdin(self.path.as_ref())?.read_dyn()?;
+        let multi = input::sfs::Reader::from_path_or_stdin(self.path.as_ref())?.read_dyn_multi()?;
 
-        // Calculate all values early to check whether shape/dimensionality fits before
-        // e.g. writing header
-        let values = self.calculate(&sfs)?;
+        let multi_values = self.calculate_all(&multi)?;
 
         let stdout = io::stdout();
         let mut writer = stdout.lock();
@@ -127,7 +125,11 @@ impl Stat {
 
         let precisions = self.get_precisions()?;
 
-        self.print_values(&mut writer, &values, &precisions)
+        for values in multi_values {
+            self.print_values(&mut writer, &values, &precisions)?;
+        }
+
+        Ok(())
     }
 
     /// Calculate the required statistic for a single SFS.
@@ -137,6 +139,11 @@ impl Stat {
             .map(|stat| stat.calculate(sfs.clone()))
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Cli::command().error(ErrorKind::ValueValidation, e))
+    }
+
+    /// Calculate the required SFS for all input SFS.
+    fn calculate_all(&self, multi: &Multi<DynUSfs>) -> ClapResult<Vec<Vec<f64>>> {
+        multi.iter().map(|sfs| self.calculate(sfs)).collect()
     }
 
     /// Gets the precisions to be used for printing the calculated statistics.
