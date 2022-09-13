@@ -22,6 +22,12 @@ impl<S: Shape, N: Normalisation> Multi<SfsBase<S, N>> {
     }
 }
 
+impl<S: Shape, N: Normalisation> From<SfsBase<S, N>> for Multi<SfsBase<S, N>> {
+    fn from(sfs: SfsBase<S, N>) -> Self {
+        Self(vec![sfs])
+    }
+}
+
 impl<S: Shape, N: Normalisation> TryFrom<Vec<SfsBase<S, N>>> for Multi<SfsBase<S, N>> {
     type Error = MultiError;
 
