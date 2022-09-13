@@ -695,6 +695,97 @@ impl SfsBase<ConstShape<2>, Norm> {
     }
 }
 
+impl<N: Normalisation> SfsBase<ConstShape<2>, N> {
+    /// Returns the King kinship statistic.
+    ///
+    /// If the SFS does not have shape 3x3, `None` is returned. If all heterozygote bins are zero,
+    /// `NaN` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs_core::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0.,  2., 1.],
+    ///     [2., 12., 2.],
+    ///     [1.,  2., 0.],
+    /// ].normalise();
+    /// assert!((sfs.king().unwrap() - 0.25).abs() < f64::EPSILON);
+    /// ```
+    pub fn king(&self) -> Option<f64> {
+        match &self.shape[..] {
+            [3, 3] => {
+                let numer = self[[1, 1]] - 2. * (self[[0, 2]] + self[[2, 0]]);
+                let denom =
+                    self[[0, 1]] + self[[1, 0]] + 2. * self[[1, 1]] + self[[1, 2]] + self[[2, 1]];
+
+                let king = numer / denom;
+
+                Some(king)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the R0 kinship statistic.
+    ///
+    /// If the SFS does not have shape 3x3, `None` is returned. If the `[1, 1]` bin is zero, `NaN`
+    /// is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs_core::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 0., 1.],
+    ///     [0., 4., 0.],
+    ///     [1., 0., 0.],
+    /// ].normalise();
+    /// assert!((sfs.r0().unwrap() - 0.5).abs() < f64::EPSILON);
+    /// ```
+    pub fn r0(&self) -> Option<f64> {
+        match &self.shape[..] {
+            [3, 3] => {
+                let r0 = (self[[0, 2]] + self[[2, 0]]) / self[[1, 1]];
+
+                Some(r0)
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the R1 kinship statistic.
+    ///
+    /// If the SFS does not have shape 3x3, `None` is returned. If all off-diagonal bins are zero,
+    /// `NaN` is returned.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs_core::sfs2d;
+    /// let sfs = sfs2d![
+    ///     [0., 1., 1.],
+    ///     [1., 3., 1.],
+    ///     [1., 1., 0.],
+    /// ].normalise();
+    /// assert!((sfs.r1().unwrap() - 0.5).abs() < f64::EPSILON);
+    /// ```
+    pub fn r1(&self) -> Option<f64> {
+        match &self.shape[..] {
+            [3, 3] => {
+                let denom = [[0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1]]
+                    .iter()
+                    .map(|&i| self[i])
+                    .sum::<f64>();
+                let r1 = self[[1, 1]] / denom;
+
+                Some(r1)
+            }
+            _ => None,
+        }
+    }
+}
+
 macro_rules! impl_op {
     ($trait:ident, $method:ident, $assign_trait:ident, $assign_method:ident) => {
         impl<S: Shape, N: Normalisation> $assign_trait<&SfsBase<S, N>> for SfsBase<S, Unnorm> {
@@ -1088,5 +1179,56 @@ mod tests {
         ).unwrap();
 
         assert_eq!(sfs.fold(), expected);
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_king_bins_used() {
+        let fst = sfs2d![
+            [0., 1., 1.], 
+            [1., 1., 1.], 
+            [1., 1., 0.],
+        ];
+        let snd = sfs2d![
+            [2., 1., 1.], 
+            [1., 1., 1.], 
+            [1., 1., 2.],
+        ];
+        assert!(!fst.king().unwrap().is_nan());
+        assert_eq!(fst.king(), snd.king());
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_r0_bins_used() {
+        let fst = sfs2d![
+            [0., 0., 1.], 
+            [0., 1., 0.], 
+            [1., 0., 0.],
+        ];
+        let snd = sfs2d![
+            [2., 2., 1.], 
+            [2., 1., 2.], 
+            [1., 2., 2.],
+        ];
+        assert!(!fst.r0().unwrap().is_nan());
+        assert_eq!(fst.r0(), snd.r0());
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn test_r1_bins_used() {
+        let fst = sfs2d![
+            [0., 1., 1.], 
+            [1., 1., 1.], 
+            [1., 1., 0.],
+        ];
+        let snd = sfs2d![
+            [2., 1., 1.], 
+            [1., 1., 1.], 
+            [1., 1., 2.],
+        ];
+        assert!(!fst.r1().unwrap().is_nan());
+        assert_eq!(fst.r1(), snd.r1());
     }
 }
