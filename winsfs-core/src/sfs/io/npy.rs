@@ -7,11 +7,13 @@
 //!
 //! [spec]: https://numpy.org/neps/nep-0001-npy-format.html
 
-use std::{fs::File, io, path::Path};
+use std::io;
+
+use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
 use crate::sfs::{
     generics::{Normalisation, Shape},
-    DynUSfs, SfsBase,
+    DynUSfs, Multi, SfsBase,
 };
 
 mod header;
@@ -42,13 +44,24 @@ where
     }
 }
 
-/// Reads an SFS in npy format from a file path.
-pub fn read_sfs_from_path<P>(path: P) -> io::Result<DynUSfs>
+/// Reads a multi-SFS in npz format from a reader.
+///
+/// The stream is assumed to be positioned at the start.
+pub fn read_multi_sfs<R>(reader: &mut R) -> io::Result<Multi<DynUSfs>>
 where
-    P: AsRef<Path>,
+    R: io::BufRead + io::Seek,
 {
-    let mut reader = File::open(path).map(io::BufReader::new)?;
-    read_sfs(&mut reader)
+    let mut zip = ZipArchive::new(reader)?;
+
+    let vec = (0..zip.len())
+        .map(|i| {
+            let mut reader = zip.by_index(i).map(io::BufReader::new)?;
+
+            read_sfs(&mut reader)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Multi::try_from(vec).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
 }
 
 /// Writes an SFS in npy format to a writer.
@@ -76,15 +89,23 @@ where
     Ok(())
 }
 
-/// Writes an SFS in npy format to a file path.
-///
-/// If the file already exists, it will be overwritten.
-pub fn write_sfs_to_path<P, S, N>(path: P, sfs: &SfsBase<S, N>) -> io::Result<()>
+/// Writes a multi-SFS in npz format to a writer.
+pub fn write_multi_sfs<W, S, N>(writer: &mut W, multi: &Multi<SfsBase<S, N>>) -> io::Result<()>
 where
-    P: AsRef<Path>,
+    W: io::Seek + io::Write,
     S: Shape,
     N: Normalisation,
 {
-    let mut writer = File::create(path)?;
-    write_sfs(&mut writer, sfs)
+    let mut zip = ZipWriter::new(writer);
+    let options = FileOptions::default();
+
+    for (i, sfs) in multi.iter().enumerate() {
+        let name = i.to_string();
+
+        zip.start_file(name, options)?;
+        write_sfs(&mut io::BufWriter::new(&mut zip), sfs)?;
+    }
+
+    let writer = zip.finish()?;
+    writer.flush()
 }

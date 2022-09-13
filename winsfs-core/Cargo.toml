@@ -10,6 +10,7 @@ repository = "https://github.com/malthesr/winsfs"
 
 [features]
 default = ["angsd-saf/libdeflate"]
+npy = ["zip"]
 
 [dev-dependencies]
 tempfile = "3.3"
@@ -20,3 +21,4 @@ byteorder = "1.4"
 nom = "7.1"
 rand = "0.8"
 rayon = "1.6"
+zip = { version = "0.6", default-features = false, optional = true }
