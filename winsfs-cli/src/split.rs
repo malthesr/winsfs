@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-use clap::{error::Result as ClapResult, ArgGroup, Args};
+use clap::{error::Result as ClapResult, ArgGroup, Args, ValueEnum};
 
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 
@@ -14,7 +14,7 @@ use winsfs_core::{
         stopping::{LogLikelihoodTolerance, StoppingRule},
         Em, EmStep, StandardEm,
     },
-    saf::{Blocks, SafView},
+    saf::{iter::IntoSiteIterator, Blocks, Saf},
     sfs::{self, Multi, Sfs, USfs},
 };
 
@@ -39,6 +39,14 @@ pub struct Split {
         value_name = "PATHS"
     )]
     pub paths: Vec<PathBuf>,
+
+    /// Method to use.
+    ///
+    /// By default, an SFS is estimated for each input data split. Alternatively, this can be
+    /// output as a "pseudo-leave-one-out" estimate, by subtracting the split estimate from the
+    /// provided global.
+    #[clap(short = 'm', long, value_enum, default_value_t = Method::Split)]
+    pub method: Method,
 
     /// Number of splits.
     ///
@@ -76,6 +84,15 @@ pub struct Split {
     pub tolerance: f64,
 }
 
+/// Method to use.
+#[derive(ValueEnum, Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Method {
+    /// Calculate SFS split and subtract from global SFS.
+    PseudoLoo,
+    /// Calculate SFS split.
+    Split,
+}
+
 impl Split {
     pub fn run(self) -> ClapResult<()> {
         // TODO: Implement a streaming version of this from shuffled input
@@ -97,21 +114,16 @@ impl Split {
     where
         P: AsRef<Path>,
     {
-        let sfs = input::sfs::Reader::from_path(&self.sfs)?
-            .read::<D>()?
-            .normalise();
+        let sfs = input::sfs::Reader::from_path(&self.sfs)?.read::<D>()?;
 
         let saf = input::saf::Readers::from_member_paths(&paths, self.threads)?.read_saf()?;
 
         let split_spec = get_split_spec(self, saf.sites());
 
-        let sfs_split: Multi<USfs<D>> = saf
-            .par_iter_blocks(split_spec)
-            .enumerate()
-            .map(|(i, block)| run_split(sfs.clone(), block, i + 1, self.tolerance))
-            .collect::<Vec<_>>()
-            .try_into()
-            .expect("split SFS should all have the same shape");
+        let sfs_split = match self.method {
+            Method::Split => self.run_split(&sfs, &saf, split_spec),
+            Method::PseudoLoo => self.run_pseudo_loo(&sfs, &saf, split_spec),
+        };
 
         let stdout = io::stdout();
         let mut writer = stdout.lock();
@@ -120,19 +132,63 @@ impl Split {
 
         Ok(())
     }
+
+    fn run_pseudo_loo<const D: usize>(
+        &self,
+        sfs: &USfs<D>,
+        saf: &Saf<D>,
+        split_spec: Blocks,
+    ) -> Multi<USfs<D>> {
+        let mut split = self.run_split(sfs, saf, split_spec);
+
+        if sfs.iter().sum::<f64>() < 2.0 {
+            log::warn!(
+                target: "split",
+                "running pseudo-LOO with global SFS that has likely been pre-normalised \
+                please double check output"
+            );
+        }
+
+        split.iter_mut().for_each(|split| {
+            split
+                .iter_mut()
+                .zip(sfs.iter())
+                .for_each(|(split, sfs)| *split = *sfs - *split);
+        });
+
+        split
+    }
+
+    fn run_split<const D: usize>(
+        &self,
+        sfs: &USfs<D>,
+        saf: &Saf<D>,
+        split_spec: Blocks,
+    ) -> Multi<USfs<D>> {
+        let normalised_sfs = sfs.clone().normalise();
+
+        saf.par_iter_blocks(split_spec)
+            .enumerate()
+            .map(|(i, block)| {
+                let block_sfs = run_single(normalised_sfs.clone(), block, i + 1, self.tolerance);
+
+                block_sfs.scale(block.sites() as f64)
+            })
+            .collect::<Vec<_>>()
+            .try_into()
+            .expect("split SFS should all have the same shape")
+    }
 }
 
-fn run_split<const D: usize>(
-    initial_sfs: Sfs<D>,
-    split: SafView<D>,
-    i: usize,
-    tolerance: f64,
-) -> USfs<D> {
+fn run_single<const D: usize, I>(initial_sfs: Sfs<D>, split: I, i: usize, tolerance: f64) -> Sfs<D>
+where
+    for<'a> &'a I: IntoSiteIterator<D>,
+{
     let mut epoch = 1;
     let mut runner = StandardEm::<false>::new().inspect(move |_, _, sfs: &USfs<D>| {
         if sfs.iter().any(|x| x.is_nan()) {
             log::error!(
-                target: "windowem",
+                target: "split",
                 "Found NaN: this is a bug, and the process will abort, please file an issue"
             );
 
@@ -159,7 +215,7 @@ fn run_split<const D: usize>(
 
     log::info!(target: "split", "Split {i} finished");
 
-    sfs.scale(split.sites() as f64)
+    sfs
 }
 
 fn get_split_spec(args: &Split, sites: usize) -> Blocks {
