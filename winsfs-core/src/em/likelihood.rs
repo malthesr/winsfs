@@ -36,19 +36,6 @@ impl From<Likelihood> for f64 {
     }
 }
 
-#[cfg(test)]
-impl approx::AbsDiffEq for Likelihood {
-    type Epsilon = f64;
-
-    fn default_epsilon() -> Self::Epsilon {
-        f64::EPSILON
-    }
-
-    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
-        self.0.abs_diff_eq(&other.0, epsilon)
-    }
-}
-
 /// The log-likelihood of the data given an SFS.
 ///
 /// This is always the natural logarithm.

@@ -215,9 +215,19 @@ fn posterior_inner(
 mod tests {
     use super::*;
 
-    use approx::assert_abs_diff_eq;
-
     use crate::{saf::Site, sfs1d, sfs2d};
+
+    fn test_f64_equal(x: f64, y: f64, epsilon: f64) {
+        assert!((x - y).abs() < epsilon)
+    }
+
+    fn test_f64_slice_equal(xs: &[f64], ys: &[f64], epsilon: f64) {
+        assert_eq!(xs.len(), ys.len());
+
+        for (&x, &y) in xs.iter().zip(ys) {
+            test_f64_equal(x, y, epsilon)
+        }
+    }
 
     #[test]
     fn test_1d() {
@@ -230,11 +240,11 @@ mod tests {
         let posterior_likelihood = site.posterior_into(&sfs, &mut posterior, &mut buf);
 
         let expected = vec![10. + 1. / 6., 20. + 1. / 3., 30. + 1. / 2.];
-        assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice());
+        test_f64_slice_equal(posterior.as_slice(), expected.as_slice(), f64::EPSILON);
 
         let likelihood = site.likelihood(&sfs);
-        assert_abs_diff_eq!(likelihood, Likelihood::from(2.));
-        assert_abs_diff_eq!(likelihood, posterior_likelihood);
+        test_f64_equal(likelihood.into(), 2., f64::EPSILON);
+        test_f64_equal(likelihood.into(), posterior_likelihood.into(), f64::EPSILON);
     }
 
     #[test]
@@ -258,11 +268,11 @@ mod tests {
             1.015385, 1.035897, 1.061538, 1.092308, 1.128205,
             1.028205, 1.061538, 1.100000, 1.143590, 1.192308,
         ];
-        assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice(), epsilon = 1e-6);
+        test_f64_slice_equal(posterior.as_slice(), expected.as_slice(), 1e-6);
 
         let likelihood = site.likelihood(&sfs);
-        assert_abs_diff_eq!(likelihood, Likelihood::from(13.));
-        assert_abs_diff_eq!(likelihood, posterior_likelihood);
+        test_f64_equal(likelihood.into(), 13., f64::EPSILON);
+        test_f64_equal(likelihood.into(), posterior_likelihood.into(), f64::EPSILON);
     }
 
     #[test]
@@ -286,10 +296,10 @@ mod tests {
             1.02182, 1.02509, 1.02848, 1.03200, 1.03563, 1.02909, 1.03338, 1.03782, 1.04240,
             1.04712, 1.03733, 1.04276, 1.04836, 1.05413, 1.06007,
         ];
-        assert_abs_diff_eq!(posterior.as_slice(), expected.as_slice(), epsilon = 1e-5);
+        test_f64_slice_equal(posterior.as_slice(), expected.as_slice(), 1e-5);
 
         let likelihood = site.likelihood(&sfs);
-        assert_abs_diff_eq!(likelihood, Likelihood::from(139.8418), epsilon = 1e-4);
-        assert_abs_diff_eq!(likelihood, posterior_likelihood);
+        test_f64_equal(likelihood.into(), 139.8418, 1e-4);
+        test_f64_equal(likelihood.into(), posterior_likelihood.into(), f64::EPSILON);
     }
 }

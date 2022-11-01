@@ -12,7 +12,6 @@ repository = "https://github.com/malthesr/winsfs"
 default = ["angsd-saf/libdeflate"]
 
 [dev-dependencies]
-approx = "0.5"
 tempfile = "3.3"
 
 [dependencies]

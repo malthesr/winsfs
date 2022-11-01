@@ -877,8 +877,6 @@ fn compute_index_sum_unchecked(mut flat: usize, mut n: usize, shape: &[usize]) -
 mod tests {
     use super::*;
 
-    use approx::assert_abs_diff_eq;
-
     #[test]
     fn test_index_1d() {
         let sfs = sfs1d![0., 1., 2., 3., 4., 5.];
@@ -906,7 +904,7 @@ mod tests {
             [0., 1., 2.],
             [3., 4., 5.]
         ].normalise();
-        assert_abs_diff_eq!(sfs.f2(), 0.4166667, epsilon = 1e-6);
+        assert!((sfs.f2() - 0.4166667).abs() < 1e-6);
     }
 
     #[test]
