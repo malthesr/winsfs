@@ -16,7 +16,7 @@ approx = "0.5"
 tempfile = "3.3"
 
 [dependencies]
-angsd-saf = { git = "https://github.com/malthesr/angsd-io.git", rev = "906fd2c" }
+angsd-saf = "0.1"
 byteorder = "1.4"
 nom = "7.1"
 rand = "0.8"
