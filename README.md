@@ -2,7 +2,7 @@
 
 [![GitHub Actions status](https://github.com/malthesr/winsfs/workflows/CI/badge.svg)](https://github.com/malthesr/winsfs/actions)
 
-**`winsfs`** is a tool for inference of the site frequency spectrum ("SFS") from low-depth sequencing data. The associated manuscript is available on [bioRxiv][bioarxiv].
+**`winsfs`** is a tool for inference of the site frequency spectrum ("SFS") from low-depth sequencing data. The associated manuscript is published in [Genetics][article], and a pre-print is available on [bioRxiv][bioarxiv].
 
 In overview, `winsfs` iteratively estimates the SFS on smaller blocks of data conditional on the current estimate, and then updates the estimate as the average over a window of such block estimates.
 
@@ -19,6 +19,8 @@ In overview, `winsfs` iteratively estimates the SFS on smaller blocks of data co
 4. [Utilities](#utilities)
     1. [View](#view)
 5. [Installation](#installation)
+    1. [Latest release](#latest-release)
+    1. [Current git](#current-git)
 
 ## Quickstart
 
@@ -221,22 +223,32 @@ source $HOME/.cargo/env
 
 See [instructions][rust-installation] for more details.
 
-Once the toolchain is installed, `winsfs` can be installed using `cargo`:
+Once the Rust toolchain is installed (see above), the latest `winsfs` release can be installed using `cargo`:
+
+### Latest release
+
+```shell
+cargo install winsfs-cli
+```
+
+This will install the `winsfs` binary to `$HOME/.cargo/bin` by default, which should be in the `$PATH` after installing `cargo`. Alternatively:
+
+```shell
+cargo install winsfs-cli --root $HOME
+```
+
+Will install to `$HOME/bin`.
+
+### Current git
+
+The latest git version may include more (potentially experimental) features, and can be installed using:
 
 ```shell
 cargo install --git https://github.com/malthesr/winsfs
 ```
 
-This will install to `$HOME/.cargo/bin` by default, which should be in the `$PATH` after installing `cargo`. Alternatively:
-
-```shell
-cargo install --git https://github.com/malthesr/winsfs --root $HOME
-```
-
-Will install to `$HOME/bin`.
-
 [bioarxiv]: https://www.biorxiv.org/content/10.1101/2022.05.24.493190
-[article]: https://www.biorxiv.org/content/10.1101/2022.05.24.493190
+[article]: https://doi.org/10.1093/genetics/iyac148
 [han2014]: https://academic.oup.com/mbe/article/31/3/723/1007998
 [nielsen2012]: https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0037558
 [pecnerova2021]: https://www.sciencedirect.com/science/article/pii/S0960982221001299
