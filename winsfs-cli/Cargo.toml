@@ -19,7 +19,7 @@ pretty_assertions = "1.2"
 [dependencies]
 angsd-saf = "0.1"
 atty = "0.2"
-clap = { version = "3.1", features = ["derive"] }
+clap = { version = "4.0", features = ["derive"] }
 log = "0.4"
 rand = "0.8"
 simple_logger = { version = "2.1", default-features = false, features = ["stderr"] }

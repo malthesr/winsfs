@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use clap::Args;
+use clap::{error::Result as ClapResult, Args};
 
 use crate::input;
 
@@ -15,12 +15,7 @@ pub struct LogLikelihood {
     /// For each set of SAF files (conventially named 'prefix'.{saf.idx,saf.pos.gz,saf.gz}),
     /// specify either the shared prefix or the full path to any one member file.
     /// Up to three SAF files currently supported.
-    #[clap(
-        parse(from_os_str),
-        max_values = 3,
-        required = true,
-        value_name = "PATHS"
-    )]
+    #[clap(value_parser, num_args = 1..=3, required = true, value_name = "PATHS")]
     pub paths: Vec<PathBuf>,
 
     /// Input SFS to calculate log-likelihood from.
@@ -35,7 +30,7 @@ pub struct LogLikelihood {
 }
 
 impl LogLikelihood {
-    pub fn run(self) -> clap::Result<()> {
+    pub fn run(self) -> ClapResult<()> {
         match &self.paths[..] {
             [p] => self.run_n([p]),
             [p1, p2] => self.run_n([p1, p2]),
@@ -44,7 +39,7 @@ impl LogLikelihood {
         }
     }
 
-    pub fn run_n<const D: usize, P>(&self, paths: [P; D]) -> clap::Result<()>
+    pub fn run_n<const D: usize, P>(&self, paths: [P; D]) -> ClapResult<()>
     where
         P: AsRef<Path>,
     {
@@ -73,11 +68,11 @@ impl LogLikelihood {
 mod tests {
     use super::*;
 
-    use clap::Parser;
+    use clap::{error::ErrorKind, Parser};
 
     use crate::cli::{Cli, Command};
 
-    fn try_parse_args(cmd: &str) -> clap::Result<LogLikelihood> {
+    fn try_parse_args(cmd: &str) -> ClapResult<LogLikelihood> {
         Cli::try_parse_from(cmd.split_whitespace()).map(|cli| match cli.subcommand {
             Some(Command::LogLikelihood(log_likelihood)) => log_likelihood,
             _ => panic!(),
@@ -113,7 +108,7 @@ mod tests {
         let result = try_parse_args("winsfs log-likelihood --sfs /path/to/saf");
         assert_eq!(
             result.unwrap_err().kind(),
-            clap::ErrorKind::MissingRequiredArgument,
+            ErrorKind::MissingRequiredArgument,
         );
     }
 }

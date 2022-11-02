@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use clap::Args;
+use clap::{error::Result as ClapResult, Args};
 
 use winsfs_core::io::shuffle::{Header, Writer};
 
@@ -19,19 +19,14 @@ pub struct Shuffle {
     /// For each set of SAF files (conventially named 'prefix'.{saf.idx,saf.pos.gz,saf.gz}),
     /// specify either the shared prefix or the full path to any one member file.
     /// Up to three SAF files currently supported.
-    #[clap(
-        parse(from_os_str),
-        max_values = 3,
-        required = true,
-        value_name = "PATHS"
-    )]
+    #[clap(value_parser, num_args = 1..=3, required = true, value_name = "PATHS")]
     pub paths: Vec<PathBuf>,
 
     /// Output file path.
     ///
     /// The output destination must be known up front, since block pseudo-shuffling requires
     /// seeking within a known file.
-    #[clap(short = 'o', long, parse(from_os_str), value_name = "PATH")]
+    #[clap(short = 'o', long, value_parser, value_name = "PATH")]
     pub output: PathBuf,
 
     /// Number of blocks to use.
@@ -46,7 +41,7 @@ pub struct Shuffle {
 }
 
 impl Shuffle {
-    pub fn run(self) -> clap::Result<()> {
+    pub fn run(self) -> ClapResult<()> {
         log::info!(
             target: "init",
             "Shuffling (intersecting) sites in input SAF files:\n\t{}",
@@ -72,7 +67,7 @@ impl Shuffle {
         }
     }
 
-    fn run_n<const N: usize, P>(&self, paths: [P; N]) -> clap::Result<()>
+    fn run_n<const N: usize, P>(&self, paths: [P; N]) -> ClapResult<()>
     where
         P: AsRef<Path>,
     {

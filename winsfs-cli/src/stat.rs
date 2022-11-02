@@ -1,6 +1,9 @@
 use std::{error::Error, fmt, io, path::PathBuf};
 
-use clap::{ArgEnum, Args, CommandFactory};
+use clap::{
+    error::{ErrorKind, Result as ClapResult},
+    Args, CommandFactory, ValueEnum,
+};
 
 use winsfs_core::sfs::{DynUSfs, Sfs, USfs};
 
@@ -13,7 +16,7 @@ pub struct Stat {
     ///
     /// The input SFS can be provided here or read from stdin. The SFS will be normalised as
     /// required for particular statistics, so the input SFS does not need to be normalised.
-    #[clap(parse(from_os_str), value_name = "PATH")]
+    #[clap(value_parser, value_name = "PATH")]
     pub path: Option<PathBuf>,
 
     /// Delimiter between statistics.
@@ -43,18 +46,10 @@ pub struct Stat {
     /// More than one statistic can be output. Use comma to separate statistics.
     /// An error will be thrown if the shape or dimensionality of the SFS is incompatible with
     /// the required statistics.
-    ///
-    /// Some notes and references: {n}
-    ///     - f2: 2D SFS only. Based on all sites (including fixed), and may therefore have a
-    ///       different scaling factor than when based on SNPs. {n}
-    ///     - fst: 2D SFS only. Based on Hudson's estimate implemented as ratio of averages from
-    ///       Bhatia et al. (2013). {n}
-    ///     - heterozygosity: Shape 3 1D SFS only. {n}
-    ///     - king, r0, r1: Shape 3x3 2D SFS only. Based on Waples et al. (2019).
     #[clap(
         short = 's',
         long,
-        arg_enum,
+        value_enum,
         required = true,
         use_value_delimiter = true,
         value_name = "STAT(S)"
@@ -63,14 +58,23 @@ pub struct Stat {
 }
 
 /// Statistics that can be calculated.
-#[derive(ArgEnum, Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(ValueEnum, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Statistic {
+    /// 2D SFS only. Based on all sites (including fixed), and may therefore have a
+    /// different scaling factor than when based on SNPs.
     F2,
+    /// 2D SFS only. Based on Hudson's estimate implemented as ratio of averages from
+    /// Bhatia et al. (2013).
     Fst,
+    /// Shape 3 1D SFS only.
     Heterozygosity,
+    /// Shape 3x3 2D SFS only. Based on Waples et al. (2019).
     King,
+    /// Shape 3x3 2D SFS only. Based on Waples et al. (2019).
     R0,
+    /// Shape 3x3 2D SFS only. Based on Waples et al. (2019).
     R1,
+    /// All SFS.
     Sum,
 }
 
@@ -107,7 +111,7 @@ impl Statistic {
 }
 
 impl Stat {
-    pub fn run(self) -> clap::Result<()> {
+    pub fn run(self) -> ClapResult<()> {
         let sfs = input::sfs::Reader::from_path_or_stdin(self.path.as_ref())?.read_dyn()?;
 
         // Calculate all values early to check whether shape/dimensionality fits before
@@ -127,12 +131,12 @@ impl Stat {
     }
 
     /// Calculate the required statistic for a single SFS.
-    fn calculate(&self, sfs: &DynUSfs) -> clap::Result<Vec<f64>> {
+    fn calculate(&self, sfs: &DynUSfs) -> ClapResult<Vec<f64>> {
         self.statistics
             .iter()
             .map(|stat| stat.calculate(sfs.clone()))
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| Cli::command().error(clap::ErrorKind::ValueValidation, e))
+            .map_err(|e| Cli::command().error(ErrorKind::ValueValidation, e))
     }
 
     /// Gets the precisions to be used for printing the calculated statistics.
@@ -140,21 +144,21 @@ impl Stat {
     /// The output vector will always be the same length as the number of statistics asked for.
     /// If the provided number of statistics is one, it will be repeated to match; otherwise the
     /// number must match the number of statistics, or an error will be returned.
-    fn get_precisions(&self) -> clap::Result<Vec<usize>> {
+    fn get_precisions(&self) -> ClapResult<Vec<usize>> {
         let n = self.statistics.len();
 
         match &self.precision[..] {
             [v] => Ok(vec![*v; n]),
             vs if vs.len() == n => Ok(self.precision.clone()),
             _ => Err(Cli::command().error(
-                clap::ErrorKind::ValueValidation,
+                ErrorKind::ValueValidation,
                 "number of precision values must be one or match number of statistics calculated",
             )),
         }
     }
 
     /// Prints the header corresponding to the arguments provided.
-    pub fn print_header<W>(&self, writer: &mut W) -> clap::Result<()>
+    pub fn print_header<W>(&self, writer: &mut W) -> ClapResult<()>
     where
         W: io::Write,
     {
@@ -178,7 +182,7 @@ impl Stat {
         writer: &mut W,
         values: &[f64],
         precisions: &[usize],
-    ) -> clap::Result<()>
+    ) -> ClapResult<()>
     where
         W: io::Write,
     {
@@ -331,7 +335,7 @@ mod tests {
 
     use crate::cli::Command;
 
-    fn try_parse_args(cmd: &str) -> clap::Result<Stat> {
+    fn try_parse_args(cmd: &str) -> ClapResult<Stat> {
         Cli::try_parse_from(cmd.split_whitespace()).map(|cli| match cli.subcommand {
             Some(Command::Stat(stat)) => stat,
             _ => panic!(),
@@ -347,7 +351,7 @@ mod tests {
         let result = try_parse_args("winsfs stat /path/to/sfs");
         assert_eq!(
             result.unwrap_err().kind(),
-            clap::ErrorKind::MissingRequiredArgument,
+            ErrorKind::MissingRequiredArgument,
         );
     }
 

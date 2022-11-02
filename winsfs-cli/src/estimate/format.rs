@@ -3,16 +3,16 @@ use std::{fmt, fs::File, io};
 use angsd_saf as saf;
 use saf::version::Version;
 
-use clap::{ArgEnum, CommandFactory};
+use clap::{error::ErrorKind, CommandFactory, ValueEnum};
 
 use super::Cli;
 
 /// The possible input formats for SFS estimation.
-#[derive(ArgEnum, Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(ValueEnum, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Format {
-    /// One or more standard SAF ANGSD files
+    /// One or more standard (v3) SAF ANGSD files
     Standard,
-    /// One or more standard SAF ANGSD files
+    /// One or more banded (v4) SAF ANGSD files
     Banded,
     /// A single pseudo-shuffled SAF file, which may contain one or more populations
     Shuffled,
@@ -73,7 +73,7 @@ impl TryFrom<&Cli> for Format {
                 // Multiple input files, must be standard format
                 if let Some(Format::Shuffled) = args.input_format {
                     Err(Cli::command().error(
-                        clap::ErrorKind::ValueValidation,
+                        ErrorKind::ValueValidation,
                         "only standard input file format valid for more than a single input path",
                     ))
                 } else {

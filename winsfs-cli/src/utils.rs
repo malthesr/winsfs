@@ -1,4 +1,7 @@
-use clap::CommandFactory;
+use clap::{
+    error::{ErrorKind, Result as ClapResult},
+    CommandFactory,
+};
 
 use rand::{rngs::StdRng, SeedableRng};
 
@@ -6,7 +9,7 @@ use winsfs_core::saf::Saf;
 
 use super::Cli;
 
-pub fn init_logger(verbosity_arg: usize) -> clap::Result<()> {
+pub fn init_logger(verbosity_arg: u8) -> ClapResult<()> {
     let level = match verbosity_arg {
         0 => log::LevelFilter::Warn,
         1 => log::LevelFilter::Info,
@@ -17,12 +20,12 @@ pub fn init_logger(verbosity_arg: usize) -> clap::Result<()> {
     simple_logger::SimpleLogger::new()
         .with_level(level)
         .init()
-        .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise logger"))
+        .map_err(|_| Cli::command().error(ErrorKind::Io, "Failed to initialise logger"))
 }
 
-pub fn set_threads(threads: usize) -> clap::Result<()> {
+pub fn set_threads(threads: usize) -> ClapResult<()> {
     winsfs_core::set_threads(threads)
-        .map_err(|_| Cli::command().error(clap::ErrorKind::Io, "Failed to initialise threadpool"))
+        .map_err(|_| Cli::command().error(ErrorKind::Io, "Failed to initialise threadpool"))
 }
 
 pub fn join<I, T>(iter: I, sep: &str) -> String

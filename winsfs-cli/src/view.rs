@@ -1,6 +1,6 @@
 use std::{io, path::PathBuf};
 
-use clap::Args;
+use clap::{error::Result as ClapResult, Args};
 
 use winsfs_core::sfs::io::{npy, plain_text};
 
@@ -12,7 +12,7 @@ pub struct View {
     /// Input SFS.
     ///
     /// The input SFS can be provided here or read from stdin.
-    #[clap(parse(from_os_str), value_name = "PATH")]
+    #[clap(value_parser, value_name = "PATH")]
     pub path: Option<PathBuf>,
 
     /// Fold site frequency spectrum.
@@ -36,12 +36,12 @@ pub struct View {
     /// By default, the output SFS is written in a plain text format, where the first line is a
     /// header giving the shape of the SFS, and the second line gives the values of the SFS in flat
     /// row-major order. Alternatively, the SFS can be written in the npy binary format.
-    #[clap(short = 'o', long, arg_enum, default_value_t = input::sfs::Format::PlainText)]
+    #[clap(short = 'o', long, value_enum, default_value_t = input::sfs::Format::PlainText)]
     pub output_format: input::sfs::Format,
 }
 
 impl View {
-    pub fn run(self) -> clap::Result<()> {
+    pub fn run(self) -> ClapResult<()> {
         let mut sfs = input::sfs::Reader::from_path_or_stdin(self.path)?.read_dyn()?;
 
         if self.normalise {

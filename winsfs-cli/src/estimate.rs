@@ -1,5 +1,7 @@
 use std::{io, num::NonZeroUsize, path::Path, process};
 
+use clap::error::Result as ClapResult;
+
 use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
     io::shuffle::Reader,
@@ -65,14 +67,14 @@ macro_rules! setup {
 }
 
 impl Cli {
-    pub fn run(self) -> clap::Result<()> {
+    pub fn run(self) -> ClapResult<()> {
         match Format::try_from(&self)? {
             Format::Standard | Format::Banded => self.run_in_memory(),
             Format::Shuffled => self.run_streaming(),
         }
     }
 
-    fn run_in_memory(self) -> clap::Result<()> {
+    fn run_in_memory(self) -> ClapResult<()> {
         set_threads(self.threads)?;
 
         match &self.paths[..] {
@@ -83,7 +85,7 @@ impl Cli {
         }
     }
 
-    fn run_in_memory_n<const N: usize, P>(&self, paths: [P; N]) -> clap::Result<()>
+    fn run_in_memory_n<const N: usize, P>(&self, paths: [P; N]) -> ClapResult<()>
     where
         P: AsRef<Path>,
     {
@@ -104,7 +106,7 @@ impl Cli {
         Ok(())
     }
 
-    fn run_streaming(&self) -> clap::Result<()> {
+    fn run_streaming(&self) -> ClapResult<()> {
         if let [path] = &self.paths[..] {
             log::info!(
                 target: "init",
@@ -127,7 +129,7 @@ impl Cli {
         }
     }
 
-    fn run_streaming_n<const D: usize, R>(&self, mut reader: Reader<D, R>) -> clap::Result<()>
+    fn run_streaming_n<const D: usize, R>(&self, mut reader: Reader<D, R>) -> ClapResult<()>
     where
         R: io::BufRead + io::Seek,
     {

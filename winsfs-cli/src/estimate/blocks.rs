@@ -1,6 +1,9 @@
 use std::num::NonZeroUsize;
 
-use clap::CommandFactory;
+use clap::{
+    error::{ErrorKind, Result as ClapResult},
+    CommandFactory,
+};
 
 use super::{Cli, DEFAULT_NUMBER_OF_BLOCKS};
 
@@ -14,9 +17,9 @@ pub enum BlockSpecification {
 
 impl BlockSpecification {
     /// Convert into block size and log block size and number of blocks.
-    pub fn block_size(&self, sites: usize) -> clap::Result<NonZeroUsize> {
+    pub fn block_size(&self, sites: usize) -> ClapResult<NonZeroUsize> {
         let sites = NonZeroUsize::new(sites).ok_or_else(|| {
-            Cli::command().error(clap::ErrorKind::Io, "input contains 0 (intersecting) sites")
+            Cli::command().error(ErrorKind::Io, "input contains 0 (intersecting) sites")
         })?;
 
         let block_size = self.block_size_inner(sites);

@@ -1,6 +1,6 @@
 use std::{num::NonZeroUsize, path::PathBuf};
 
-use clap::{ArgGroup, Parser, Subcommand};
+use clap::{ArgAction, ArgGroup, Parser, Subcommand};
 
 use crate::{estimate::Format, LogLikelihood, Shuffle, Stat, View};
 
@@ -13,7 +13,7 @@ const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
 #[clap(group(ArgGroup::new("block")))]
 #[clap(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
-#[clap(next_help_heading = "GENERAL")]
+#[clap(next_help_heading = "General")]
 pub struct Cli {
     /// Input SAF file paths.
     ///
@@ -21,10 +21,10 @@ pub struct Cli {
     /// specify either the shared prefix or the full path to any one member file.
     /// Up to three SAF files currently supported.
     #[clap(
-        parse(from_os_str),
-        max_values = 3,
+        value_parser,
+        num_args = 1..=3,
         required = true,
-        help_heading = "INPUT",
+        help_heading = "Input",
         value_name = "PATHS"
     )]
     pub paths: Vec<PathBuf>,
@@ -40,7 +40,7 @@ pub struct Cli {
         short = 'B',
         long,
         group = "block",
-        help_heading = "HYPERPARAMETERS",
+        help_heading = "Hyperparameters",
         value_name = "INT"
     )]
     pub blocks: Option<NonZeroUsize>,
@@ -53,7 +53,7 @@ pub struct Cli {
         short = 'b',
         long,
         group = "block",
-        help_heading = "HYPERPARAMETERS",
+        help_heading = "Hyperparameters",
         value_name = "INT"
     )]
     pub block_size: Option<NonZeroUsize>,
@@ -66,14 +66,14 @@ pub struct Cli {
     /// If both this and `--tolerance` are unset, the default stopping rule is a log-likelihood
     /// tolerance of 1e-4. If both are set, the first stopping rule to be triggered will stop the
     /// algorithm.
-    #[clap(long, help_heading = "STOPPING", value_name = "INT")]
+    #[clap(long, help_heading = "Stopping", value_name = "INT")]
     pub max_epochs: Option<usize>,
 
     /// Initial SFS.
     ///
     /// If unset, a non-informative SFS will be used to initialise optimisation. This is fine
     /// for most purposes.
-    #[clap(short = 'i', long, help_heading = "INPUT", value_name = "PATH")]
+    #[clap(short = 'i', long, help_heading = "Input", value_name = "PATH")]
     pub initial: Option<PathBuf>,
 
     /// Input format file type.
@@ -83,8 +83,8 @@ pub struct Cli {
     #[clap(
         short = 'I',
         long,
-        arg_enum,
-        help_heading = "INPUT",
+        value_enum,
+        help_heading = "Input",
         value_name = "STRING"
     )]
     pub input_format: Option<Format>,
@@ -106,7 +106,7 @@ pub struct Cli {
     /// If both this and `--max-epochs` are unset, the default stopping rule is a log-likelihood
     /// tolerance of 1e-4. If both are set, the first stopping rule to be triggered will stop the
     /// algorithm.
-    #[clap(short = 'l', long, help_heading = "STOPPING", value_name = "FLOAT")]
+    #[clap(short = 'l', long, help_heading = "Stopping", value_name = "FLOAT")]
     pub tolerance: Option<f64>,
 
     /// Number of threads to use.
@@ -118,8 +118,8 @@ pub struct Cli {
     /// Verbosity.
     ///
     /// Flag can be set multiply times to increase verbosity, or left unset for quiet mode.
-    #[clap(short = 'v', long, parse(from_occurrences), global = true)]
-    pub verbose: usize,
+    #[clap(short = 'v', long, action = ArgAction::Count, global = true)]
+    pub verbose: u8,
 
     /// Number of blocks per window.
     ///
@@ -127,7 +127,7 @@ pub struct Cli {
     #[clap(
         short = 'w',
         long,
-        help_heading = "HYPERPARAMETERS",
+        help_heading = "Hyperparameters",
         value_name = "INT"
     )]
     pub window_size: Option<NonZeroUsize>,
@@ -159,7 +159,9 @@ impl Command {
 mod tests {
     use super::*;
 
-    fn try_parse_args(cmd: &str) -> clap::Result<Cli> {
+    use clap::error::{ErrorKind, Result as ClapResult};
+
+    fn try_parse_args(cmd: &str) -> ClapResult<Cli> {
         Parser::try_parse_from(cmd.split_whitespace())
     }
 
@@ -173,7 +175,7 @@ mod tests {
 
         assert_eq!(
             result.unwrap_err().kind(),
-            clap::ErrorKind::MissingRequiredArgument
+            ErrorKind::MissingRequiredArgument
         );
     }
 
@@ -181,7 +183,7 @@ mod tests {
     fn test_four_paths_errors() {
         let result = try_parse_args("winsfs a b c d");
 
-        assert_eq!(result.unwrap_err().kind(), clap::ErrorKind::TooManyValues);
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::TooManyValues);
     }
 
     #[test]
@@ -209,16 +211,13 @@ mod tests {
         assert_eq!(args.block_size, None);
 
         let result = try_parse_args("winsfs -b 5 -B 10 /path/to/saf");
-        assert_eq!(
-            result.unwrap_err().kind(),
-            clap::ErrorKind::ArgumentConflict
-        );
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::ArgumentConflict);
     }
 
     #[test]
     fn test_subcommand_conflicts_with_args() {
         let result = try_parse_args("winsfs -b 5 log-likelihood --sfs /path/to/sfs /path/to/saf");
-        assert_eq!(result.unwrap_err().kind(), clap::ErrorKind::UnknownArgument,);
+        assert_eq!(result.unwrap_err().kind(), ErrorKind::UnknownArgument,);
     }
 
     #[test]

@@ -3,6 +3,8 @@ use std::{
     path::Path,
 };
 
+use clap::ValueEnum;
+
 use winsfs_core::sfs::{
     io::{npy, plain_text},
     DynUSfs, USfs,
@@ -111,7 +113,7 @@ impl Reader {
 }
 
 /// An SFS input format.
-#[derive(clap::ArgEnum, Clone, Debug, Eq, PartialEq)]
+#[derive(ValueEnum, Clone, Debug, Eq, PartialEq)]
 pub enum Format {
     /// Plain text format.
     #[clap(name = "txt")]
