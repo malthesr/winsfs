@@ -2,7 +2,7 @@ use std::{error::Error, fmt, io, path::PathBuf};
 
 use clap::{ArgEnum, Args, CommandFactory};
 
-use winsfs_core::sfs::{DynUSfs, USfs};
+use winsfs_core::sfs::{DynUSfs, Sfs, USfs};
 
 use crate::{input, utils::join, Cli};
 
@@ -58,6 +58,8 @@ pub struct Stat {
 #[derive(ArgEnum, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Statistic {
     F2,
+    Fst,
+    Heterozygosity,
     King,
     R0,
     R1,
@@ -70,17 +72,10 @@ impl Statistic {
     /// Different statistics have various requirements on shape or dimensionality of the SFS.
     /// An error is returned if the statistic cannot be calculated from the provided SFS.
     pub fn calculate(&self, sfs: DynUSfs) -> Result<f64, StatisticError> {
-        let dim = sfs.shape().len();
-
         match self {
-            Statistic::F2 => match USfs::<2>::try_from(sfs) {
-                Ok(sfs_2d) => Ok(sfs_2d.normalise().f2()),
-                Err(_) => Err(StatisticError::DimensionError {
-                    name: "F2",
-                    expected: 2,
-                    found: dim,
-                }),
-            },
+            Statistic::F2 => calculate_2d_norm_stat(sfs, "f2", |sfs| sfs.f2()),
+            Statistic::Fst => calculate_2d_norm_stat(sfs, "Fst", |sfs| sfs.fst()),
+            Statistic::Heterozygosity => calculate_heterozygosity(sfs),
             Statistic::King => calculate_kinship_stat(sfs, "King", |sfs| sfs.king()),
             Statistic::R0 => calculate_kinship_stat(sfs, "R0", |sfs| sfs.r0()),
             Statistic::R1 => calculate_kinship_stat(sfs, "R1", |sfs| sfs.r1()),
@@ -92,6 +87,8 @@ impl Statistic {
     pub fn header_name(&self) -> String {
         match self {
             Statistic::F2 => "f2",
+            Statistic::Fst => "fst",
+            Statistic::Heterozygosity => "heterozygosity",
             Statistic::King => "king",
             Statistic::R0 => "r0",
             Statistic::R1 => "r1",
@@ -245,6 +242,51 @@ impl fmt::Display for StatisticError {
 }
 
 impl Error for StatisticError {}
+
+/// Helper to calculate heterozygosity.
+fn calculate_heterozygosity(sfs: DynUSfs) -> Result<f64, StatisticError> {
+    let shape = sfs.shape().to_vec();
+    let dim = shape.len();
+
+    match USfs::<1>::try_from(sfs) {
+        Ok(sfs_1d) => {
+            if shape[0] == 3 {
+                Ok(sfs_1d.normalise().as_slice()[1])
+            } else {
+                Err(StatisticError::ShapeError {
+                    name: "heterozygosity",
+                    expected: vec![3],
+                    found: shape,
+                })
+            }
+        }
+        Err(_) => Err(StatisticError::DimensionError {
+            name: "heterozygosity",
+            expected: 1,
+            found: dim,
+        }),
+    }
+}
+
+/// Helper to calculate statistic based on normalised 2D SFS.
+///
+/// This factors out the error checking and handling.
+fn calculate_2d_norm_stat<F>(sfs: DynUSfs, name: &'static str, f: F) -> Result<f64, StatisticError>
+where
+    F: Fn(&Sfs<2>) -> f64,
+{
+    let shape = sfs.shape().clone();
+    let dim = shape.len();
+
+    match USfs::<2>::try_from(sfs) {
+        Ok(sfs_2d) => Ok(f(&sfs_2d.normalise())),
+        Err(_) => Err(StatisticError::DimensionError {
+            name,
+            expected: 2,
+            found: dim,
+        }),
+    }
+}
 
 /// Helper to calculate R0, R1, or King statistic.
 ///
