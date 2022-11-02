@@ -41,8 +41,16 @@ pub struct Stat {
     /// Statistics to calculate.
     ///
     /// More than one statistic can be output. Use comma to separate statistics.
-    /// An error will be thrown if the shape or dimensionality of the SFS is incompatible with the
-    /// required statistics.
+    /// An error will be thrown if the shape or dimensionality of the SFS is incompatible with
+    /// the required statistics.
+    ///
+    /// Some notes and references: {n}
+    ///     - f2: 2D SFS only. Based on all sites (including fixed), and may therefore have a
+    ///       different scaling factor than when based on SNPs. {n}
+    ///     - fst: 2D SFS only. Based on Hudson's estimate implemented as ratio of averages from
+    ///       Bhatia et al. (2013). {n}
+    ///     - heterozygosity: Shape 3 1D SFS only. {n}
+    ///     - king, r0, r1: Shape 3x3 2D SFS only. Based on Waples et al. (2019).
     #[clap(
         short = 's',
         long,
