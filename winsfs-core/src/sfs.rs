@@ -693,6 +693,37 @@ impl SfsBase<ConstShape<2>, Norm> {
             .map(|(v, [f_i, f_j])| v * (f_i - f_j).powi(2))
             .sum()
     }
+
+    /// Returns the Fst statistic.
+    ///
+    /// The Fst calculation implemented here corresponds to the recommendation in
+    /// [Bhatia et al. (2013)][bhatia], i.e. what they term Hudson's estimator using a ratio
+    /// of averages.
+    ///
+    /// [bhatia]: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3759727/
+    pub fn fst(&self) -> f64 {
+        let [n_i_sub, n_j_sub] = self.shape().map(|x| (x - 2) as f64);
+
+        // We only want the polymorphic parts of the spectrum and corresponding frequencies,
+        // so we drop the first and last values
+        let polymorphic_iter = self
+            .values
+            .iter()
+            .zip(self.frequencies())
+            .take(self.values.len() - 1)
+            .skip(1);
+
+        let (num, denom) = polymorphic_iter
+            .map(|(v, f)| (v, f, f.map(|f| 1. - f)))
+            .map(|(v, [f_i, f_j], [g_i, g_j])| {
+                let num = (f_i - f_j).powi(2) - f_i * g_i / n_i_sub - f_j * g_j / n_j_sub;
+                let denom = f_i * g_j + f_j * g_i;
+                (v * num, v * denom)
+            })
+            .fold((0., 0.), |(n_sum, d_sum), (n, d)| (n_sum + n, d_sum + d));
+
+        num / denom
+    }
 }
 
 impl<N: Normalisation> SfsBase<ConstShape<2>, N> {
@@ -1230,5 +1261,23 @@ mod tests {
         ];
         assert!(!fst.r1().unwrap().is_nan());
         assert_eq!(fst.r1(), snd.r1());
+    }
+
+    #[test]
+    fn test_fst() {
+        #[rustfmt::skip]
+        let sfs = sfs2d![
+            [29880., 13., 19., 4., 14., 0., 1., 0., 0.],
+            [    7.,  0.,  0., 0.,  0., 0., 0., 0., 0.],
+            [   24.,  0.,  0., 0.,  0., 0., 1., 0., 0.],
+            [    0.,  0.,  0., 0.,  0., 0., 0., 0., 0.],
+            [    9.,  0.,  0., 0.,  4., 0., 2., 0., 5.],
+            [    0.,  0.,  0., 0.,  0., 0., 0., 0., 0.],
+            [    1.,  0.,  0., 0.,  7., 0., 1., 0., 8.],
+        ].normalise();
+        let expected = 0.307106;
+        let fst = sfs.fst();
+        dbg!(fst);
+        assert!((fst - expected).abs() < 1e-6);
     }
 }
