@@ -469,8 +469,8 @@ mod tests {
             118, 0, // header_len (2 bytes in version 1.0)
         ];
         src.extend(header_dict.to_string().as_bytes());
-        src.extend(&[32; 58]); // whitespace padding for alignment
-        src.extend(&[10]); // newline
+        src.extend([32; 58]); // whitespace padding for alignment
+        src.extend([10]); // newline
 
         assert_eq!(
             Header::read(&mut &src[..])?,
@@ -496,8 +496,8 @@ mod tests {
             116, 0, 0, 0, // header_len (4 bytes in version 2.0)
         ];
         expected.extend(fmt_dict.as_bytes());
-        expected.extend(&[32; 58]); // whitespace padding for alignment
-        expected.extend(&[10]); // newline
+        expected.extend([32; 58]); // whitespace padding for alignment
+        expected.extend([10]); // newline
 
         assert_eq!(dest, expected);
 
