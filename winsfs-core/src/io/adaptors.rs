@@ -1,5 +1,7 @@
 use std::io;
 
+use crate::em::Sites;
+
 use super::{ReadSite, ReadStatus, Rewind};
 
 /// A type that keeps track of how many sites have been read from the underlying source.
@@ -64,6 +66,15 @@ where
     }
 }
 
+impl<R> Sites for Enumerate<R>
+where
+    R: Sites,
+{
+    fn sites(&self) -> usize {
+        self.inner.sites()
+    }
+}
+
 /// A type that limits the number of sites that can be read from the underlying source.
 ///
 /// Constructed using [`ReadSite::take`] or [`Enumerate::take`].
@@ -124,5 +135,14 @@ where
         } else {
             Ok(ReadStatus::Done)
         }
+    }
+}
+
+impl<R> Sites for Take<Enumerate<R>>
+where
+    R: Sites,
+{
+    fn sites(&self) -> usize {
+        self.inner.sites().min(self.max_sites)
     }
 }

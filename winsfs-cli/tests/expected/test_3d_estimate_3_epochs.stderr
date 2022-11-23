@@ -6,7 +6,7 @@ DEBUG [init] Using 4 threads for reading
 INFO  [init] Reading (intersecting) sites in input SAF files into memory
 DEBUG [init] Found 220000 (intersecting) sites in SAF files with shape 11/13/15
 DEBUG [init] Shuffling SAF sites
-DEBUG [init] Using 500 full blocks of size 440
+DEBUG [init] Using 500 blocks, all containing 440 sites
 DEBUG [init] Using window size of 100 blocks per window
 DEBUG [init] Creating uniform initial SFS
 DEBUG [stop] Stopping rule set to 3 epochs

@@ -7,6 +7,7 @@ use std::{
 use byteorder::{ReadBytesExt, LE};
 
 use crate::{
+    em::Sites,
     io::{ReadSite, ReadStatus, Rewind},
     saf::Site,
 };
@@ -111,6 +112,15 @@ where
     fn rewind(&mut self) -> io::Result<()> {
         self.seek(io::SeekFrom::Start(to_u64(self.header.header_size())))
             .map(|_| ())
+    }
+}
+
+impl<const D: usize, R> Sites for Reader<D, R>
+where
+    R: io::BufRead,
+{
+    fn sites(&self) -> usize {
+        self.header().sites()
     }
 }
 

@@ -5,6 +5,7 @@ use clap::error::Result as ClapResult;
 use winsfs_core::{
     em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
     io::shuffle::Reader,
+    saf::Blocks,
     sfs::{self, Sfs},
 };
 
@@ -14,9 +15,6 @@ use crate::{
 };
 
 use super::Cli;
-
-mod blocks;
-pub use blocks::BlockSpecification;
 
 mod format;
 pub use format::Format;
@@ -33,11 +31,15 @@ pub const DEFAULT_WINDOW_SIZE: usize = 100;
 // EM and streaming EM, and this depend on the block EM type param - hence the macro
 macro_rules! setup {
     ($args:expr, $sites:expr, $shape:expr, $block_em:ty) => {{
-        let block_size = BlockSpecification::from($args).block_size($sites)?.get();
+        let block_spec = get_block_spec($args, $sites);
+        let approx_block_size = match block_spec {
+            Blocks::Number(number) => $sites / number,
+            Blocks::Size(size) => size,
+        };
         let window_size = get_window_size($args.window_size).get();
 
         let (initial_sfs, window) =
-            get_initial_sfs_and_window($args.initial.as_ref(), $shape, block_size, window_size)?;
+            get_initial_sfs_and_window($args.initial.as_ref(), $shape, approx_block_size, window_size)?;
 
         let mut block = 1;
         let block_runner = <$block_em>::new().inspect(move |_, _, sfs| {
@@ -47,7 +49,7 @@ macro_rules! setup {
         });
 
         let mut epoch = 1;
-        let runner = WindowEm::new(block_runner, window, block_size).inspect(move |_, _, sfs| {
+        let runner = WindowEm::new(block_runner, window, block_spec).inspect(move |_, _, sfs| {
             if sfs.iter().any(|x| x.is_nan()) {
                 log::error!(
                     target: "windowem",
@@ -167,7 +169,7 @@ fn get_window_size(window_size: Option<NonZeroUsize>) -> NonZeroUsize {
 fn get_initial_sfs_and_window<const N: usize, P>(
     initial_sfs_path: Option<P>,
     shape: [usize; N],
-    block_size: usize,
+    approx_block_size: usize,
     window_size: usize,
 ) -> io::Result<(Sfs<N>, Window<N>)>
 where
@@ -177,8 +179,7 @@ where
         Some(path) => {
             let initial_sfs = input::sfs::Reader::from_path(path)?.read()?.normalise();
 
-            // The initial block SFSs should be scaled by block size for weighting
-            let initial_block_sfs = initial_sfs.clone().scale(block_size as f64);
+            let initial_block_sfs = initial_sfs.clone().scale(approx_block_size as f64);
             let window = Window::from_initial(initial_block_sfs, window_size);
 
             (initial_sfs, window)
@@ -192,4 +193,54 @@ where
             (initial_sfs, window)
         }
     })
+}
+
+pub fn get_block_spec(args: &Cli, sites: usize) -> Blocks {
+    let spec = match (args.blocks, args.block_size) {
+        (Some(number), None) => Blocks::Number(number.get()),
+        (None, Some(block_size)) => Blocks::Size(block_size.get()),
+        (None, None) => Blocks::Number(DEFAULT_NUMBER_OF_BLOCKS),
+        (Some(_), Some(_)) => unreachable!("checked by clap"),
+    };
+
+    // We log the block spec with some precision: it's useful information to output, and also
+    // helpful for debugging.
+    match spec {
+        Blocks::Number(number) => {
+            let block_size = sites / number;
+            let rem = sites % number;
+            if rem == 0 {
+                log::debug!(
+                    target: "init",
+                    "Using {number} blocks, all containing {block_size} sites"
+                );
+            } else {
+                log::debug!(
+                    target: "init",
+                    "Using {number} blocks, the first {rem} containing {} sites \
+                    and the remaining blocks containing {block_size} sites",
+                    block_size + 1
+                );
+            }
+        }
+        Blocks::Size(size) => {
+            let rem = sites % size;
+            let blocks = sites / size;
+            if rem == 0 {
+                log::debug!(
+                    target: "init",
+                    "Using {blocks} blocks, all containing {size} sites",
+                );
+            } else {
+                log::debug!(
+                    target: "init",
+                    "Using {} blocks, the first {blocks} containing {size} sites \
+                    and the last block containing {rem} sites",
+                    blocks + 1
+                );
+            }
+        }
+    }
+
+    spec
 }

@@ -11,9 +11,10 @@ use angsd_saf as saf;
 
 use rand::Rng;
 
-use crate::ArrayExt;
+use crate::{em::Sites, ArrayExt};
 
 pub mod iter;
+pub use iter::Blocks;
 use iter::{BlockIter, ParBlockIter, ParSiteIter, SiteIter};
 
 mod site;
@@ -28,6 +29,8 @@ mod sealed {
     impl<T> Sealed for Bounds<T> {}
 }
 use sealed::{Bounds, Sealed};
+
+use self::iter::{IntoBlockIterator, IntoParallelBlockIterator};
 
 /// Stable workaround for lifetime GATs.
 ///
@@ -186,13 +189,12 @@ impl<const N: usize> Saf<N> {
 
     /// Returns an iterator over blocks of sites in the SAF.
     ///
-    /// If the number of sites in the SAF is not evenly divided by `block_size`,
-    /// the last block will be smaller than the others.
+    /// Different ways of blocking are available, see [`Blocks`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use winsfs_core::saf1d;
+    /// use winsfs_core::{saf1d, saf::Blocks};
     /// let saf = saf1d![
     ///     [0.0,  0.1,  0.2],
     ///     [0.3,  0.4,  0.5],
@@ -200,7 +202,7 @@ impl<const N: usize> Saf<N> {
     ///     [0.9,  0.10, 0.11],
     ///     [0.12, 0.13, 0.14],
     /// ];
-    /// let mut iter = saf.iter_blocks(2);
+    /// let mut iter = saf.iter_blocks(Blocks::Size(2));
     /// assert_eq!(
     ///     iter.next().unwrap(),
     ///     saf1d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5]].view()
@@ -212,8 +214,8 @@ impl<const N: usize> Saf<N> {
     /// assert_eq!(iter.next().unwrap(), saf1d![[0.12, 0.13, 0.14]].view());
     /// assert!(iter.next().is_none());
     /// ```
-    pub fn iter_blocks(&self, block_size: usize) -> BlockIter<N> {
-        BlockIter::new(self.view(), block_size)
+    pub fn iter_blocks(&self, block_spec: Blocks) -> BlockIter<N> {
+        self.into_block_iter(block_spec)
     }
 
     /// Returns an iterator over the sites in the SAF.
@@ -283,13 +285,11 @@ impl<const N: usize> Saf<N> {
     /// Returns a parallel iterator over the blocks in the SAF.
     ///
     /// This is the parallel version of [`Saf::iter_blocks`].
-    /// If the number of sites in the SAF is not evenly divided by `block_size`,
-    /// the last block will be smaller than the others.
     ///
     /// # Examples
     ///
     /// ```
-    /// use winsfs_core::{saf::SafView, saf1d};
+    /// use winsfs_core::{saf::{Blocks, SafView}, saf1d};
     /// use rayon::iter::ParallelIterator;
     /// let saf = saf1d![
     ///     [0.0,  0.1,  0.2],
@@ -298,7 +298,7 @@ impl<const N: usize> Saf<N> {
     ///     [0.9,  0.10, 0.11],
     ///     [0.12, 0.13, 0.14],
     /// ];
-    /// let blocks: Vec<SafView<1>> = saf.par_iter_blocks(2).collect();
+    /// let blocks: Vec<SafView<1>> = saf.par_iter_blocks(Blocks::Size(2)).collect();
     /// assert_eq!(blocks.len(), 3);
     /// assert_eq!(
     ///     blocks[0],
@@ -309,8 +309,8 @@ impl<const N: usize> Saf<N> {
     ///     saf1d![[0.6, 0.7, 0.8], [0.9, 0.10, 0.11]].view()
     /// );
     /// assert_eq!(blocks[2], saf1d![[0.12,  0.13,  0.14]].view());
-    pub fn par_iter_blocks(&self, block_size: usize) -> ParBlockIter<N> {
-        ParBlockIter::new(self.view(), block_size)
+    pub fn par_iter_blocks(&self, block_spec: Blocks) -> ParBlockIter<N> {
+        self.into_par_block_iter(block_spec)
     }
 
     /// Returns a parallel iterator over the sites in the SAF.
@@ -498,15 +498,21 @@ pub struct SafView<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> SafView<'a, N> {
+    /// Returns a single block of sites.
+    pub(crate) fn block(&self, start: usize, size: usize) -> Self {
+        let width = self.width();
+        let block = &self.values[width * start..][..width * size];
+        Self::new_unchecked(block, self.shape)
+    }
+
     /// Returns an iterator over blocks of sites in the SAF.
     ///
-    /// If the number of sites in the SAF is not evenly divided by `block_size`,
-    /// the last block will be smaller than the others.
+    /// Different ways of blocking are available, see [`Blocks`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use winsfs_core::saf1d;
+    /// use winsfs_core::{saf1d, saf::Blocks};
     /// let saf = saf1d![
     ///     [0.0,  0.1,  0.2],
     ///     [0.3,  0.4,  0.5],
@@ -514,7 +520,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     ///     [0.9,  0.10, 0.11],
     ///     [0.12, 0.13, 0.14],
     /// ];
-    /// let mut iter = saf.view().iter_blocks(2);
+    /// let mut iter = saf.view().iter_blocks(Blocks::Size(2));
     /// assert_eq!(
     ///     iter.next().unwrap(),
     ///     saf1d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5]].view()
@@ -526,8 +532,8 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// assert_eq!(iter.next().unwrap(), saf1d![[0.12, 0.13, 0.14]].view());
     /// assert!(iter.next().is_none());
     /// ```
-    pub fn iter_blocks(&self, block_size: usize) -> BlockIter<'a, N> {
-        BlockIter::new(*self, block_size)
+    pub fn iter_blocks(&self, block_spec: Blocks) -> BlockIter<'a, N> {
+        self.into_block_iter(block_spec)
     }
 
     /// Returns an iterator over the sites in the SAF.
@@ -605,7 +611,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// # Examples
     ///
     /// ```
-    /// use winsfs_core::{saf::SafView, saf1d};
+    /// use winsfs_core::{saf1d, saf::{Blocks, SafView}};
     /// use rayon::iter::ParallelIterator;
     /// let saf = saf1d![
     ///     [0.0,  0.1,  0.2],
@@ -615,19 +621,19 @@ impl<'a, const N: usize> SafView<'a, N> {
     ///     [0.12, 0.13, 0.14],
     /// ];
     /// let view = saf.view();
-    /// let blocks: Vec<SafView<1>> = view.par_iter_blocks(2).collect();
+    /// let blocks: Vec<SafView<1>> = view.par_iter_blocks(Blocks::Size(2)).collect();
     /// assert_eq!(blocks.len(), 3);
     /// assert_eq!(
     ///     blocks[0],
-    ///     saf1d![[0.0, 0.1, 0.2], [0.3,  0.4,  0.5]].view()
+    ///     saf1d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5]].view()
     /// );
     /// assert_eq!(
     ///     blocks[1],
-    ///     saf1d![[0.6, 0.7, 0.8], [0.9,  0.10,  0.11]].view()
+    ///     saf1d![[0.6, 0.7, 0.8], [0.9, 0.10, 0.11]].view()
     /// );
     /// assert_eq!(blocks[2], saf1d![[0.12, 0.13, 0.14]].view());
-    pub fn par_iter_blocks(&self, block_size: usize) -> ParBlockIter<N> {
-        ParBlockIter::new(*self, block_size)
+    pub fn par_iter_blocks(&self, block_spec: Blocks) -> ParBlockIter<N> {
+        self.into_par_block_iter(block_spec)
     }
 
     /// Returns a parallel iterator over the sites in the SAF.
@@ -665,13 +671,16 @@ impl<'a, const N: usize> SafView<'a, N> {
     ///     [2.,  2.,  2.],
     ///     [3.,  3.,  3.],
     /// ];
-    /// let [hd, tl] = saf.view().split(2);
+    /// let (hd, tl) = saf.view().split(2);
     /// assert_eq!(hd.as_slice(), &[0., 0., 0., 1., 1., 1.]);
     /// assert_eq!(tl.as_slice(), &[2., 2., 2., 3., 3., 3.]);
-    pub fn split(&self, site: usize) -> [Self; 2] {
-        let width: usize = self.shape.iter().sum();
+    pub fn split(&self, site: usize) -> (Self, Self) {
+        let width = self.width();
         let (hd, tl) = self.values.split_at(site * width);
-        [hd, tl].map(|slice| Self::new_unchecked(slice, self.shape))
+        (
+            Self::new_unchecked(hd, self.shape),
+            Self::new_unchecked(tl, self.shape),
+        )
     }
 
     impl_shared_saf_methods! {}
@@ -685,6 +694,24 @@ impl<'a, const N: usize> AsSafView<N> for SafView<'a, N> {
     #[inline]
     fn as_saf_view(&self) -> <Self as Lifetime<'_>>::Item {
         *self
+    }
+}
+
+impl<const N: usize> Sites for Saf<N> {
+    fn sites(&self) -> usize {
+        Saf::sites(self)
+    }
+}
+
+impl<'a, const N: usize> Sites for &'a Saf<N> {
+    fn sites(&self) -> usize {
+        Saf::sites(self)
+    }
+}
+
+impl<'a, const N: usize> Sites for SafView<'a, N> {
+    fn sites(&self) -> usize {
+        SafView::sites(self)
     }
 }
 

@@ -4,7 +4,7 @@ DEBUG [init] Using 4 threads for reading
 INFO  [init] Reading (intersecting) sites in input SAF files into memory
 DEBUG [init] Found 25000 (intersecting) sites in SAF files with shape 81
 DEBUG [init] Shuffling SAF sites
-DEBUG [init] Using 500 full blocks of size 50
+DEBUG [init] Using 500 blocks, all containing 50 sites
 DEBUG [init] Using window size of 100 blocks per window
 DEBUG [init] Creating uniform initial SFS
 DEBUG [stop] Stopping rule set to log-likelihood tolerance 0.0001 (default)

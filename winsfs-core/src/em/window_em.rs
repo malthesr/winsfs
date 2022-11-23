@@ -2,11 +2,14 @@ use std::{collections::VecDeque, io, iter::repeat};
 
 use crate::{
     io::{Enumerate, ReadSite, Rewind, Take},
-    saf::{iter::IntoBlockIterator, AsSafView},
+    saf::{
+        iter::{Blocks, IntoBlockIterator},
+        AsSafView,
+    },
     sfs::{Sfs, USfs},
 };
 
-use super::{to_f64, Em, EmSite, EmStep, StreamingEm};
+use super::{to_f64, Em, EmSite, EmStep, Sites, StreamingEm};
 
 /// A runner of the window EM algorithm.
 ///
@@ -18,22 +21,18 @@ use super::{to_f64, Em, EmSite, EmStep, StreamingEm};
 pub struct WindowEm<const D: usize, T> {
     em: T,
     window: Window<D>,
-    block_size: usize,
+    blocks: Blocks,
 }
 
 impl<const D: usize, T> WindowEm<D, T> {
     /// Returns a new instance of the runner.
     ///
-    /// The `em` is the inner kind of EM to handle the blocks, and the `block_size` is the number
-    /// of sites per blocks. The provided `window` should match the shape of the input and SFS
-    /// that is provided for inference later. Where no good prior guess for the SFS exists,
-    /// using [`Window::from_zeros`] is recommended.
-    pub fn new(em: T, window: Window<D>, block_size: usize) -> Self {
-        Self {
-            em,
-            window,
-            block_size,
-        }
+    /// The `em` is the inner kind of EM to handle the blocks. The way the input should be split
+    /// into blocks can be controlled using [`Blocks`]. The provided `window` should
+    /// match the shape of the input and SFS that is provided for inference later. Where no good
+    /// prior guess for the SFS exists, using [`Window::from_zeros`] is recommended.
+    pub fn new(em: T, window: Window<D>, blocks: Blocks) -> Self {
+        Self { em, window, blocks }
     }
 }
 
@@ -46,15 +45,16 @@ where
 
 impl<const D: usize, I, T> Em<D, I> for WindowEm<D, T>
 where
-    for<'a> &'a I: IntoBlockIterator<D>,
+    for<'a> &'a I: IntoBlockIterator<D> + Sites,
     for<'a> T: Em<D, <&'a I as IntoBlockIterator<D>>::Item>,
 {
     fn e_step(&mut self, mut sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
-        let mut log_likelihoods = Vec::with_capacity(self.block_size);
+        let blocks_inner = self.blocks.to_spec(input.sites());
+        let mut log_likelihoods = Vec::with_capacity(blocks_inner.blocks());
 
         let mut sites = 0;
 
-        for block in input.into_block_iter(self.block_size) {
+        for block in input.into_block_iter(self.blocks) {
             sites += block.as_saf_view().sites();
 
             let (log_likelihood, posterior) = self.em.e_step(sfs, &block);
@@ -71,7 +71,7 @@ where
 
 impl<const D: usize, R, T> StreamingEm<D, R> for WindowEm<D, T>
 where
-    R: Rewind,
+    R: Rewind + Sites,
     R::Site: EmSite<D>,
     for<'a> T: StreamingEm<D, Take<Enumerate<&'a mut R>>>,
 {
@@ -80,12 +80,13 @@ where
         mut sfs: Sfs<D>,
         reader: &mut R,
     ) -> io::Result<(Self::Status, USfs<D>)> {
-        let mut log_likelihoods = Vec::with_capacity(self.block_size);
+        let block_spec = self.blocks.to_spec(reader.sites());
+        let mut log_likelihoods = Vec::with_capacity(block_spec.blocks());
 
         let mut sites = 0;
 
-        loop {
-            let mut block_reader = reader.take(self.block_size);
+        for block_size in block_spec.iter_block_sizes() {
+            let mut block_reader = reader.take(block_size);
 
             let (log_likelihood, posterior) = self.em.stream_e_step(sfs, &mut block_reader)?;
             self.window.update(posterior);
@@ -94,10 +95,6 @@ where
             log_likelihoods.push(log_likelihood);
 
             sites += block_reader.sites_read();
-
-            if reader.is_done()? {
-                break;
-            }
         }
 
         Ok((log_likelihoods, sfs.scale(to_f64(sites))))

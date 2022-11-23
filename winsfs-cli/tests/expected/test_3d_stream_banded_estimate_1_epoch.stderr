@@ -1,6 +1,6 @@
 INFO  [init] Streaming through shuffled SAF file from path:
 	test_3d_stream_banded_estimate_1_epoch.saf.shuf
-DEBUG [init] Using 500 full blocks of size 50
+DEBUG [init] Using 500 blocks, all containing 50 sites
 DEBUG [init] Using window size of 100 blocks per window
 DEBUG [init] Creating uniform initial SFS
 DEBUG [stop] Stopping rule set to 1 epochs

@@ -271,6 +271,11 @@ fn test_1d_estimate_default() -> DynResult {
 }
 
 #[test]
+fn test_1d_estimate_uneven_block_size() -> DynResult {
+    impl_test_estimate(["--block-size", "439"], [SAF_A])
+}
+
+#[test]
 fn test_1d_banded_estimate_default() -> DynResult {
     impl_test_estimate([], [BANDED_SAF_D])
 }

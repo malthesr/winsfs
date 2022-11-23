@@ -24,6 +24,12 @@ use crate::{
     sfs::{Sfs, USfs},
 };
 
+/// A type that knows how many sites it contains.
+pub trait Sites {
+    /// Returns the number of contained sites.
+    fn sites(&self) -> usize;
+}
+
 /// An EM-like type that runs in steps.
 ///
 /// This serves as a supertrait bound for both [`Em`] and [`StreamingEm`] and gathers
@@ -167,7 +173,10 @@ pub(self) fn to_f64(x: usize) -> f64 {
 mod tests {
     use super::*;
 
-    use crate::{saf::Saf, saf1d, sfs1d};
+    use crate::{
+        saf::{Blocks, Saf},
+        saf1d, sfs1d,
+    };
 
     fn impl_test_em_zero_not_nan<E>(mut runner: E)
     where
@@ -197,7 +206,7 @@ mod tests {
         impl_test_em_zero_not_nan(WindowEm::new(
             StandardEm::<false>::new(),
             Window::from_zeros([3], 1),
-            1,
+            Blocks::Size(1),
         ))
     }
 }

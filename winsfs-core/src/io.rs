@@ -11,7 +11,7 @@ pub use angsd_saf::{
     ReadStatus,
 };
 
-use crate::saf::Site;
+use crate::{em::Sites, saf::Site};
 
 mod adaptors;
 pub use adaptors::{Enumerate, Take};
@@ -91,6 +91,15 @@ where
 
     fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
         <T as ReadSite>::read_site_unnormalised(*self, buf)
+    }
+}
+
+impl<'a, T> Sites for &'a mut T
+where
+    T: Sites,
+{
+    fn sites(&self) -> usize {
+        <T as Sites>::sites(*self)
     }
 }
 
