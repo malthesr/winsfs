@@ -649,6 +649,31 @@ impl<'a, const N: usize> SafView<'a, N> {
         ParSiteIter::new(*self)
     }
 
+    /// Returns two views by splitting the view at site.
+    ///
+    /// # Panics
+    ///
+    /// If `site` is out of bounds.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use winsfs_core::saf1d;
+    /// let saf = saf1d![
+    ///     [0.,  0.,  0.],
+    ///     [1.,  1.,  1.],
+    ///     [2.,  2.,  2.],
+    ///     [3.,  3.,  3.],
+    /// ];
+    /// let [hd, tl] = saf.view().split(2);
+    /// assert_eq!(hd.as_slice(), &[0., 0., 0., 1., 1., 1.]);
+    /// assert_eq!(tl.as_slice(), &[2., 2., 2., 3., 3., 3.]);
+    pub fn split(&self, site: usize) -> [Self; 2] {
+        let width: usize = self.shape.iter().sum();
+        let (hd, tl) = self.values.split_at(site * width);
+        [hd, tl].map(|slice| Self::new_unchecked(slice, self.shape))
+    }
+
     impl_shared_saf_methods! {}
 }
 
