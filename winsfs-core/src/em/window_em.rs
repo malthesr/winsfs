@@ -4,7 +4,7 @@ use crate::{
     io::{Enumerate, ReadSite, Rewind, Take},
     saf::{
         iter::{Blocks, IntoBlockIterator},
-        AsSafView,
+        AsSafView, SafView,
     },
     sfs::{Sfs, USfs},
 };
@@ -43,12 +43,11 @@ where
     type Status = Vec<T::Status>;
 }
 
-impl<const D: usize, I, T> Em<D, I> for WindowEm<D, T>
+impl<'a, const D: usize, T> Em<D, SafView<'a, D>> for WindowEm<D, T>
 where
-    for<'a> &'a I: IntoBlockIterator<D> + Sites,
-    for<'a> T: Em<D, <&'a I as IntoBlockIterator<D>>::Item>,
+    T: Em<D, SafView<'a, D>>,
 {
-    fn e_step(&mut self, mut sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
+    fn e_step(&mut self, mut sfs: Sfs<D>, input: &SafView<'a, D>) -> (Self::Status, USfs<D>) {
         let blocks_inner = self.blocks.to_spec(input.sites());
         let mut log_likelihoods = Vec::with_capacity(blocks_inner.blocks());
 

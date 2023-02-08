@@ -174,18 +174,18 @@ mod tests {
     use super::*;
 
     use crate::{
-        saf::{Blocks, Saf},
+        saf::{Blocks, SafView},
         saf1d, sfs1d,
     };
 
     fn impl_test_em_zero_not_nan<E>(mut runner: E)
     where
-        E: Em<1, Saf<1>>,
+        for<'a> E: Em<1, SafView<'a, 1>>,
     {
         let saf = saf1d![[0., 0., 1.]];
         let init_sfs = sfs1d![1., 0., 0.].into_normalised().unwrap();
 
-        let (_, sfs) = runner.em(init_sfs, &saf, stopping::Steps::new(1));
+        let (_, sfs) = runner.em(init_sfs, &saf.view(), stopping::Steps::new(1));
 
         let has_nan = sfs.iter().any(|x| x.is_nan());
         assert!(!has_nan);

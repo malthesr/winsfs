@@ -2,7 +2,7 @@ use std::io;
 
 use crate::{
     io::Rewind,
-    saf::iter::{IntoParallelSiteIterator, IntoSiteIterator},
+    saf::SafView,
     sfs::{Sfs, USfs},
 };
 
@@ -41,12 +41,9 @@ impl<const PAR: bool> EmStep for StandardEm<PAR> {
     type Status = SumOf<LogLikelihood>;
 }
 
-impl<const D: usize, I> Em<D, I> for StandardEm<false>
-where
-    for<'a> &'a I: IntoSiteIterator<D>,
-{
-    fn e_step(&mut self, sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
-        sfs.e_step(input)
+impl<'a, const D: usize> Em<D, SafView<'a, D>> for StandardEm<false> {
+    fn e_step(&mut self, sfs: Sfs<D>, input: &SafView<'a, D>) -> (Self::Status, USfs<D>) {
+        sfs.e_step(*input)
     }
 }
 
@@ -64,11 +61,8 @@ where
     }
 }
 
-impl<const D: usize, I> Em<D, I> for StandardEm<true>
-where
-    for<'a> &'a I: IntoParallelSiteIterator<D>,
-{
-    fn e_step(&mut self, sfs: Sfs<D>, input: &I) -> (Self::Status, USfs<D>) {
-        sfs.par_e_step(input)
+impl<'a, const D: usize> Em<D, SafView<'a, D>> for StandardEm<true> {
+    fn e_step(&mut self, sfs: Sfs<D>, input: &SafView<'a, D>) -> (Self::Status, USfs<D>) {
+        sfs.par_e_step(*input)
     }
 }

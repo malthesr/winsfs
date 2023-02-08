@@ -99,7 +99,7 @@ impl Cli {
         let (initial_sfs, mut runner) = setup!(self, sites, shape, ParallelStandardEm);
         let stopping_rule = Rule::from(self);
 
-        let (_status, sfs) = runner.em(initial_sfs, &saf, stopping_rule);
+        let (_status, sfs) = runner.em(initial_sfs, &saf.view(), stopping_rule);
 
         let stdout = io::stdout();
         let mut writer = stdout.lock();

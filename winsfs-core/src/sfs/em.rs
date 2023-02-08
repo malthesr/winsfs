@@ -1,6 +1,6 @@
 use std::io;
 
-use rayon::iter::{IndexedParallelIterator, ParallelIterator};
+use rayon::iter::ParallelIterator;
 
 use crate::{
     em::{
@@ -8,7 +8,7 @@ use crate::{
         EmSite, StreamEmSite,
     },
     io::ReadSite,
-    saf::iter::{IntoParallelSiteIterator, IntoSiteIterator},
+    saf::SafView,
 };
 
 use super::{Sfs, USfs};
@@ -39,20 +39,14 @@ impl<const D: usize> Sfs<D> {
     ///     [1., 0., 0., 0., 0.],
     ///     [0., 0., 0., 1., 0.],
     /// ];
-    /// let (log_likelihood, posterior) = sfs.clone().e_step(&saf);
+    /// let (log_likelihood, posterior) = sfs.clone().e_step(saf.view());
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
-    /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
+    /// assert_eq!(log_likelihood, sfs.log_likelihood(saf.view()));
     /// ```
-    pub fn e_step<I>(mut self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
-    where
-        I: IntoSiteIterator<D>,
-        I::Item: EmSite<D>,
-    {
+    pub fn e_step(mut self, saf: SafView<D>) -> (SumOf<LogLikelihood>, USfs<D>) {
         self = restrict(self, RESTRICT_MIN);
-        let iter = input.into_site_iter();
-        let sites = iter.len();
 
-        let (log_likelihood, posterior, _) = iter.fold(
+        let (log_likelihood, posterior, _) = saf.iter_sites().fold(
             (
                 LogLikelihood::from(0.0),
                 USfs::zeros(self.shape),
@@ -65,7 +59,7 @@ impl<const D: usize> Sfs<D> {
             },
         );
 
-        (SumOf::new(log_likelihood, sites), posterior)
+        (SumOf::new(log_likelihood, saf.sites()), posterior)
     }
 
     /// Returns the log-likelihood of the data given the SFS, and the expected number of sites
@@ -88,20 +82,15 @@ impl<const D: usize> Sfs<D> {
     ///     [1., 0., 0., 0., 0.],
     ///     [0., 0., 0., 1., 0.],
     /// ];
-    /// let (log_likelihood, posterior) = sfs.clone().par_e_step(&saf);
+    /// let (log_likelihood, posterior) = sfs.clone().par_e_step(saf.view());
     /// assert_eq!(posterior, sfs1d![2., 1., 0., 1., 0.]);
-    /// assert_eq!(log_likelihood, sfs.log_likelihood(&saf));
+    /// assert_eq!(log_likelihood, sfs.log_likelihood(saf.view()));
     /// ```
-    pub fn par_e_step<I>(mut self, input: I) -> (SumOf<LogLikelihood>, USfs<D>)
-    where
-        I: IntoParallelSiteIterator<D>,
-        I::Item: EmSite<D>,
-    {
+    pub fn par_e_step(mut self, saf: SafView<D>) -> (SumOf<LogLikelihood>, USfs<D>) {
         self = restrict(self, RESTRICT_MIN);
-        let iter = input.into_par_site_iter();
-        let sites = iter.len();
 
-        let (log_likelihood, posterior) = iter
+        let (log_likelihood, posterior) = saf
+            .par_iter_sites()
             .fold(
                 || {
                     (
@@ -122,7 +111,7 @@ impl<const D: usize> Sfs<D> {
                 |a, b| (a.0 + b.0, a.1 + b.1),
             );
 
-        (SumOf::new(log_likelihood, sites), posterior)
+        (SumOf::new(log_likelihood, saf.sites()), posterior)
     }
 
     /// Returns the log-likelihood of the data given the SFS.
@@ -143,21 +132,18 @@ impl<const D: usize> Sfs<D> {
     ///     [0., 0., 0., 1., 0.],
     /// ];
     /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
-    /// assert_eq!(sfs.log_likelihood(&saf), expected);
+    /// assert_eq!(sfs.log_likelihood(saf.view()), expected);
     /// ```
-    pub fn log_likelihood<I>(mut self, input: I) -> SumOf<LogLikelihood>
-    where
-        I: IntoSiteIterator<D>,
-    {
+    pub fn log_likelihood(mut self, saf: SafView<D>) -> SumOf<LogLikelihood> {
         self = restrict(self, RESTRICT_MIN);
-        let iter = input.into_site_iter();
-        let sites = iter.len();
 
-        let log_likelihood = iter.fold(LogLikelihood::from(0.0), |log_likelihood, site| {
-            log_likelihood + site.log_likelihood(&self)
-        });
+        let log_likelihood = saf
+            .iter_sites()
+            .fold(LogLikelihood::from(0.0), |log_likelihood, site| {
+                log_likelihood + site.log_likelihood(&self)
+            });
 
-        SumOf::new(log_likelihood, sites)
+        SumOf::new(log_likelihood, saf.sites())
     }
 
     /// Returns the log-likelihood of the data given the SFS.
@@ -180,24 +166,20 @@ impl<const D: usize> Sfs<D> {
     ///     [0., 0., 0., 1., 0.],
     /// ];
     /// let expected = SumOf::new(Likelihood::from(0.2f64.powi(4)).ln(), saf.sites());
-    /// assert_eq!(sfs.par_log_likelihood(&saf), expected);
+    /// assert_eq!(sfs.par_log_likelihood(saf.view()), expected);
     /// ```
-    pub fn par_log_likelihood<I>(mut self, input: I) -> SumOf<LogLikelihood>
-    where
-        I: IntoParallelSiteIterator<D>,
-    {
+    pub fn par_log_likelihood(mut self, saf: SafView<D>) -> SumOf<LogLikelihood> {
         self = restrict(self, RESTRICT_MIN);
-        let iter = input.into_par_site_iter();
-        let sites = iter.len();
 
-        let log_likelihood = iter
+        let log_likelihood = saf
+            .par_iter_sites()
             .fold(
                 || LogLikelihood::from(0.0),
                 |log_likelihood, site| log_likelihood + site.log_likelihood(&self),
             )
             .sum();
 
-        SumOf::new(log_likelihood, sites)
+        SumOf::new(log_likelihood, saf.sites())
     }
 
     /// Returns the log-likelihood of the data given the SFS, and the expected number of sites
