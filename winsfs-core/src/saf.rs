@@ -11,11 +11,16 @@ use angsd_saf as saf;
 
 use rand::Rng;
 
+use rayon::{
+    iter::{IndexedParallelIterator, ParallelIterator},
+    slice::ParallelSlice,
+};
+
 use crate::{em::Sites, ArrayExt};
 
 pub mod iter;
 pub use iter::Blocks;
-use iter::{BlockIter, ParBlockIter, ParSiteIter, SiteIter};
+use iter::{BlockIter, ParBlockIter};
 
 mod site;
 pub use site::{AsSiteView, Site, SiteView};
@@ -445,14 +450,19 @@ impl<'a, const N: usize> SafView<'a, N> {
     ///     [0.3,  0.4,  0.5],
     ///     [0.6,  0.7,  0.8],
     /// ];
-    /// let mut iter = saf.view().iter_sites();
+    /// let view = saf.view();
+    /// let mut iter = view.iter_sites();
     /// assert_eq!(iter.next().unwrap().as_slice(), [0.0,  0.1,  0.2]);
     /// assert_eq!(iter.next().unwrap().as_slice(), [0.3,  0.4,  0.5]);
     /// assert_eq!(iter.next().unwrap().as_slice(), [0.6,  0.7,  0.8]);
     /// assert!(iter.next().is_none());
     /// ```
-    pub fn iter_sites(&self) -> SiteIter<'a, N> {
-        SiteIter::new(*self)
+    pub fn iter_sites(
+        &self,
+    ) -> impl Iterator<Item = SiteView<N>> + ExactSizeIterator + DoubleEndedIterator {
+        self.values
+            .chunks_exact(self.width())
+            .map(|values| SiteView::new_unchecked(values, self.shape))
     }
 
     /// Returns a new SAF view.
@@ -549,8 +559,10 @@ impl<'a, const N: usize> SafView<'a, N> {
     ///     [1.,  1.,  1.],
     /// ];
     /// saf.view().par_iter_sites().all(|site| site.as_slice() == &[1., 1., 1.]);
-    pub fn par_iter_sites(&self) -> ParSiteIter<N> {
-        ParSiteIter::new(*self)
+    pub fn par_iter_sites(&self) -> impl IndexedParallelIterator<Item = SiteView<N>> {
+        self.values
+            .par_chunks_exact(self.width())
+            .map(|values| SiteView::new_unchecked(values, self.shape))
     }
 
     /// Returns two views by splitting the view at site.
