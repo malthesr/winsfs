@@ -3,7 +3,10 @@ use std::{collections::VecDeque, io, iter::repeat};
 use crate::{
     io::{Enumerate, ReadSite, Rewind, Take},
     saf::{AsSafView, Blocks, SafView},
-    sfs::{Sfs, USfs},
+    sfs::{
+        generics::{Shape, Unnorm},
+        Sfs, SfsBase, USfs,
+    },
 };
 
 use super::{to_f64, Em, EmSite, EmStep, Sites, StreamingEm};
@@ -15,36 +18,65 @@ use super::{to_f64, Em, EmSite, EmStep, Sites, StreamingEm};
 /// window to smooth the global estimate. The algorithm can be configured to use different EM-like
 /// algorithms (corresponding to the parameter `T`) for each inner block update step.
 #[derive(Clone, Debug, PartialEq)]
-pub struct WindowEm<const D: usize, T> {
+pub struct WindowEm<T> {
     em: T,
-    window: Window<D>,
+    // The window gets filled if an initial SFS is provided, or during the first E-step when an
+    // SFS is provided.
+    window: Option<Window>,
+    // The window size has to be stored here for the initial phase when `window` is `None`;
+    // afterwards, it is redundant with the length of the individual ring buffers in the windows.
+    window_size: usize,
     blocks: Blocks,
 }
 
-impl<const D: usize, T> WindowEm<D, T> {
+impl<T> WindowEm<T> {
     /// Returns a new instance of the runner.
     ///
     /// The `em` is the inner kind of EM to handle the blocks. The way the input should be split
-    /// into blocks can be controlled using [`Blocks`]. The provided `window` should
-    /// match the shape of the input and SFS that is provided for inference later. Where no good
-    /// prior guess for the SFS exists, using [`Window::from_zeros`] is recommended.
-    pub fn new(em: T, window: Window<D>, blocks: Blocks) -> Self {
-        Self { em, window, blocks }
+    /// into blocks can be controlled using [`Blocks`]. The window size is in units of blocks.
+    pub fn new(em: T, window_size: usize, blocks: Blocks) -> Self {
+        Self {
+            em,
+            window: None,
+            window_size,
+            blocks,
+        }
+    }
+
+    /// Returns a new instance of the runner with an initial SFS.
+    ///
+    /// See also documentation for [`WindowEm::new`].
+    pub fn with_initial_sfs<S: Shape>(
+        em: T,
+        initial: &SfsBase<S, Unnorm>,
+        window_size: usize,
+        blocks: Blocks,
+    ) -> Self {
+        Self {
+            em,
+            window: Some(Window::from_initial(initial, window_size)),
+            window_size,
+            blocks,
+        }
     }
 }
 
-impl<const D: usize, T> EmStep for WindowEm<D, T>
+impl<T> EmStep for WindowEm<T>
 where
     T: EmStep,
 {
     type Status = Vec<T::Status>;
 }
 
-impl<'a, const D: usize, T> Em<D, SafView<'a, D>> for WindowEm<D, T>
+impl<'a, const D: usize, T> Em<D, SafView<'a, D>> for WindowEm<T>
 where
     T: Em<D, SafView<'a, D>>,
 {
     fn e_step(&mut self, mut sfs: Sfs<D>, input: &SafView<'a, D>) -> (Self::Status, USfs<D>) {
+        let window = self
+            .window
+            .get_or_insert_with(|| Window::from_zeros(*sfs.shape(), self.window_size));
+
         let blocks_inner = self.blocks.to_spec(input.sites());
         let mut log_likelihoods = Vec::with_capacity(blocks_inner.blocks());
 
@@ -55,9 +87,9 @@ where
 
             let (log_likelihood, posterior) = self.em.e_step(sfs, &block);
 
-            self.window.update(posterior);
+            window.update(posterior);
 
-            sfs = self.window.sum().normalise();
+            sfs = window.sum().normalise();
             log_likelihoods.push(log_likelihood);
         }
 
@@ -65,7 +97,7 @@ where
     }
 }
 
-impl<const D: usize, R, T> StreamingEm<D, R> for WindowEm<D, T>
+impl<const D: usize, R, T> StreamingEm<D, R> for WindowEm<T>
 where
     R: Rewind + Sites,
     R::Site: EmSite<D>,
@@ -76,6 +108,10 @@ where
         mut sfs: Sfs<D>,
         reader: &mut R,
     ) -> io::Result<(Self::Status, USfs<D>)> {
+        let window = self
+            .window
+            .get_or_insert_with(|| Window::from_zeros(*sfs.shape(), self.window_size));
+
         let block_spec = self.blocks.to_spec(reader.sites());
         let mut log_likelihoods = Vec::with_capacity(block_spec.blocks());
 
@@ -85,9 +121,9 @@ where
             let mut block_reader = reader.take(block_size);
 
             let (log_likelihood, posterior) = self.em.stream_e_step(sfs, &mut block_reader)?;
-            self.window.update(posterior);
+            window.update(posterior);
 
-            sfs = self.window.sum().normalise();
+            sfs = window.sum().normalise();
             log_likelihoods.push(log_likelihood);
 
             sites += block_reader.sites_read();
@@ -102,53 +138,69 @@ where
 /// As part of the window EM algorithm, "windows" of block estimates are averaged out to give
 /// a running estimate of the SFS. The "window size" governs the number of past block estimates
 /// that are remembered and averaged over.
+///
+/// We go through a bit of effort to not keep `USfs<D>` in the window to avoid the const bound
+/// propagating to the `WindowEm` struct itself.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Window<const D: usize> {
-    // Items are ordered old to new: oldest iterations are at the front, newest at the back
-    deque: VecDeque<USfs<D>>,
+struct Window {
+    // In theory, it would be nicer to have a ringbuffer structure with a moving sum,
+    // so that on each update the popped value is subtracted, and the pushed value is added;
+    // in practice, this leads to weird numerical stuff, like -0.000... starting to show up in
+    // results. Since this is not a bottleneck, therefore, we stick to just summing out deques
+    // each time the sum is needed.
+    buffers: Vec<VecDeque<f64>>,
+    shape: Vec<usize>,
 }
 
-impl<const D: usize> Window<D> {
+impl Window {
     /// Creates a new window of with size `window_size` by repeating a provided SFS.
-    pub fn from_initial(initial: USfs<D>, window_size: usize) -> Self {
-        let deque = repeat(initial).take(window_size).collect();
-
-        Self { deque }
+    pub fn from_initial<S: Shape>(initial: &SfsBase<S, Unnorm>, window_size: usize) -> Self {
+        Self {
+            buffers: initial
+                .iter()
+                .map(|&v| repeat(v).take(window_size).collect())
+                .collect(),
+            shape: initial.shape().as_ref().to_vec(),
+        }
     }
 
     /// Creates a new window of zero-initialised SFS with size `window_size`.
-    pub fn from_zeros(shape: [usize; D], window_size: usize) -> Self {
-        Self::from_initial(USfs::zeros(shape), window_size)
-    }
-
-    /// Returns the shape of the window.
-    pub fn shape(&self) -> [usize; D] {
-        // We maintain as invariant that all items in deque have same shape,
-        // in order to make this okay
-        *(self.deque[0].shape())
+    pub fn from_zeros<S: Shape>(shape: S, window_size: usize) -> Self {
+        Self::from_initial(&SfsBase::zeros(shape), window_size)
     }
 
     /// Returns the sum of SFS in the window.
-    fn sum(&self) -> USfs<D> {
-        let first = USfs::zeros(self.shape());
+    fn sum<const D: usize>(&self) -> USfs<D> {
+        let sums = self
+            .buffers
+            .iter()
+            .map(|buf| buf.iter().sum::<f64>())
+            .collect();
 
-        self.deque.iter().fold(first, |sum, item| sum + item)
+        let shape = self
+            .shape
+            .clone()
+            .try_into()
+            .expect("window dimension does not match SFS dimension");
+
+        USfs::from_vec_shape(sums, shape).expect("window shape does not match sums")
     }
 
     /// Updates the window after a new iteration of window EM.
     ///
     /// This corresponds to removing the oldest SFS from the window, and adding the new `sfs`.
-    fn update(&mut self, sfs: USfs<D>) {
-        if *sfs.shape() != self.shape() {
-            panic!("shape of provided SFS does not match shape of window")
-        }
+    fn update<S: Shape>(&mut self, sfs: SfsBase<S, Unnorm>) {
+        assert_eq!(
+            sfs.shape().as_ref(),
+            self.shape.as_slice(),
+            "shape of provided SFS does not match shape of window"
+        );
 
-        let _old = self.deque.pop_front();
-        self.deque.push_back(sfs);
-    }
-
-    /// Returns the window size, corresponding to the number of past block estimates in the window.
-    pub fn window_size(&self) -> usize {
-        self.deque.len()
+        sfs.iter()
+            .zip(self.buffers.iter_mut())
+            .for_each(|(&v, buf)| {
+                buf.pop_front().unwrap();
+                buf.push_back(v);
+            });
     }
 }

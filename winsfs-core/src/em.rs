@@ -17,7 +17,7 @@ pub mod stopping;
 use stopping::Stop;
 
 mod window_em;
-pub use window_em::{Window, WindowEm};
+pub use window_em::WindowEm;
 
 use crate::{
     io::Rewind,
@@ -205,7 +205,7 @@ mod tests {
     fn test_window_em_zero_sfs_not_nan() {
         impl_test_em_zero_not_nan(WindowEm::new(
             StandardEm::<false>::new(),
-            Window::from_zeros([3], 1),
+            1,
             Blocks::Size(1),
         ))
     }

@@ -3,7 +3,7 @@ use std::{io, num::NonZeroUsize, path::Path, process};
 use clap::error::Result as ClapResult;
 
 use winsfs_core::{
-    em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, Window, WindowEm},
+    em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, WindowEm},
     io::shuffle::Reader,
     saf::Blocks,
     sfs::{self, Sfs},
@@ -38,9 +38,6 @@ macro_rules! setup {
         };
         let window_size = get_window_size($args.window_size).get();
 
-        let (initial_sfs, window) =
-            get_initial_sfs_and_window($args.initial.as_ref(), $shape, approx_block_size, window_size)?;
-
         let mut block = 1;
         let block_runner = <$block_em>::new().inspect(move |_, _, sfs| {
             log::trace!(target: "windowem", "Finished block {block}");
@@ -48,8 +45,33 @@ macro_rules! setup {
             block += 1
         });
 
+        let (initial_sfs, runner) = match &$args.initial {
+            Some(path) => {
+                let initial_sfs = input::sfs::Reader::from_path(path)?.read()?.normalise();
+
+                let initial_block_sfs = initial_sfs.clone().scale(approx_block_size as f64);
+                let window_em = WindowEm::with_initial_sfs(
+                    block_runner,
+                    &initial_block_sfs,
+                    window_size,
+                    block_spec
+                );
+
+                (initial_sfs, window_em)
+            },
+            None => {
+                log::debug!(target: "init", "Creating uniform initial SFS");
+
+                let initial_sfs = Sfs::uniform($shape);
+                let window_em = WindowEm::new(block_runner, window_size, block_spec);
+
+                (initial_sfs, window_em)
+            }
+        };
+
+
         let mut epoch = 1;
-        let runner = WindowEm::new(block_runner, window, block_spec).inspect(move |_, _, sfs| {
+        let runner = runner.inspect(move |_, _, sfs| {
             if sfs.iter().any(|x| x.is_nan()) {
                 log::error!(
                     target: "windowem",
@@ -164,35 +186,6 @@ fn get_window_size(window_size: Option<NonZeroUsize>) -> NonZeroUsize {
     );
 
     window_size
-}
-
-fn get_initial_sfs_and_window<const N: usize, P>(
-    initial_sfs_path: Option<P>,
-    shape: [usize; N],
-    approx_block_size: usize,
-    window_size: usize,
-) -> io::Result<(Sfs<N>, Window<N>)>
-where
-    P: AsRef<Path>,
-{
-    Ok(match initial_sfs_path {
-        Some(path) => {
-            let initial_sfs = input::sfs::Reader::from_path(path)?.read()?.normalise();
-
-            let initial_block_sfs = initial_sfs.clone().scale(approx_block_size as f64);
-            let window = Window::from_initial(initial_block_sfs, window_size);
-
-            (initial_sfs, window)
-        }
-        None => {
-            log::debug!(target: "init", "Creating uniform initial SFS");
-
-            let initial_sfs = Sfs::uniform(shape);
-            let window = Window::from_zeros(shape, window_size);
-
-            (initial_sfs, window)
-        }
-    })
 }
 
 pub fn get_block_spec(args: &Cli, sites: usize) -> Blocks {
