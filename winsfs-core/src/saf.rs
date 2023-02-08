@@ -18,9 +18,8 @@ use rayon::{
 
 use crate::{em::Sites, ArrayExt};
 
-pub mod iter;
-pub use iter::Blocks;
-use iter::{BlockIter, ParBlockIter};
+mod blocks;
+pub use blocks::{BlockIter, Blocks, ParBlockIter};
 
 mod site;
 pub use site::{AsSiteView, Site, SiteView};
@@ -34,8 +33,6 @@ mod sealed {
     impl<T> Sealed for Bounds<T> {}
 }
 use sealed::{Bounds, Sealed};
-
-use self::iter::{IntoBlockIterator, IntoParallelBlockIterator};
 
 /// Stable workaround for lifetime GATs.
 ///
@@ -436,7 +433,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// assert!(iter.next().is_none());
     /// ```
     pub fn iter_blocks(&self, block_spec: Blocks) -> BlockIter<'a, N> {
-        self.into_block_iter(block_spec)
+        BlockIter::new(*self, block_spec.to_spec(self.sites()))
     }
 
     /// Returns an iterator over the sites in the SAF.
@@ -541,7 +538,7 @@ impl<'a, const N: usize> SafView<'a, N> {
     /// );
     /// assert_eq!(blocks[2], saf1d![[0.12, 0.13, 0.14]].view());
     pub fn par_iter_blocks(&self, block_spec: Blocks) -> ParBlockIter<N> {
-        self.into_par_block_iter(block_spec)
+        ParBlockIter::new(*self, block_spec.to_spec(self.sites()))
     }
 
     /// Returns a parallel iterator over the sites in the SAF.

@@ -97,7 +97,7 @@ pub struct BlockIter<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> BlockIter<'a, N> {
-    fn new(saf: SafView<'a, N>, block_spec: BlockSpec) -> Self {
+    pub(crate) fn new(saf: SafView<'a, N>, block_spec: BlockSpec) -> Self {
         Self {
             saf,
             block_spec,
@@ -154,7 +154,7 @@ pub struct ParBlockIter<'a, const N: usize> {
 }
 
 impl<'a, const N: usize> ParBlockIter<'a, N> {
-    fn new(saf: SafView<'a, N>, block_spec: BlockSpec) -> Self {
+    pub(crate) fn new(saf: SafView<'a, N>, block_spec: BlockSpec) -> Self {
         Self { saf, block_spec }
     }
 }

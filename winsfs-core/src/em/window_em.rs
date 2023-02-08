@@ -2,10 +2,7 @@ use std::{collections::VecDeque, io, iter::repeat};
 
 use crate::{
     io::{Enumerate, ReadSite, Rewind, Take},
-    saf::{
-        iter::{Blocks, IntoBlockIterator},
-        AsSafView, SafView,
-    },
+    saf::{AsSafView, Blocks, SafView},
     sfs::{Sfs, USfs},
 };
 
@@ -53,7 +50,7 @@ where
 
         let mut sites = 0;
 
-        for block in input.into_block_iter(self.blocks) {
+        for block in input.iter_blocks(self.blocks) {
             sites += block.as_saf_view().sites();
 
             let (log_likelihood, posterior) = self.em.e_step(sfs, &block);
