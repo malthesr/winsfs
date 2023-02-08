@@ -24,9 +24,7 @@ impl<T> Stop<T> for Rule
 where
     T: EmStep<Status = Vec<SumOf<LogLikelihood>>>,
 {
-    type Status = T::Status;
-
-    fn stop<const N: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<N>) -> bool {
+    fn stop<const N: usize>(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool {
         match self {
             Self::Steps(rule) => {
                 let stop = rule.stop(em, status, sfs);

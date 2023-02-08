@@ -71,12 +71,10 @@ impl<S, F> StoppingRule for Inspect<S, F> where S: StoppingRule {}
 impl<T, S, F> Stop<T> for Inspect<S, F>
 where
     T: EmStep,
-    S: Stop<T, Status = T::Status>,
+    S: Stop<T>,
     F: FnMut(&S),
 {
-    type Status = T::Status;
-
-    fn stop<const D: usize>(&mut self, em: &T, status: &Self::Status, sfs: &Sfs<D>) -> bool {
+    fn stop<const D: usize>(&mut self, em: &T, status: &T::Status, sfs: &Sfs<D>) -> bool {
         (self.f)(&self.inner);
 
         self.inner.stop(em, status, sfs)

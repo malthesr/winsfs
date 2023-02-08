@@ -85,7 +85,7 @@ pub trait Em<const N: usize, I>: EmStep {
     /// Panics if the shapes of the SFS and the input do not match.
     fn em<S>(&mut self, mut sfs: Sfs<N>, input: &I, mut stopping_rule: S) -> (Self::Status, Sfs<N>)
     where
-        S: Stop<Self, Status = Self::Status>,
+        S: Stop<Self>,
     {
         loop {
             let (status, new_sfs) = self.em_step(sfs, input);
@@ -146,7 +146,7 @@ where
         mut stopping_rule: S,
     ) -> io::Result<(Self::Status, Sfs<D>)>
     where
-        S: Stop<Self, Status = Self::Status>,
+        S: Stop<Self>,
     {
         loop {
             let (status, new_sfs) = self.stream_em_step(sfs, reader)?;
