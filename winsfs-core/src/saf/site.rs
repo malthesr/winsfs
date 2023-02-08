@@ -1,11 +1,11 @@
-use super::{Lifetime, ShapeError};
+use super::ShapeError;
 
 /// A type that can be cheaply converted to a SAF site.
 ///
 /// This is akin to GATified [`AsRef`] for SAF sites.
-pub trait AsSiteView<const N: usize>: for<'a> Lifetime<'a, Item = SiteView<'a, N>> {
+pub trait AsSiteView<const N: usize> {
     /// Returns a SAF site view of `self`.
-    fn as_site_view(&self) -> <Self as Lifetime<'_>>::Item;
+    fn as_site_view(&self) -> SiteView<N>;
 }
 
 macro_rules! impl_shared_site_methods {
@@ -118,25 +118,20 @@ impl<const N: usize> Site<N> {
     impl_shared_site_methods! {}
 }
 
-impl<'a, const N: usize> Lifetime<'a> for Site<N> {
-    type Item = SiteView<'a, N>;
-}
-
 impl<const N: usize> AsSiteView<N> for Site<N> {
     #[inline]
-    fn as_site_view(&self) -> <Self as Lifetime<'_>>::Item {
+    fn as_site_view(&self) -> SiteView<N> {
         self.view()
     }
 }
 
-impl<'a, 'b, const N: usize> Lifetime<'a> for &'b Site<N> {
-    type Item = SiteView<'a, N>;
-}
-
-impl<'a, const N: usize> AsSiteView<N> for &'a Site<N> {
+impl<const N: usize, T> AsSiteView<N> for &T
+where
+    T: AsSiteView<N>,
+{
     #[inline]
-    fn as_site_view(&self) -> <Self as Lifetime<'_>>::Item {
-        self.view()
+    fn as_site_view(&self) -> SiteView<N> {
+        T::as_site_view(self)
     }
 }
 
@@ -190,13 +185,9 @@ impl<'a, const N: usize> SiteView<'a, N> {
     impl_shared_site_methods! {}
 }
 
-impl<'a, 'b, const N: usize> Lifetime<'a> for SiteView<'b, N> {
-    type Item = SiteView<'a, N>;
-}
-
 impl<'a, const N: usize> AsSiteView<N> for SiteView<'a, N> {
     #[inline]
-    fn as_site_view(&self) -> <Self as Lifetime<'_>>::Item {
+    fn as_site_view(&self) -> SiteView<N> {
         *self
     }
 }

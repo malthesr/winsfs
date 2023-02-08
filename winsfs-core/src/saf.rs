@@ -24,37 +24,12 @@ pub use blocks::{BlockIter, Blocks, ParBlockIter};
 mod site;
 pub use site::{AsSiteView, Site, SiteView};
 
-// This exists to ensure that the lifetime bound on `Lifetime` cannot be changed by an external
-// implementor.
-// See: sabrinajewson.org/blog/the-better-alternative-to-lifetime-gats#the-better-gats
-mod sealed {
-    pub trait Sealed: Sized {}
-    pub struct Bounds<T>(T);
-    impl<T> Sealed for Bounds<T> {}
-}
-use sealed::{Bounds, Sealed};
-
-/// Stable workaround for lifetime GATs.
-///
-/// See the [GAT tracking issue][gat_tracking_issue] and [stabilisation PR][gat_stabilisation],
-/// and in particular [this blog post][sabrina_jewson] for details on this workaround.
-///
-/// [gat_tracking_issue]: https://github.com/rust-lang/rust/issues/44265
-/// [gat_stabilisation]: https://github.com/rust-lang/rust/pull/96709
-/// [sabrina_jewson]: https://sabrinajewson.org/blog/the-better-alternative-to-lifetime-gats
-pub trait Lifetime<'a, SELF: Sealed = Bounds<&'a Self>> {
-    // TODO: Replace with GAT when stable.
-
-    /// The inner item, the lifetime of which should be tied to `Self`.
-    type Item;
-}
-
 /// A type that can be cheaply converted to a SAF view.
 ///
 /// This is akin to GATified [`AsRef`] for SAF views.
-pub trait AsSafView<const N: usize>: for<'a> Lifetime<'a, Item = SafView<'a, N>> {
+pub trait AsSafView<const N: usize> {
     /// Returns a SAF view of `self`.
-    fn as_saf_view(&self) -> <Self as Lifetime<'_>>::Item;
+    fn as_saf_view(&self) -> SafView<N>;
 }
 
 /// Creates a SAF matrix of a single population.
@@ -366,25 +341,20 @@ impl<const N: usize> Saf<N> {
     impl_shared_saf_methods! {}
 }
 
-impl<'a, const N: usize> Lifetime<'a> for Saf<N> {
-    type Item = SafView<'a, N>;
-}
-
 impl<const N: usize> AsSafView<N> for Saf<N> {
     #[inline]
-    fn as_saf_view(&self) -> <Self as Lifetime<'_>>::Item {
+    fn as_saf_view(&self) -> SafView<N> {
         self.view()
     }
 }
 
-impl<'a, 'b, const N: usize> Lifetime<'a> for &'b Saf<N> {
-    type Item = SafView<'a, N>;
-}
-
-impl<'a, const N: usize> AsSafView<N> for &'a Saf<N> {
+impl<const N: usize, T> AsSafView<N> for &T
+where
+    T: AsSafView<N>,
+{
     #[inline]
-    fn as_saf_view(&self) -> <Self as Lifetime<'_>>::Item {
-        self.view()
+    fn as_saf_view(&self) -> SafView<N> {
+        T::as_saf_view(self)
     }
 }
 
@@ -593,13 +563,9 @@ impl<'a, const N: usize> SafView<'a, N> {
     impl_shared_saf_methods! {}
 }
 
-impl<'a, 'b, const N: usize> Lifetime<'a> for SafView<'b, N> {
-    type Item = SafView<'a, N>;
-}
-
 impl<'a, const N: usize> AsSafView<N> for SafView<'a, N> {
     #[inline]
-    fn as_saf_view(&self) -> <Self as Lifetime<'_>>::Item {
+    fn as_saf_view(&self) -> SafView<N> {
         *self
     }
 }
