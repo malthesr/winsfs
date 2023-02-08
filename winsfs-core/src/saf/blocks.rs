@@ -5,87 +5,11 @@ use rayon::iter::{
     IndexedParallelIterator, ParallelIterator,
 };
 
-use crate::saf::{AsSafView, Saf, SafView};
+use crate::saf::SafView;
 
 mod spec;
 pub(crate) use spec::BlockSpec;
 pub use spec::Blocks;
-
-/// A type that can be turned into an iterator blocks of SAF sites.
-pub trait IntoBlockIterator<const N: usize> {
-    /// The type of each individual block.
-    type Item: AsSafView<N>;
-    /// The type of iterator.
-    type Iter: ExactSizeIterator<Item = Self::Item>;
-
-    /// Convert this type into an iterator over blocks of SAF sites.
-    fn into_block_iter(self, blocks: Blocks) -> Self::Iter;
-}
-
-impl<'a, const N: usize> IntoBlockIterator<N> for &'a Saf<N> {
-    type Item = SafView<'a, N>;
-    type Iter = BlockIter<'a, N>;
-
-    fn into_block_iter(self, blocks: Blocks) -> Self::Iter {
-        BlockIter::new(self.view(), blocks.to_spec(self.sites()))
-    }
-}
-
-impl<'a, const N: usize> IntoBlockIterator<N> for SafView<'a, N> {
-    type Item = SafView<'a, N>;
-    type Iter = BlockIter<'a, N>;
-
-    fn into_block_iter(self, blocks: Blocks) -> Self::Iter {
-        BlockIter::new(self, blocks.to_spec(self.sites()))
-    }
-}
-
-impl<'a, 'b, const N: usize> IntoBlockIterator<N> for &'b SafView<'a, N> {
-    type Item = SafView<'a, N>;
-    type Iter = BlockIter<'a, N>;
-
-    fn into_block_iter(self, blocks: Blocks) -> Self::Iter {
-        BlockIter::new(*self, blocks.to_spec(self.sites()))
-    }
-}
-
-/// A type that can be turned into a parallel iterator blocks of SAF sites.
-pub trait IntoParallelBlockIterator<const N: usize> {
-    /// The type of each individual block.
-    type Item: AsSafView<N>;
-    /// The type of iterator.
-    type Iter: IndexedParallelIterator<Item = Self::Item>;
-
-    /// Convert this type into a parallel iterator over blocks of SAF sites().
-    fn into_par_block_iter(self, blocks: Blocks) -> Self::Iter;
-}
-
-impl<'a, const N: usize> IntoParallelBlockIterator<N> for &'a Saf<N> {
-    type Item = SafView<'a, N>;
-    type Iter = ParBlockIter<'a, N>;
-
-    fn into_par_block_iter(self, blocks: Blocks) -> Self::Iter {
-        ParBlockIter::new(self.view(), blocks.to_spec(self.sites()))
-    }
-}
-
-impl<'a, const N: usize> IntoParallelBlockIterator<N> for SafView<'a, N> {
-    type Item = SafView<'a, N>;
-    type Iter = ParBlockIter<'a, N>;
-
-    fn into_par_block_iter(self, blocks: Blocks) -> Self::Iter {
-        ParBlockIter::new(self, blocks.to_spec(self.sites()))
-    }
-}
-
-impl<'a, 'b, const N: usize> IntoParallelBlockIterator<N> for &'b SafView<'a, N> {
-    type Item = SafView<'a, N>;
-    type Iter = ParBlockIter<'a, N>;
-
-    fn into_par_block_iter(self, blocks: Blocks) -> Self::Iter {
-        ParBlockIter::new(*self, blocks.to_spec(self.sites()))
-    }
-}
 
 /// An iterator over blocks of SAF sites.
 #[derive(Debug)]
