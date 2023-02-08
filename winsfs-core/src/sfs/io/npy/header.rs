@@ -125,7 +125,7 @@ impl fmt::Display for HeaderDict {
             .map(|x| x.to_string())
             .collect::<Vec<_>>()
             .join(", ");
-        let shape = format!("({},)", shape_fmt);
+        let shape = format!("({shape_fmt},)");
 
         write!(
             f,
@@ -340,7 +340,7 @@ impl fmt::Display for TypeDescriptor {
             Type::U8 => "u8",
         };
 
-        write!(f, "{}{}", endian_str, type_str)
+        write!(f, "{endian_str}{type_str}")
     }
 }
 

@@ -287,7 +287,7 @@ mod tests {
         let initial_offsets = writer
             .writers
             .iter_mut()
-            .map(|writer| writer.get_mut().seek(SeekFrom::Current(0)).map(to_usize))
+            .map(|writer| writer.get_mut().stream_position().map(to_usize))
             .collect::<io::Result<Vec<_>>>()?;
         let expected_offsets = header.block_offsets().collect::<Vec<_>>();
         assert_eq!(initial_offsets, expected_offsets);
