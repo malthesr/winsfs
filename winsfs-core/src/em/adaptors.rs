@@ -5,7 +5,7 @@ use crate::{
 
 use super::{
     stopping::{Stop, StoppingRule},
-    Em, EmSite, EmStep, StreamingEm,
+    Em, EmStep, StreamingEm,
 };
 
 /// A combinator for types that allows inspection after each E-step.
@@ -49,7 +49,6 @@ where
 impl<const D: usize, T, F, R> StreamingEm<D, R> for Inspect<T, F>
 where
     R: Rewind,
-    R::Site: EmSite<D>,
     T: StreamingEm<D, R>,
     F: FnMut(&T, &T::Status, &USfs<D>),
 {

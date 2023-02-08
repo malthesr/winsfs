@@ -4,7 +4,7 @@ use angsd_saf as saf;
 use saf::version::Version;
 
 use winsfs_core::{
-    em::{likelihood::LogLikelihood, StreamEmSite},
+    em::likelihood::LogLikelihood,
     io::{shuffle, Intersect, ReadSite},
     saf::Saf,
     sfs::Sfs,
@@ -136,8 +136,7 @@ where
 
     fn log_likelihood(self, sfs: Sfs<D>) -> io::Result<(LogLikelihood, usize)>
     where
-        winsfs_core::io::Intersect<D, R, V>: ReadSite,
-        <winsfs_core::io::Intersect<D, R, V> as ReadSite>::Site: StreamEmSite<D>;
+        winsfs_core::io::Intersect<D, R, V>: ReadSite;
 
     fn shape(&self) -> [usize; D];
 }
@@ -166,7 +165,6 @@ where
     fn log_likelihood(self, sfs: Sfs<D>) -> io::Result<(LogLikelihood, usize)>
     where
         winsfs_core::io::Intersect<D, R, V>: ReadSite,
-        <winsfs_core::io::Intersect<D, R, V> as ReadSite>::Site: StreamEmSite<D>,
     {
         let mut intersect = winsfs_core::io::Intersect::new(self);
         sfs.stream_log_likelihood(&mut intersect)

@@ -106,11 +106,11 @@ impl Writer<io::BufWriter<File>> {
         mut intersect: Intersect<D, R, V>,
     ) -> io::Result<()>
     where
-        Intersect<D, R, V>: ReadSite<Site = Site<D>>,
+        Intersect<D, R, V>: ReadSite,
         R: io::BufRead + io::Seek,
         V: Version,
     {
-        let shape = intersect
+        let shape: [usize; D] = intersect
             .get()
             .get_readers()
             .iter()

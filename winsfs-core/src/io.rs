@@ -20,21 +20,21 @@ pub mod shuffle;
 
 /// A type that can read SAF sites from a source.
 pub trait ReadSite {
-    /// The type of site that can be read.
-    type Site;
-
     /// Reads a single site into the provided buffer.
     ///
     /// In the multi-dimensional case, values should be read from the first population into the
     /// start of the buffer, then the next population, and so on. That is, providing
     /// [`Site::as_mut_slice`](crate::saf::Site::as_mut_slice) as a buffer will be correct, given
     /// a site of correct shape for the underlying reader.
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus>;
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus>;
 
     /// Reads a single site into the provided buffer without normalising out of log-space.
     ///
     /// See also documentation for [`Self::read_site`].
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus>;
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus>;
 
     /// Returns a reader adaptor which counts the number of sites read.
     fn enumerate(self) -> Enumerate<Self>
@@ -83,13 +83,14 @@ impl<'a, T> ReadSite for &'a mut T
 where
     T: ReadSite,
 {
-    type Site = T::Site;
-
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus> {
         <T as ReadSite>::read_site(*self, buf)
     }
 
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus> {
         <T as ReadSite>::read_site_unnormalised(*self, buf)
     }
 }
@@ -168,13 +169,11 @@ where
     }
 }
 
-impl<const D: usize, R> ReadSite for Intersect<D, R, V3>
+impl<const N: usize, R> ReadSite for Intersect<N, R, V3>
 where
     R: io::BufRead + io::Seek,
 {
-    type Site = Site<D>;
-
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus> {
         let status = self.read_site_unnormalised(buf)?;
 
         buf.iter_mut().for_each(|x| *x = x.exp());
@@ -182,7 +181,13 @@ where
         Ok(status)
     }
 
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus> {
+        // TODO: This should really be type-enforced somehow, but requires a bit more work.
+        assert_eq!(N, D);
+
         let status = self.inner.read_records(&mut self.bufs)?;
 
         let src = self.bufs.iter().map(|record| record.item());
@@ -192,15 +197,11 @@ where
     }
 }
 
-impl<const D: usize, R> ReadSite for Intersect<D, R, V4>
+impl<const N: usize, R> ReadSite for Intersect<N, R, V4>
 where
     R: io::BufRead + io::Seek,
 {
-    // TODO: This should be fixed after implementing EM logic for banded sites;
-    // for now, we use it as a stop-gap to get V4 working
-    type Site = Site<D>;
-
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus> {
         let status = self.read_site_unnormalised(buf)?;
 
         buf.iter_mut().for_each(|x| *x = x.exp());
@@ -208,7 +209,13 @@ where
         Ok(status)
     }
 
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus> {
+        // TODO: This should really be type-enforced somehow, but requires a bit more work.
+        assert_eq!(N, D);
+
         let status = self.inner.read_records(&mut self.bufs)?;
 
         let alleles_iter = self

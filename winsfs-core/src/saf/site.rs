@@ -70,6 +70,13 @@ impl<const N: usize> Site<N> {
         self.values.iter_mut()
     }
 
+    /// Returns a new SAF site filled with zeros.
+    ///
+    /// This is mainly intended as a read buffer.
+    pub(crate) fn zeros(shape: [usize; N]) -> Self {
+        Self::new_unchecked(vec![0.0; shape.iter().sum::<usize>()], shape)
+    }
+
     /// Returns a new SAF site.
     ///
     /// The number of provided values must be equal to the sum of shapes.

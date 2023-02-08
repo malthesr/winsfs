@@ -102,7 +102,6 @@ pub trait Em<const N: usize, I>: EmStep {
 pub trait StreamingEm<const D: usize, R>: EmStep
 where
     R: Rewind,
-    R::Site: EmSite<D>,
 {
     /// The E-step of the algorithm.
     ///

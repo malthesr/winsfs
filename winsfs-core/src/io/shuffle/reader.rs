@@ -15,13 +15,13 @@ use crate::{
 use super::{to_u64, Header};
 
 /// A pseudo-shuffled SAF file reader.
-pub struct Reader<const D: usize, R> {
+pub struct Reader<R> {
     inner: R,
     header: Header,
 }
 
 /// A pseudo-shuffled SAF file reader.
-impl<const D: usize, R> Reader<D, R>
+impl<R> Reader<R>
 where
     R: io::BufRead,
 {
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<const D: usize, R> io::Seek for Reader<D, R>
+impl<R> io::Seek for Reader<R>
 where
     R: io::BufRead + io::Seek,
 {
@@ -72,7 +72,7 @@ where
     }
 }
 
-impl<const D: usize> Reader<D, io::BufReader<File>> {
+impl Reader<io::BufReader<File>> {
     /// Creates a new reader from a path, and read its header.
     ///
     /// Returns an error if the dimensionality defined in the header is not `D`.
@@ -83,23 +83,12 @@ impl<const D: usize> Reader<D, io::BufReader<File>> {
         P: AsRef<Path>,
     {
         let mut reader = File::open(path).map(io::BufReader::new)?;
-
         let header = Header::read(&mut reader)?;
-        let header_dimension = header.shape().len();
-
-        if header_dimension == D {
-            Ok(Self::new(reader, header))
-        } else {
-            let msg = format!(
-                "shuffled SAF file header with dimension {header_dimension} \
-                 did not match provided dimension {D}"
-            );
-            Err(io::Error::new(io::ErrorKind::InvalidData, msg))
-        }
+        Ok(Self::new(reader, header))
     }
 }
 
-impl<const D: usize, R> Rewind for Reader<D, R>
+impl<R> Rewind for Reader<R>
 where
     R: io::BufRead + io::Seek,
 {
@@ -115,7 +104,7 @@ where
     }
 }
 
-impl<const D: usize, R> Sites for Reader<D, R>
+impl<R> Sites for Reader<R>
 where
     R: io::BufRead,
 {
@@ -124,13 +113,11 @@ where
     }
 }
 
-impl<const D: usize, R> ReadSite for Reader<D, R>
+impl<R> ReadSite for Reader<R>
 where
     R: io::BufRead + io::Seek,
 {
-    type Site = Site<D>;
-
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus> {
         let status = self.read_site_unnormalised(buf)?;
 
         buf.iter_mut().for_each(|x| *x = x.exp());
@@ -138,7 +125,13 @@ where
         Ok(status)
     }
 
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus> {
+        // TODO: There's probably a better way to handle this.
+        assert_eq!(self.header.shape(), buf.shape());
+
         if ReadStatus::check(&mut self.inner)?.is_done() {
             return Ok(ReadStatus::Done);
         }

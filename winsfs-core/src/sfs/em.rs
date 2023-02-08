@@ -5,10 +5,10 @@ use rayon::iter::ParallelIterator;
 use crate::{
     em::{
         likelihood::{LogLikelihood, SumOf},
-        EmSite, StreamEmSite,
+        EmSite,
     },
     io::ReadSite,
-    saf::SafView,
+    saf::{SafView, Site},
 };
 
 use super::{Sfs, USfs};
@@ -193,13 +193,12 @@ impl<const D: usize> Sfs<D> {
     pub fn stream_e_step<R>(mut self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
     where
         R: ReadSite,
-        R::Site: StreamEmSite<D>,
     {
         self = restrict(self, RESTRICT_MIN);
         let mut post = USfs::zeros(self.shape);
         let mut buf = USfs::zeros(self.shape);
 
-        let mut site = <R::Site>::from_shape(self.shape);
+        let mut site = Site::zeros(*self.shape());
 
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);
@@ -222,10 +221,9 @@ impl<const D: usize> Sfs<D> {
     pub fn stream_log_likelihood<R>(mut self, mut reader: R) -> io::Result<SumOf<LogLikelihood>>
     where
         R: ReadSite,
-        R::Site: StreamEmSite<D>,
     {
         self = restrict(self, RESTRICT_MIN);
-        let mut site = <R::Site>::from_shape(self.shape);
+        let mut site = Site::zeros(*self.shape());
 
         let mut sites = 0;
         let mut log_likelihood = LogLikelihood::from(0.0);

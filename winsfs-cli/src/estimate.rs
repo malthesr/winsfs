@@ -138,14 +138,14 @@ impl Cli {
                 path.display()
             );
 
-            if let Ok(reader) = Reader::<1, _>::try_from_path(path) {
-                self.run_streaming_n::<1, _>(reader)
-            } else if let Ok(reader) = Reader::<2, _>::try_from_path(path) {
-                self.run_streaming_n::<2, _>(reader)
-            } else if let Ok(reader) = Reader::<3, _>::try_from_path(path) {
-                self.run_streaming_n::<3, _>(reader)
-            } else {
-                unimplemented!("only dimensions up to three currently supported")
+            let reader = Reader::try_from_path(path)?;
+            let dim = reader.header().shape().len();
+
+            match dim {
+                1 => self.run_streaming_n::<1, _>(reader),
+                2 => self.run_streaming_n::<2, _>(reader),
+                3 => self.run_streaming_n::<3, _>(reader),
+                _ => unimplemented!("only dimensions up to three currently supported"),
             }
         } else {
             // Checked and handled properly in format inference
@@ -153,7 +153,7 @@ impl Cli {
         }
     }
 
-    fn run_streaming_n<const D: usize, R>(&self, mut reader: Reader<D, R>) -> ClapResult<()>
+    fn run_streaming_n<const D: usize, R>(&self, mut reader: Reader<R>) -> ClapResult<()>
     where
         R: io::BufRead + io::Seek,
     {

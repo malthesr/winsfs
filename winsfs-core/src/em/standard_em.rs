@@ -8,7 +8,7 @@ use crate::{
 
 use super::{
     likelihood::{LogLikelihood, SumOf},
-    Em, EmStep, StreamEmSite, StreamingEm,
+    Em, EmStep, StreamingEm,
 };
 
 /// A parallel runner of the standard EM algorithm.
@@ -50,7 +50,6 @@ impl<'a, const D: usize> Em<D, SafView<'a, D>> for StandardEm<false> {
 impl<const D: usize, R> StreamingEm<D, R> for StandardEm<false>
 where
     R: Rewind,
-    R::Site: StreamEmSite<D>,
 {
     fn stream_e_step(
         &mut self,

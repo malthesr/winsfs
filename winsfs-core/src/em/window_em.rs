@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use super::{to_f64, Em, EmSite, EmStep, Sites, StreamingEm};
+use super::{to_f64, Em, EmStep, Sites, StreamingEm};
 
 /// A runner of the window EM algorithm.
 ///
@@ -100,7 +100,6 @@ where
 impl<const D: usize, R, T> StreamingEm<D, R> for WindowEm<T>
 where
     R: Rewind + Sites,
-    R::Site: EmSite<D>,
     for<'a> T: StreamingEm<D, Take<Enumerate<&'a mut R>>>,
 {
     fn stream_e_step(

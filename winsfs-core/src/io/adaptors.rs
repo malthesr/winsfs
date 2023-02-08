@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::em::Sites;
+use crate::{em::Sites, saf::Site};
 
 use super::{ReadSite, ReadStatus, Rewind};
 
@@ -53,14 +53,15 @@ impl<R> ReadSite for Enumerate<R>
 where
     R: ReadSite,
 {
-    type Site = R::Site;
-
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus> {
         self.sites_read += 1;
         self.inner.read_site(buf)
     }
 
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus> {
         self.sites_read += 1;
         self.inner.read_site_unnormalised(buf)
     }
@@ -119,9 +120,7 @@ impl<R> ReadSite for Take<Enumerate<R>>
 where
     R: ReadSite,
 {
-    type Site = R::Site;
-
-    fn read_site(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site<const D: usize>(&mut self, buf: &mut Site<D>) -> io::Result<ReadStatus> {
         if self.inner.sites_read() < self.max_sites {
             self.inner.read_site(buf)
         } else {
@@ -129,7 +128,10 @@ where
         }
     }
 
-    fn read_site_unnormalised(&mut self, buf: &mut Self::Site) -> io::Result<ReadStatus> {
+    fn read_site_unnormalised<const D: usize>(
+        &mut self,
+        buf: &mut Site<D>,
+    ) -> io::Result<ReadStatus> {
         if self.inner.sites_read() < self.max_sites {
             self.inner.read_site_unnormalised(buf)
         } else {
