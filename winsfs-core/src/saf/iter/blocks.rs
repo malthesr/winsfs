@@ -261,13 +261,13 @@ mod tests {
             [5.0, 5.0],
         ];
 
-        let mut iter = saf.iter_blocks(Blocks::Number(1));
+        let mut iter = saf.view().iter_blocks(Blocks::Number(1));
         assert_eq!(iter.len(), 1);
         assert_eq!(iter.next().unwrap(), saf.view());
         assert_eq!(iter.len(), 0);
         assert!(iter.next().is_none());
 
-        let mut iter = saf.iter_blocks(Blocks::Number(4));
+        let mut iter = saf.view().iter_blocks(Blocks::Number(4));
         assert_eq!(iter.len(), 4);
         assert_iter!(iter.next(), &[0.0, 0.0, 1.0, 1.0], len: 3);
         assert_iter!(iter.next(), &[2.0, 2.0, 3.0, 3.0], len: 2);
@@ -285,7 +285,7 @@ mod tests {
             [4.0, 4.0; 14.0],
         ];
 
-        let mut iter = saf.iter_blocks(Blocks::Number(3));
+        let mut iter = saf.view().iter_blocks(Blocks::Number(3));
         assert_eq!(iter.len(), 3);
         assert_iter!(iter.next_back(), &[4.0, 4.0, 14.0], len: 2);
         assert_iter!(iter.next(), &[0.0, 0.0, 10.0, 1.0, 1.0, 11.0], len: 1);
@@ -303,13 +303,13 @@ mod tests {
             [5.0, 5.0; 15.0],
         ];
 
-        let mut iter = saf.iter_blocks(Blocks::Size(6));
+        let mut iter = saf.view().iter_blocks(Blocks::Size(6));
         assert_eq!(iter.len(), 1);
         assert_eq!(iter.next().unwrap(), saf.view());
         assert_eq!(iter.len(), 0);
         assert!(iter.next().is_none());
 
-        let mut iter = saf.iter_blocks(Blocks::Size(4));
+        let mut iter = saf.view().iter_blocks(Blocks::Size(4));
         assert_eq!(iter.len(), 2);
         assert_iter!(
             iter.next(),
@@ -333,7 +333,7 @@ mod tests {
             [8.0],
         ];
 
-        let mut iter = saf.iter_blocks(Blocks::Size(2));
+        let mut iter = saf.view().iter_blocks(Blocks::Size(2));
 
         assert_eq!(iter.len(), 5);
         assert_iter!(iter.next_back(), &[8.0], len: 4);
@@ -350,8 +350,8 @@ mod tests {
         let sum = |iter: ParBlockIter<1>| iter.map(|x| x.iter().sum::<f32>()).sum::<f32>();
 
         for i in 1..5 {
-            assert_eq!(sum(saf.par_iter_blocks(Blocks::Number(i))), 5.0);
-            assert_eq!(sum(saf.par_iter_blocks(Blocks::Size(i))), 5.0);
+            assert_eq!(sum(saf.view().par_iter_blocks(Blocks::Number(i))), 5.0);
+            assert_eq!(sum(saf.view().par_iter_blocks(Blocks::Size(i))), 5.0);
         }
     }
 }

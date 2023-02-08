@@ -187,58 +187,6 @@ impl<const N: usize> Saf<N> {
         self.values.iter_mut()
     }
 
-    /// Returns an iterator over blocks of sites in the SAF.
-    ///
-    /// Different ways of blocking are available, see [`Blocks`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs_core::{saf1d, saf::Blocks};
-    /// let saf = saf1d![
-    ///     [0.0,  0.1,  0.2],
-    ///     [0.3,  0.4,  0.5],
-    ///     [0.6,  0.7,  0.8],
-    ///     [0.9,  0.10, 0.11],
-    ///     [0.12, 0.13, 0.14],
-    /// ];
-    /// let mut iter = saf.iter_blocks(Blocks::Size(2));
-    /// assert_eq!(
-    ///     iter.next().unwrap(),
-    ///     saf1d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5]].view()
-    /// );
-    /// assert_eq!(
-    ///     iter.next().unwrap(),
-    ///     saf1d![[0.6, 0.7, 0.8], [0.9, 0.10, 0.11]].view()
-    /// );
-    /// assert_eq!(iter.next().unwrap(), saf1d![[0.12, 0.13, 0.14]].view());
-    /// assert!(iter.next().is_none());
-    /// ```
-    pub fn iter_blocks(&self, block_spec: Blocks) -> BlockIter<N> {
-        self.into_block_iter(block_spec)
-    }
-
-    /// Returns an iterator over the sites in the SAF.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs_core::saf1d;
-    /// let saf = saf1d![
-    ///     [0.0,  0.1,  0.2],
-    ///     [0.3,  0.4,  0.5],
-    ///     [0.6,  0.7,  0.8],
-    /// ];
-    /// let mut iter = saf.iter_sites();
-    /// assert_eq!(iter.next().unwrap().as_slice(), [0.0,  0.1,  0.2]);
-    /// assert_eq!(iter.next().unwrap().as_slice(), [0.3,  0.4,  0.5]);
-    /// assert_eq!(iter.next().unwrap().as_slice(), [0.6,  0.7,  0.8]);
-    /// assert!(iter.next().is_none());
-    /// ```
-    pub fn iter_sites(&self) -> SiteIter<N> {
-        SiteIter::new(self.view())
-    }
-
     /// Returns a new SAF.
     ///
     /// The number of provided values must be a multiple of the sum of shapes.
@@ -280,56 +228,6 @@ impl<const N: usize> Saf<N> {
     /// Returns a new SAF without checking that the shape fits the number of values.
     pub(crate) fn new_unchecked(values: Vec<f32>, shape: [usize; N]) -> Self {
         Self { values, shape }
-    }
-
-    /// Returns a parallel iterator over the blocks in the SAF.
-    ///
-    /// This is the parallel version of [`Saf::iter_blocks`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs_core::{saf::{Blocks, SafView}, saf1d};
-    /// use rayon::iter::ParallelIterator;
-    /// let saf = saf1d![
-    ///     [0.0,  0.1,  0.2],
-    ///     [0.3,  0.4,  0.5],
-    ///     [0.6,  0.7,  0.8],
-    ///     [0.9,  0.10, 0.11],
-    ///     [0.12, 0.13, 0.14],
-    /// ];
-    /// let blocks: Vec<SafView<1>> = saf.par_iter_blocks(Blocks::Size(2)).collect();
-    /// assert_eq!(blocks.len(), 3);
-    /// assert_eq!(
-    ///     blocks[0],
-    ///     saf1d![[0.0, 0.1, 0.2], [0.3, 0.4, 0.5]].view()
-    /// );
-    /// assert_eq!(
-    ///     blocks[1],
-    ///     saf1d![[0.6, 0.7, 0.8], [0.9, 0.10, 0.11]].view()
-    /// );
-    /// assert_eq!(blocks[2], saf1d![[0.12,  0.13,  0.14]].view());
-    pub fn par_iter_blocks(&self, block_spec: Blocks) -> ParBlockIter<N> {
-        self.into_par_block_iter(block_spec)
-    }
-
-    /// Returns a parallel iterator over the sites in the SAF.
-    ///
-    /// This is the parallel version of [`Saf::iter_sites`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use winsfs_core::saf1d;
-    /// use rayon::iter::ParallelIterator;
-    /// let saf = saf1d![
-    ///     [1.,  1.,  1.],
-    ///     [1.,  1.,  1.],
-    ///     [1.,  1.,  1.],
-    /// ];
-    /// saf.par_iter_sites().all(|site| site.as_slice() == &[1., 1., 1.]);
-    pub fn par_iter_sites(&self) -> ParSiteIter<N> {
-        ParSiteIter::new(self.view())
     }
 
     /// Creates a new SAF by reading intersecting sites among SAF readers.
