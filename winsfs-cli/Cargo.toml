@@ -2,7 +2,7 @@
 name = "winsfs-cli"
 version = "0.7.0"
 edition = "2021"
-rust-version = "1.62"
+rust-version = "1.64"
 license = "MIT"
 description = "Site frequency spectrum estimation based on window expectation-maximisation algorithm"
 homepage = "https://github.com/malthesr/winsfs"
