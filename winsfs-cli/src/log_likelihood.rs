@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use clap::{error::Result as ClapResult, Args};
 
-use crate::input;
+use crate::{cli::MAX_PATHS, input};
 
 /// Calculate log-likelihood of site frequency spectrum.
 ///
@@ -14,8 +14,9 @@ pub struct LogLikelihood {
     ///
     /// For each set of SAF files (conventially named 'prefix'.{saf.idx,saf.pos.gz,saf.gz}),
     /// specify either the shared prefix or the full path to any one member file.
-    /// Up to three SAF files currently supported.
-    #[clap(value_parser, num_args = 1..=3, required = true, value_name = "PATHS")]
+    /// Up to three SAF files currently supported (six with the experimental '--features hd' compile
+    /// flag).
+    #[clap(value_parser, num_args = 1..=MAX_PATHS, required = true, value_name = "PATHS")]
     pub paths: Vec<PathBuf>,
 
     /// Input SFS to calculate log-likelihood from.
@@ -35,6 +36,12 @@ impl LogLikelihood {
             [p] => self.run_n([p]),
             [p1, p2] => self.run_n([p1, p2]),
             [p1, p2, p3] => self.run_n([p1, p2, p3]),
+            #[cfg(feature = "hd")]
+            [p1, p2, p3, p4] => self.run_n([p1, p2, p3, p4]),
+            #[cfg(feature = "hd")]
+            [p1, p2, p3, p4, p5] => self.run_n([p1, p2, p3, p4, p5]),
+            #[cfg(feature = "hd")]
+            [p1, p2, p3, p4, p5, p6] => self.run_n([p1, p2, p3, p4, p5, p6]),
             _ => unreachable!(), // Checked by clap
         }
     }

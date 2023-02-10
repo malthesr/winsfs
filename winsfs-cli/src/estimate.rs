@@ -47,6 +47,12 @@ impl Cli {
             [p] => self.run_in_memory_n([p]),
             [p1, p2] => self.run_in_memory_n([p1, p2]),
             [p1, p2, p3] => self.run_in_memory_n([p1, p2, p3]),
+            #[cfg(feature = "hd")]
+            [p1, p2, p3, p4] => self.run_in_memory_n([p1, p2, p3, p4]),
+            #[cfg(feature = "hd")]
+            [p1, p2, p3, p4, p5] => self.run_in_memory_n([p1, p2, p3, p4, p5]),
+            #[cfg(feature = "hd")]
+            [p1, p2, p3, p4, p5, p6] => self.run_in_memory_n([p1, p2, p3, p4, p5, p6]),
             _ => unreachable!(), // Checked by clap
         }
     }
@@ -108,7 +114,19 @@ impl Cli {
                 1 => self.run_streaming_n::<1, _>(reader),
                 2 => self.run_streaming_n::<2, _>(reader),
                 3 => self.run_streaming_n::<3, _>(reader),
-                _ => unimplemented!("only dimensions up to three currently supported"),
+                #[cfg(feature = "hd")]
+                4 => self.run_streaming_n::<4, _>(reader),
+                #[cfg(feature = "hd")]
+                5 => self.run_streaming_n::<5, _>(reader),
+                #[cfg(feature = "hd")]
+                6 => self.run_streaming_n::<6, _>(reader),
+                #[cfg(feature = "hd")]
+                _ => unimplemented!("only dimensions up to six currently supported"),
+                #[cfg(not(feature = "hd"))]
+                _ => unimplemented!(
+                    "only dimensions up to three currently supported - \
+                    recompile with the '--features hd' flag for dimensions up to six"
+                ),
             }
         } else {
             // Checked and handled properly in format inference

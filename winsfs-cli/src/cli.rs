@@ -8,6 +8,12 @@ const NAME: &str = env!("CARGO_BIN_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
 
+#[cfg(not(feature = "hd"))]
+pub const MAX_PATHS: usize = 3;
+
+#[cfg(feature = "hd")]
+pub const MAX_PATHS: usize = 6;
+
 /// Estimate site frequency spectrum using a window expectation-maximisation algorithm.
 #[derive(Debug, Parser)]
 #[clap(name = NAME, author = AUTHOR, version = VERSION, about)]
@@ -19,10 +25,11 @@ pub struct Cli {
     ///
     /// For each set of SAF files (conventially named 'prefix'.{saf.idx,saf.pos.gz,saf.gz}),
     /// specify either the shared prefix or the full path to any one member file.
-    /// Up to three SAF files currently supported.
+    /// Up to three SAF files currently supported (six with the experimental '--features hd' compile
+    /// flag).
     #[clap(
         value_parser,
-        num_args = 1..=3,
+        num_args = 1..=MAX_PATHS,
         required = true,
         help_heading = "Input",
         value_name = "PATHS"

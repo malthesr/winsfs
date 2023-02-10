@@ -13,6 +13,9 @@ exclude = ["tests/"] # Golden test files are too large to publish
 name = "winsfs"
 path = "src/main.rs"
 
+[features]
+hd = []
+
 [dev-dependencies]
 pretty_assertions = "1.2"
 
