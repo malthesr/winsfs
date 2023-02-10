@@ -9,16 +9,6 @@ pub mod io;
 pub mod saf;
 pub mod sfs;
 
-pub mod prelude {
-    //! The types required for common usage.
-    pub use crate::em::{
-        stopping::{LogLikelihoodTolerance, Steps},
-        Em, ParallelStandardEm, StandardEm, StreamingEm, WindowEm,
-    };
-    pub use crate::saf::Saf;
-    pub use crate::sfs::{Sfs, USfs};
-}
-
 /// Sets the number of threads to use for parallelization.
 ///
 /// This is a thin wrapper around [`rayon::ThreadPoolBuilder`] to save users from having to

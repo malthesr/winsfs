@@ -1,26 +1,28 @@
 //! Expectation-maximisation ("EM") algorithms for SFS inference.
 
-use std::io;
-
-pub mod likelihood;
-
 mod adaptors;
 pub use adaptors::Inspect;
+
+pub mod likelihood;
+use std::io;
+
+use likelihood::{LogLikelihood, SumOf};
 
 mod site;
 pub use site::{EmSite, StreamEmSite};
 
 mod standard_em;
-pub use standard_em::{ParallelStandardEm, StandardEm};
+pub use standard_em::{ParallelEm, StandardEm, StreamingEm};
 
 pub mod stopping;
 use stopping::Stop;
 
 mod window_em;
-pub use window_em::WindowEm;
+pub use window_em::{StreamingWindowEm, WindowEm};
 
 use crate::{
     io::Rewind,
+    saf::SafView,
     sfs::{Sfs, USfs},
 };
 
@@ -34,7 +36,7 @@ pub trait Sites {
 ///
 /// This serves as a supertrait bound for both [`Em`] and [`StreamingEm`] and gathers
 /// behaviour shared around running consecutive EM-steps.
-pub trait EmStep: Sized {
+pub trait WithStatus: Sized {
     /// The status returned after each step.
     ///
     /// This may be used, for example, to determine convergence by the stopping rule,
@@ -51,8 +53,18 @@ pub trait EmStep: Sized {
     }
 }
 
-/// A type capable of running an EM-like algorithm for SFS inference using data in-memory.
-pub trait Em<const N: usize, I>: EmStep {
+/// A type capable of running a single step of an EM-like algorithm.
+pub trait EmStep<const N: usize, I>: WithStatus {
+    /// The error of the result type returned after each step.
+    type Error: std::error::Error;
+
+    /// Evaluate the log-likelihood of the current SFS.
+    fn log_likelihood(
+        &mut self,
+        sfs: Sfs<N>,
+        input: I,
+    ) -> Result<SumOf<LogLikelihood>, Self::Error>;
+
     /// The E-step of the algorithm.
     ///
     /// This should correspond to a full pass over the `input`.
@@ -60,7 +72,7 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn e_step(&mut self, sfs: Sfs<N>, input: &I) -> (Self::Status, USfs<N>);
+    fn e_step(&mut self, sfs: Sfs<N>, input: I) -> Result<(Self::Status, USfs<N>), Self::Error>;
 
     /// A full EM-step of the algorithm.
     ///
@@ -69,12 +81,15 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn em_step(&mut self, sfs: Sfs<N>, input: &I) -> (Self::Status, Sfs<N>) {
-        let (status, posterior) = self.e_step(sfs, input);
+    fn em_step(&mut self, sfs: Sfs<N>, input: I) -> Result<(Self::Status, Sfs<N>), Self::Error> {
+        let (status, posterior) = self.e_step(sfs, input)?;
 
-        (status, posterior.normalise())
+        Ok((status, posterior.normalise()))
     }
+}
 
+/// A type capable of running an EM-like algorithm for SFS inference using data in-memory.
+pub trait Em<const N: usize, I>: EmStep<N, I> {
     /// Runs the EM algorithm until convergence.
     ///
     /// This consists of running EM-steps until convergence, which is decided by the provided
@@ -83,72 +98,56 @@ pub trait Em<const N: usize, I>: EmStep {
     /// # Panics
     ///
     /// Panics if the shapes of the SFS and the input do not match.
-    fn em<S>(&mut self, mut sfs: Sfs<N>, input: &I, mut stopping_rule: S) -> (Self::Status, Sfs<N>)
+    fn em<S>(
+        &mut self,
+        sfs: Sfs<N>,
+        input: I,
+        stopping_rule: S,
+    ) -> Result<(Self::Status, Sfs<N>), Self::Error>
+    where
+        S: Stop<Self>;
+}
+
+impl<'a, const N: usize, T> Em<N, SafView<'a, N>> for T
+where
+    T: EmStep<N, SafView<'a, N>>,
+{
+    fn em<S>(
+        &mut self,
+        mut sfs: Sfs<N>,
+        saf: SafView<'a, N>,
+        mut stopping_rule: S,
+    ) -> Result<(Self::Status, Sfs<N>), Self::Error>
     where
         S: Stop<Self>,
     {
         loop {
-            let (status, new_sfs) = self.em_step(sfs, input);
+            let (status, new_sfs) = self.em_step(sfs, saf)?;
             sfs = new_sfs;
 
             if stopping_rule.stop(self, &status, &sfs) {
-                break (status, sfs);
+                break Ok((status, sfs));
             }
         }
     }
 }
 
-/// A type capable of running an EM-like algorithm for SFS inference by streaming through data.
-pub trait StreamingEm<const D: usize, R>: EmStep
+impl<'a, const N: usize, R, T> Em<N, &'a mut R> for T
 where
-    R: Rewind,
+    for<'b> T: EmStep<N, &'b mut R, Error = io::Error>,
+    R: Rewind + Sites,
 {
-    /// The E-step of the algorithm.
-    ///
-    /// This should correspond to a full pass through the `reader`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the shapes of the SFS and the input do not match.
-    fn stream_e_step(&mut self, sfs: Sfs<D>, reader: &mut R)
-        -> io::Result<(Self::Status, USfs<D>)>;
-
-    /// A full EM-step of the algorithm.
-    ///
-    /// Like the [`Em::e_step`], this should correspond to a full pass through the `reader`.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the shapes of the SFS and the input do not match.
-    fn stream_em_step(
+    fn em<S>(
         &mut self,
-        sfs: Sfs<D>,
-        reader: &mut R,
-    ) -> io::Result<(Self::Status, Sfs<D>)> {
-        let (status, posterior) = self.stream_e_step(sfs, reader)?;
-
-        Ok((status, posterior.normalise()))
-    }
-
-    /// Runs the EM algorithm until convergence.
-    ///
-    /// This consists of running EM-steps until convergence, which is decided by the provided
-    /// `stopping_rule`. The converged SFS, and the status of the last EM-step, are returned.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the shapes of the SFS and the input do not match.
-    fn stream_em<S>(
-        &mut self,
-        mut sfs: Sfs<D>,
-        reader: &mut R,
+        mut sfs: Sfs<N>,
+        reader: &'a mut R,
         mut stopping_rule: S,
-    ) -> io::Result<(Self::Status, Sfs<D>)>
+    ) -> Result<(Self::Status, Sfs<N>), Self::Error>
     where
         S: Stop<Self>,
     {
         loop {
-            let (status, new_sfs) = self.stream_em_step(sfs, reader)?;
+            let (status, new_sfs) = self.em_step(sfs, reader)?;
             sfs = new_sfs;
 
             if stopping_rule.stop(self, &status, &sfs) {
@@ -184,7 +183,9 @@ mod tests {
         let saf = saf1d![[0., 0., 1.]];
         let init_sfs = sfs1d![1., 0., 0.].into_normalised().unwrap();
 
-        let (_, sfs) = runner.em(init_sfs, &saf.view(), stopping::Steps::new(1));
+        let (_, sfs) = runner
+            .em(init_sfs, saf.view(), stopping::Steps::new(1))
+            .unwrap();
 
         let has_nan = sfs.iter().any(|x| x.is_nan());
         assert!(!has_nan);
@@ -197,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_parallel_em_zero_sfs_not_nan() {
-        impl_test_em_zero_not_nan(ParallelStandardEm::new())
+        impl_test_em_zero_not_nan(ParallelEm::new())
     }
 
     #[test]

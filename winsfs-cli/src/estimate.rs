@@ -1,12 +1,12 @@
-use std::{io, num::NonZeroUsize, path::Path, process};
+use std::{io, num::NonZeroUsize, path::Path};
 
 use clap::error::Result as ClapResult;
 
 use winsfs_core::{
-    em::{Em, EmStep, ParallelStandardEm, StandardEm, StreamingEm, WindowEm},
+    em::{stopping::Stop, Em, Sites, StandardEm, WindowEm},
     io::shuffle::Reader,
     saf::Blocks,
-    sfs::{self, Sfs},
+    sfs::{io::plain_text::write_sfs, Sfs},
 };
 
 use crate::{
@@ -19,6 +19,9 @@ use super::Cli;
 mod format;
 pub use format::Format;
 
+mod logging;
+pub use logging::{Checker, Logger, LoggerBuilder};
+
 mod stopping;
 pub use stopping::Rule;
 
@@ -26,69 +29,8 @@ pub const DEFAULT_NUMBER_OF_BLOCKS: usize = 500;
 pub const DEFAULT_TOLERANCE: f64 = 1e-4;
 pub const DEFAULT_WINDOW_SIZE: usize = 100;
 
-// This could be a function, except the return type cannot be named;
-// using an opaque type does not help, since a different trait impl is required for
-// EM and streaming EM, and this depend on the block EM type param - hence the macro
-macro_rules! setup {
-    ($args:expr, $sites:expr, $shape:expr, $block_em:ty) => {{
-        let block_spec = get_block_spec($args, $sites);
-        let approx_block_size = match block_spec {
-            Blocks::Number(number) => $sites / number,
-            Blocks::Size(size) => size,
-        };
-        let window_size = get_window_size($args.window_size).get();
-
-        let mut block = 1;
-        let block_runner = <$block_em>::new().inspect(move |_, _, sfs| {
-            log::trace!(target: "windowem", "Finished block {block}");
-            log::trace!(target: "windowem", "Current block SFS: {}", sfs.format_flat(" ", 6));
-            block += 1
-        });
-
-        let (initial_sfs, runner) = match &$args.initial {
-            Some(path) => {
-                let initial_sfs = input::sfs::Reader::from_path(path)?.read()?.normalise();
-
-                let initial_block_sfs = initial_sfs.clone().scale(approx_block_size as f64);
-                let window_em = WindowEm::with_initial_sfs(
-                    block_runner,
-                    &initial_block_sfs,
-                    window_size,
-                    block_spec
-                );
-
-                (initial_sfs, window_em)
-            },
-            None => {
-                log::debug!(target: "init", "Creating uniform initial SFS");
-
-                let initial_sfs = Sfs::uniform($shape);
-                let window_em = WindowEm::new(block_runner, window_size, block_spec);
-
-                (initial_sfs, window_em)
-            }
-        };
-
-
-        let mut epoch = 1;
-        let runner = runner.inspect(move |_, _, sfs| {
-            if sfs.iter().any(|x| x.is_nan()) {
-                log::error!(
-                    target: "windowem",
-                    "Found NaN: this is a bug, and the process will abort, please file an issue"
-                );
-
-                process::exit(1);
-            }
-
-            log::info!(target: "windowem", "Finished epoch {epoch}");
-            log::debug!(target: "windowem", "Current SFS: {}", sfs.format_flat(" ", 6));
-            epoch += 1;
-        });
-
-        (initial_sfs, runner)
-    }}
-}
+type Runner<const PAR: bool, const STREAM: bool> =
+    Checker<Logger<WindowEm<Logger<StandardEm<PAR, STREAM>>, STREAM>>>;
 
 impl Cli {
     pub fn run(self) -> ClapResult<()> {
@@ -109,25 +51,46 @@ impl Cli {
         }
     }
 
+    fn run_n<I, const N: usize, const PAR: bool, const STREAM: bool>(
+        &self,
+        input: I,
+        shape: [usize; N],
+    ) -> ClapResult<()>
+    where
+        I: Sites,
+        Runner<PAR, STREAM>: Em<N, I>,
+        Rule: Stop<Runner<PAR, STREAM>>,
+    {
+        let sites = input.sites();
+        let block_spec = get_block_spec(self, sites);
+        let window_size = get_window_size(self.window_size).get();
+
+        let (initial_sfs, mut runner) = setup::<_, N, PAR, STREAM>(
+            self.initial.as_ref(),
+            shape,
+            sites,
+            window_size,
+            block_spec,
+        )?;
+        let stopping_rule = Rule::from(self);
+
+        let (_status, sfs) = runner.em(initial_sfs, input, stopping_rule).unwrap();
+
+        let stdout = io::stdout();
+        let mut writer = stdout.lock();
+        write_sfs(&mut writer, &sfs.scale(sites as f64))?;
+
+        Ok(())
+    }
+
     fn run_in_memory_n<const N: usize, P>(&self, paths: [P; N]) -> ClapResult<()>
     where
         P: AsRef<Path>,
     {
         let mut saf = input::saf::Readers::from_member_paths(&paths, self.threads)?.read_saf()?;
         shuffle_saf(&mut saf, self.seed);
-        let sites = saf.sites();
-        let shape = saf.shape();
 
-        let (initial_sfs, mut runner) = setup!(self, sites, shape, ParallelStandardEm);
-        let stopping_rule = Rule::from(self);
-
-        let (_status, sfs) = runner.em(initial_sfs, &saf.view(), stopping_rule);
-
-        let stdout = io::stdout();
-        let mut writer = stdout.lock();
-        sfs::io::plain_text::write_sfs(&mut writer, &sfs.scale(sites as f64))?;
-
-        Ok(())
+        self.run_n::<_, N, true, false>(saf.view(), saf.shape())
     }
 
     fn run_streaming(&self) -> ClapResult<()> {
@@ -153,25 +116,64 @@ impl Cli {
         }
     }
 
-    fn run_streaming_n<const D: usize, R>(&self, mut reader: Reader<R>) -> ClapResult<()>
+    fn run_streaming_n<const N: usize, R>(&self, mut reader: Reader<R>) -> ClapResult<()>
     where
         R: io::BufRead + io::Seek,
     {
-        let header = reader.header();
-        let sites = header.sites();
-        let shape: [usize; D] = header.shape().to_vec().try_into().unwrap();
-
-        let (initial_sfs, mut runner) = setup!(self, sites, shape, StandardEm);
-        let stopping_rule = Rule::from(self);
-
-        let (_status, sfs) = runner.stream_em(initial_sfs, &mut reader, stopping_rule)?;
-
-        let stdout = io::stdout();
-        let mut writer = stdout.lock();
-        sfs::io::plain_text::write_sfs(&mut writer, &sfs.scale(sites as f64))?;
-
-        Ok(())
+        let shape = reader.header().shape().to_vec().try_into().unwrap();
+        self.run_n::<_, N, false, true>(&mut reader, shape)
     }
+}
+
+fn setup<P, const D: usize, const PAR: bool, const STREAM: bool>(
+    sfs_path: Option<P>,
+    shape: [usize; D],
+    sites: usize,
+    window_size: usize,
+    block_spec: Blocks,
+) -> ClapResult<(Sfs<D>, Runner<PAR, STREAM>)>
+where
+    P: AsRef<Path>,
+{
+    let block_runner = Logger::builder()
+        .log_counter_level(log::Level::Trace)
+        .log_sfs_level(log::Level::Trace)
+        .log_target("windowem")
+        .with_block_logging()
+        .build(StandardEm::<PAR, STREAM>::new());
+
+    let (sfs, runner) = if let Some(path) = sfs_path {
+        let sfs = input::sfs::Reader::from_path(path)?.read()?;
+
+        let approx_block_size = match block_spec {
+            Blocks::Number(number) => sites / number,
+            Blocks::Size(size) => size,
+        };
+        let block_sfs = sfs.clone().normalise().scale(approx_block_size as f64);
+
+        let runner = WindowEm::<_, STREAM>::with_initial_sfs(
+            block_runner,
+            &block_sfs,
+            window_size,
+            block_spec,
+        );
+        (sfs.normalise(), runner)
+    } else {
+        log::debug!(target: "init", "Creating uniform initial SFS");
+
+        let sfs = Sfs::uniform(shape);
+        let runner = WindowEm::<_, STREAM>::new(block_runner, window_size, block_spec);
+        (sfs, runner)
+    };
+
+    let runner = Logger::builder()
+        .log_counter_level(log::Level::Info)
+        .log_sfs_level(log::Level::Debug)
+        .log_target("windowem")
+        .with_epoch_logging()
+        .build(runner);
+
+    Ok((sfs, Checker::new(runner)))
 }
 
 fn get_window_size(window_size: Option<NonZeroUsize>) -> NonZeroUsize {

@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, io, iter::repeat};
 
 use crate::{
-    io::{Enumerate, ReadSite, Rewind, Take},
+    io::{Enumerate, ReadSite, Take},
     saf::{AsSafView, Blocks, SafView},
     sfs::{
         generics::{Shape, Unnorm},
@@ -9,7 +9,13 @@ use crate::{
     },
 };
 
-use super::{to_f64, Em, EmStep, Sites, StreamingEm};
+use super::{
+    likelihood::{LogLikelihood, SumOf},
+    to_f64, EmStep, Sites, WithStatus,
+};
+
+/// A streaming runner of the window EM algorithm.
+pub type StreamingWindowEm<T> = WindowEm<T, true>;
 
 /// A runner of the window EM algorithm.
 ///
@@ -18,7 +24,7 @@ use super::{to_f64, Em, EmStep, Sites, StreamingEm};
 /// window to smooth the global estimate. The algorithm can be configured to use different EM-like
 /// algorithms (corresponding to the parameter `T`) for each inner block update step.
 #[derive(Clone, Debug, PartialEq)]
-pub struct WindowEm<T> {
+pub struct WindowEm<T, const STREAM: bool = false> {
     em: T,
     // The window gets filled if an initial SFS is provided, or during the first E-step when an
     // SFS is provided.
@@ -29,7 +35,7 @@ pub struct WindowEm<T> {
     blocks: Blocks,
 }
 
-impl<T> WindowEm<T> {
+impl<T, const STREAM: bool> WindowEm<T, STREAM> {
     /// Returns a new instance of the runner.
     ///
     /// The `em` is the inner kind of EM to handle the blocks. The way the input should be split
@@ -61,31 +67,45 @@ impl<T> WindowEm<T> {
     }
 }
 
-impl<T> EmStep for WindowEm<T>
+impl<T, const STREAM: bool> WithStatus for WindowEm<T, STREAM>
 where
-    T: EmStep,
+    T: WithStatus,
 {
     type Status = Vec<T::Status>;
 }
 
-impl<'a, const D: usize, T> Em<D, SafView<'a, D>> for WindowEm<T>
+impl<'a, const D: usize, T> EmStep<D, SafView<'a, D>> for WindowEm<T, false>
 where
-    T: Em<D, SafView<'a, D>>,
+    T: EmStep<D, SafView<'a, D>>,
 {
-    fn e_step(&mut self, mut sfs: Sfs<D>, input: &SafView<'a, D>) -> (Self::Status, USfs<D>) {
+    type Error = T::Error;
+
+    fn log_likelihood(
+        &mut self,
+        sfs: Sfs<D>,
+        saf: SafView<'a, D>,
+    ) -> Result<SumOf<LogLikelihood>, Self::Error> {
+        self.em.log_likelihood(sfs, saf)
+    }
+
+    fn e_step(
+        &mut self,
+        mut sfs: Sfs<D>,
+        saf: SafView<'a, D>,
+    ) -> Result<(Self::Status, USfs<D>), Self::Error> {
         let window = self
             .window
             .get_or_insert_with(|| Window::from_zeros(*sfs.shape(), self.window_size));
 
-        let blocks_inner = self.blocks.to_spec(input.sites());
+        let blocks_inner = self.blocks.to_spec(saf.sites());
         let mut log_likelihoods = Vec::with_capacity(blocks_inner.blocks());
 
         let mut sites = 0;
 
-        for block in input.iter_blocks(self.blocks) {
+        for block in saf.iter_blocks(self.blocks) {
             sites += block.as_saf_view().sites();
 
-            let (log_likelihood, posterior) = self.em.e_step(sfs, &block);
+            let (log_likelihood, posterior) = self.em.e_step(sfs, block)?;
 
             window.update(posterior);
 
@@ -93,20 +113,31 @@ where
             log_likelihoods.push(log_likelihood);
         }
 
-        (log_likelihoods, sfs.scale(to_f64(sites)))
+        Ok((log_likelihoods, sfs.scale(to_f64(sites))))
     }
 }
 
-impl<const D: usize, R, T> StreamingEm<D, R> for WindowEm<T>
+impl<'a, const D: usize, T, R> EmStep<D, &'a mut R> for WindowEm<T, true>
 where
-    R: Rewind + Sites,
-    for<'a> T: StreamingEm<D, Take<Enumerate<&'a mut R>>>,
+    for<'b> T: EmStep<D, &'b mut R, Error = io::Error>,
+    for<'b, 'c> T: EmStep<D, &'b mut Take<Enumerate<&'c mut R>>, Error = io::Error>,
+    R: ReadSite + Sites,
 {
-    fn stream_e_step(
+    type Error = io::Error;
+
+    fn log_likelihood(
+        &mut self,
+        sfs: Sfs<D>,
+        reader: &'a mut R,
+    ) -> Result<SumOf<LogLikelihood>, Self::Error> {
+        self.em.log_likelihood(sfs, reader)
+    }
+
+    fn e_step(
         &mut self,
         mut sfs: Sfs<D>,
-        reader: &mut R,
-    ) -> io::Result<(Self::Status, USfs<D>)> {
+        reader: &'a mut R,
+    ) -> Result<(Self::Status, USfs<D>), Self::Error> {
         let window = self
             .window
             .get_or_insert_with(|| Window::from_zeros(*sfs.shape(), self.window_size));
@@ -119,7 +150,7 @@ where
         for block_size in block_spec.iter_block_sizes() {
             let mut block_reader = reader.take(block_size);
 
-            let (log_likelihood, posterior) = self.em.stream_e_step(sfs, &mut block_reader)?;
+            let (log_likelihood, posterior) = self.em.e_step(sfs, &mut block_reader)?;
             window.update(posterior);
 
             sfs = window.sum().normalise();

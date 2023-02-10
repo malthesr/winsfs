@@ -2,7 +2,7 @@ use winsfs_core::{
     em::{
         likelihood::{LogLikelihood, SumOf},
         stopping::{Either, Steps, Stop, StoppingRule, WindowLogLikelihoodTolerance},
-        EmStep,
+        WithStatus,
     },
     sfs::Sfs,
 };
@@ -22,7 +22,7 @@ impl StoppingRule for Rule {}
 
 impl<T> Stop<T> for Rule
 where
-    T: EmStep<Status = Vec<SumOf<LogLikelihood>>>,
+    T: WithStatus<Status = Vec<SumOf<LogLikelihood>>>,
 {
     fn stop<const N: usize>(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool {
         match self {

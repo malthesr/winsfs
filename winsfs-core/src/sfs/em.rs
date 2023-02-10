@@ -190,7 +190,7 @@ impl<const D: usize> Sfs<D> {
     /// # Panics
     ///
     /// Panics if any of the sites in the input does not fit the shape of `self`.
-    pub fn stream_e_step<R>(mut self, mut reader: R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
+    pub fn stream_e_step<R>(mut self, reader: &mut R) -> io::Result<(SumOf<LogLikelihood>, USfs<D>)>
     where
         R: ReadSite,
     {
@@ -218,7 +218,7 @@ impl<const D: usize> Sfs<D> {
     /// # Panics
     ///
     /// Panics if any of the sites in the input does not fit the shape of `self`.
-    pub fn stream_log_likelihood<R>(mut self, mut reader: R) -> io::Result<SumOf<LogLikelihood>>
+    pub fn stream_log_likelihood<R>(mut self, reader: &mut R) -> io::Result<SumOf<LogLikelihood>>
     where
         R: ReadSite,
     {

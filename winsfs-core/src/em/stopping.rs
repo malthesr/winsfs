@@ -4,7 +4,7 @@ use crate::sfs::Sfs;
 
 use super::{
     likelihood::{LogLikelihood, SumOf},
-    EmStep, Inspect,
+    WithStatus,
 };
 
 /// A type that can be combined in various ways to create a stopping rule for EM types.
@@ -21,18 +21,6 @@ pub trait StoppingRule {
         Both::new(self, other)
     }
 
-    /// Inspect the stopping rule after each E-step.
-    ///
-    /// This can only be used for inspecting the state of the stopping rule itself. To inspect
-    /// other aspects of the algorithm, see [`EmStep::inspect`].
-    fn inspect<F>(self, f: F) -> Inspect<Self, F>
-    where
-        Self: Sized,
-        F: FnMut(&Self),
-    {
-        Inspect::new(self, f)
-    }
-
     /// Returns a new stopping rule that requires that *either* this *or* another stopping
     /// rule must indicicate convergence before stopping.
     fn or<S>(self, other: S) -> Either<Self, S>
@@ -46,7 +34,7 @@ pub trait StoppingRule {
 /// A type capable of deciding whether an EM algorithm should stop.
 pub trait Stop<T>: StoppingRule
 where
-    T: EmStep,
+    T: WithStatus,
 {
     /// Returns `true` if the algorithm should stop, `false` otherwise.
     fn stop<const N: usize>(&mut self, em: &T, status: &T::Status, sfs: &Sfs<N>) -> bool;
@@ -82,7 +70,7 @@ impl StoppingRule for Steps {}
 
 impl<T> Stop<T> for Steps
 where
-    T: EmStep,
+    T: WithStatus,
 {
     fn stop<const N: usize>(&mut self, _em: &T, _status: &T::Status, _sfs: &Sfs<N>) -> bool {
         self.current_step += 1;
@@ -141,7 +129,7 @@ impl StoppingRule for LogLikelihoodTolerance {}
 
 impl<T> Stop<T> for LogLikelihoodTolerance
 where
-    T: EmStep<Status = SumOf<LogLikelihood>>,
+    T: WithStatus<Status = SumOf<LogLikelihood>>,
 {
     fn stop<const N: usize>(&mut self, _em: &T, status: &T::Status, _sfs: &Sfs<N>) -> bool {
         let new_log_likelihood = status.normalise();
@@ -188,7 +176,7 @@ impl StoppingRule for WindowLogLikelihoodTolerance {}
 
 impl<T> Stop<T> for WindowLogLikelihoodTolerance
 where
-    T: EmStep<Status = Vec<SumOf<LogLikelihood>>>,
+    T: WithStatus<Status = Vec<SumOf<LogLikelihood>>>,
 {
     fn stop<const N: usize>(&mut self, _em: &T, status: &T::Status, _sfs: &Sfs<N>) -> bool {
         let new_log_likelihood = status
@@ -235,7 +223,7 @@ where
 
 impl<T, A, B> Stop<T> for Both<A, B>
 where
-    T: EmStep,
+    T: WithStatus,
     A: Stop<T>,
     B: Stop<T>,
 {
@@ -279,7 +267,7 @@ where
 
 impl<T, A, B> Stop<T> for Either<A, B>
 where
-    T: EmStep,
+    T: WithStatus,
     A: Stop<T>,
     B: Stop<T>,
 {
