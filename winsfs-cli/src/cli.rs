@@ -186,6 +186,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "hd"))]
     #[test]
     fn test_four_paths_errors() {
         let result = try_parse_args("winsfs a b c d");
