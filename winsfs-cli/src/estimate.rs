@@ -68,7 +68,12 @@ impl Cli {
         Rule: Stop<Runner<PAR, STREAM>>,
     {
         let sites = input.sites();
-        let block_spec = get_block_spec(self, sites);
+        let block_spec = get_block_spec(
+            self.blocks,
+            self.block_size,
+            sites,
+            DEFAULT_NUMBER_OF_BLOCKS,
+        );
         let window_size = get_window_size(self.window_size).get();
 
         let (initial_sfs, mut runner) = setup::<_, N, PAR, STREAM>(
@@ -208,11 +213,16 @@ fn get_window_size(window_size: Option<NonZeroUsize>) -> NonZeroUsize {
     window_size
 }
 
-pub fn get_block_spec(args: &Cli, sites: usize) -> Blocks {
-    let spec = match (args.blocks, args.block_size) {
+pub fn get_block_spec(
+    blocks: Option<NonZeroUsize>,
+    block_size: Option<NonZeroUsize>,
+    sites: usize,
+    default_number_of_blocks: usize,
+) -> Blocks {
+    let spec = match (blocks, block_size) {
         (Some(number), None) => Blocks::Number(number.get()),
         (None, Some(block_size)) => Blocks::Size(block_size.get()),
-        (None, None) => Blocks::Number(DEFAULT_NUMBER_OF_BLOCKS),
+        (None, None) => Blocks::Number(default_number_of_blocks),
         (Some(_), Some(_)) => unreachable!("checked by clap"),
     };
 

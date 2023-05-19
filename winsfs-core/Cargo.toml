@@ -15,8 +15,8 @@ default = ["angsd-saf/libdeflate"]
 tempfile = "3.5"
 
 [dependencies]
-angsd-saf = "0.1"
+angsd-saf = { workspace = true }
 byteorder = "1.4"
 nom = "7.1"
-rand = "0.8"
-rayon = "1.6"
+rand = { workspace = true }
+rayon = { workspace = true }

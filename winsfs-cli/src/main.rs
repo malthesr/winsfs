@@ -15,6 +15,9 @@ pub use log_likelihood::LogLikelihood;
 mod shuffle;
 pub use shuffle::Shuffle;
 
+mod split;
+pub use split::Split;
+
 mod stat;
 pub use stat::Stat;
 

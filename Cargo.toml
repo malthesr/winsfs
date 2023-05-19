@@ -4,6 +4,11 @@ members = [
   "winsfs-core",
 ]
 
+[workspace.dependencies]
+angsd-saf = "0.1"
+rand = "0.8"
+rayon = "1"
+
 [profile.release]
 codegen-units = 1
 lto = "fat"

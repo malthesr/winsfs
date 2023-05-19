@@ -20,11 +20,12 @@ hd = []
 pretty_assertions = "1.2"
 
 [dependencies]
-angsd-saf = "0.1"
+angsd-saf = { workspace = true }
 atty = "0.2"
 clap = { version = "4.0", features = ["derive"] }
 log = "0.4"
-rand = "0.8"
+rand = { workspace = true }
+rayon = { workspace = true }
 simple_logger = { version = "2.1", default-features = false, features = ["stderr"] }
 winsfs-core = { version = "0.1", path = "../winsfs-core" }
 

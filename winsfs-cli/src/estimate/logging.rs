@@ -56,12 +56,12 @@ where
     }
 }
 
-type LogFn = fn(&str, usize, &'static str, log::Level, log::Level);
+type LogFn = fn(&str, usize, &str, log::Level, log::Level);
 
 #[derive(Clone)]
 pub struct LoggerBuilder<const READY: bool> {
     log_fn: Option<LogFn>,
-    log_target: &'static str,
+    log_target: String,
     log_counter_level: log::Level,
     log_sfs_level: log::Level,
 }
@@ -77,8 +77,8 @@ impl<const READY: bool> LoggerBuilder<READY> {
         self
     }
 
-    pub fn log_target(mut self, target: &'static str) -> Self {
-        self.log_target = target;
+    pub fn log_target<S: ToString>(mut self, target: S) -> Self {
+        self.log_target = target.to_string();
         self
     }
 }
@@ -119,7 +119,7 @@ impl Default for LoggerBuilder<false> {
     fn default() -> Self {
         Self {
             log_fn: None,
-            log_target: "winsfs",
+            log_target: String::from("winsfs"),
             log_counter_level: log::Level::Info,
             log_sfs_level: log::Level::Debug,
         }
@@ -130,7 +130,7 @@ pub struct Logger<T> {
     inner: T,
     counter: usize,
     log_fn: LogFn,
-    log_target: &'static str,
+    log_target: String,
     log_counter_level: log::Level,
     log_sfs_level: log::Level,
 }
@@ -142,10 +142,10 @@ impl Logger<()> {
 }
 
 impl<T> Logger<T> {
-    fn new(
+    fn new<S: ToString>(
         em: T,
         log_fn: LogFn,
-        log_target: &'static str,
+        log_target: S,
         log_counter_level: log::Level,
         log_sfs_level: log::Level,
     ) -> Self {
@@ -153,7 +153,7 @@ impl<T> Logger<T> {
             inner: em,
             counter: 0,
             log_fn,
-            log_target,
+            log_target: log_target.to_string(),
             log_counter_level,
             log_sfs_level,
         }
@@ -188,7 +188,7 @@ where
         (self.log_fn)(
             &sfs.format_flat(" ", 6),
             self.counter,
-            self.log_target,
+            &self.log_target,
             self.log_counter_level,
             self.log_sfs_level,
         );
@@ -200,7 +200,7 @@ where
 fn block_log_fn(
     fmt_sfs: &str,
     block: usize,
-    target: &'static str,
+    target: &str,
     block_level: log::Level,
     sfs_level: log::Level,
 ) {
@@ -211,7 +211,7 @@ fn block_log_fn(
 fn epoch_log_fn(
     fmt_sfs: &str,
     epoch: usize,
-    target: &'static str,
+    target: &str,
     epoch_level: log::Level,
     sfs_level: log::Level,
 ) {
